@@ -44,3 +44,20 @@ HU-реализация (первое применение - Калман v2):
 Ещё несут старый оффер-слой (программа/полцены/оплата при получении) - перепривязать при следующем касании или по запросу:
 - HU: Имре (машинист, старый лендинг Немета Золтана - нужна и перепривязка врача!), Калман v1, Дьюла (дальнобойщик)
 - BG: Атанас (Стоянов), Марин (Мангъров)
+
+## 5. Картинки: РЕАЛИЗМ-КАНОН (эталон от заказчика, 06.08.2026 - «взять за основу»)
+
+Единый хвост, клеится к КАЖДОМУ сценарному промту. Оригинал (RU, дословно):
+
+> Фотография должна выглядеть как настоящий провинциальный снимок с дешёвого телефона: лёгкая смазанность от вытянутой руки, неидеальный фокус, мягкая нерезкость на лицах, небольшая грязноватая зернистость, шум камеры, слабая детализация кожи, JPEG-сжатие, чуть мыльная картинка, неровный баланс белого, пересветы от солнца, тени на лицах, лёгкий наклон камеры, неидеальная композиция, ощущение случайного селфи из личной переписки или соцсетей. Кадр должен быть живым, шероховатым, настоящим, с бытовой неаккуратностью, без глянца, без профессионального света, без кинематографичности, без идеальной резкости.
+> Negative prompt: профессиональная фотосессия, студийный свет, идеальная резкость, глянцевая картинка, cinematic, fashion photography, рекламный кадр, слишком красивое лицо, идеальная кожа, пластик, 4K, ultra detailed, hyperrealistic skin, professional camera, DSLR, expensive lens, dramatic lighting, color grading, постановочная поза, идеальная композиция, чистый фон, слишком высокое качество, sharp focus, perfect symmetry, beauty retouching, magazine photo.
+
+EN-версия для генераторов:
+
+> The photo must look like a genuine provincial snapshot taken on a cheap phone: slight motion blur from an outstretched arm, imperfect focus, soft blur on faces, mild dirty grain, camera noise, weak skin detail, JPEG compression artifacts, slightly soapy image, uneven white balance, sun overexposure, harsh shadows on faces, slight camera tilt, imperfect composition, the feel of a random selfie from a private chat or social media feed. The frame must be alive, rough, real, with everyday untidiness - no gloss, no professional light, no cinematic look, no perfect sharpness.
+> Negative prompt: professional photoshoot, studio light, perfect sharpness, glossy image, cinematic, fashion photography, advertising shot, too-beautiful face, perfect skin, plastic skin, 4K, ultra detailed, hyperrealistic skin, professional camera, DSLR, expensive lens, dramatic lighting, color grading, staged pose, perfect composition, clean background, too high quality, sharp focus, perfect symmetry, beauty retouching, magazine photo, text, watermark, logos
+
+Правила сборки промта: [короткое сценарное ядро: кто/где/что в кадре, вертикаль 4:5] + реализм-хвост.
+В сценарном ядре НЕ писать глянцевую лексику (visible pores, shallow depth of field, golden hour glow и т.п.) - она спорит с хвостом.
+Серия под один текст: same face, same person. Кириллицу/надписи в кадре не просить. Логотипы не просить.
+Подбор сцены под угол: брошенность/предательство - raw-крупняк плачущего; профессия в кадре; payoff-кадр, закрывающий петлю хука; предметный без лица - запасной для модерации.
