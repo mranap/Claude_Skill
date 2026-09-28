@@ -14,6 +14,7 @@ import { SystemLogModule } from './modules/system-log/system-log.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { MetaModule } from './modules/meta/meta.module';
+import { StatisticsCoreModule } from './modules/statistics/statistics-core.module';
 
 /** Infrastructure shared by the API, worker and scheduler processes. */
 @Module({
@@ -33,6 +34,7 @@ import { MetaModule } from './modules/meta/meta.module';
     StorageModule,
     ActivityModule,
     MetaModule,
+    StatisticsCoreModule,
   ],
 })
 export class CoreModule {}

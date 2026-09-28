@@ -47,6 +47,8 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(600000).default(60000),
 
+  TELEGRAM_API_BASE_URL: z.url().default('https://api.telegram.org'),
+
   TMP_DIR: z.string().default('/tmp/adpilot'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   FFMPEG_PATH: z.string().default('ffmpeg'),

@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { SettingsService } from '../modules/settings/settings.service';
 import { TelegramBotService } from '../modules/telegram/telegram-bot.service';
 import { TelegramLinkService } from '../modules/telegram/telegram-link.service';
@@ -13,7 +13,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * scheduler leader so updates are consumed by exactly one process; the offset is persisted in Redis.
  */
 @Injectable()
-export class TelegramPollerService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class TelegramPollerService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new AppLogger('TelegramPoller');
   private stopped = false;
 
@@ -29,7 +29,7 @@ export class TelegramPollerService implements OnApplicationBootstrap, OnApplicat
     void this.loop();
   }
 
-  onApplicationShutdown(): void {
+  onModuleDestroy(): void {
     this.stopped = true;
   }
 

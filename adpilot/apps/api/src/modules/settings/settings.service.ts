@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable, OnModuleInit } from '@nestjs/common';
 import {
   SECRET_SETTING_FIELDS,
   SETTINGS_SCHEMAS,
@@ -28,7 +28,7 @@ export interface SecretPatch {
  * (API replicas, workers, scheduler) through Redis pub/sub.
  */
 @Injectable()
-export class SettingsService implements OnModuleInit, OnModuleDestroy {
+export class SettingsService implements OnModuleInit, BeforeApplicationShutdown {
   private readonly logger = new AppLogger('SettingsService');
   private readonly cache = new Map<SettingKey, { value: Stored; at: number }>();
   private subscriber: Redis | null = null;
@@ -52,7 +52,7 @@ export class SettingsService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async beforeApplicationShutdown(): Promise<void> {
     await this.subscriber?.quit().catch(() => undefined);
   }
 

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { AppLogger } from '../../../infra/logger/logger';
 import { sanitizeString } from '../../../infra/logger/sanitize';
@@ -24,12 +24,15 @@ export interface MetaApiLogEntry {
   jobId?: string;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidOrNull = (v: string | undefined) => (v && UUID.test(v) ? v : null);
+
 /**
  * Technical log of every Meta API call (no tokens, no payloads with secrets). Entries are buffered and
  * written in batches to keep the hot path fast.
  */
 @Injectable()
-export class MetaApiLogService implements OnModuleDestroy {
+export class MetaApiLogService implements BeforeApplicationShutdown {
   private readonly logger = new AppLogger('MetaApiLog');
   private buffer: Prisma.MetaApiLogCreateManyInput[] = [];
   private timer: NodeJS.Timeout | null = null;
@@ -38,8 +41,9 @@ export class MetaApiLogService implements OnModuleDestroy {
 
   record(e: MetaApiLogEntry): void {
     this.buffer.push({
-      userId: e.userId ?? null,
-      profileId: e.profileId ?? null,
+      // Unsaved connections (token/proxy tests) use a pseudo profile id; only real ids reference a profile.
+      userId: uuidOrNull(e.userId),
+      profileId: uuidOrNull(e.profileId),
       metaAccountId: e.metaAccountId ?? null,
       method: e.method,
       category: e.category,
@@ -71,11 +75,15 @@ export class MetaApiLogService implements OnModuleDestroy {
     try {
       await this.prisma.metaApiLog.createMany({ data: batch });
     } catch (err) {
-      this.logger.error('Failed to write Meta API logs', { err, count: batch.length });
+      // One bad row must not cost the whole batch: fall back to row-by-row inserts.
+      let dropped = 0;
+      for (const row of batch) await this.prisma.metaApiLog.create({ data: row }).catch(() => dropped++);
+      if (dropped) this.logger.error('Failed to write Meta API logs', { err, dropped, count: batch.length });
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /** Shutdown phase 2: write the remaining buffered log rows before PostgreSQL disconnects. */
+  async beforeApplicationShutdown(): Promise<void> {
     await this.flush();
   }
 }

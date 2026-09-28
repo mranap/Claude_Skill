@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable } from '@nestjs/common';
 import { JobsOptions, Queue } from 'bullmq';
 import { RedisService } from '../redis/redis.service';
 import { AppConfig } from '../../config/app-config';
@@ -17,7 +17,7 @@ const DEFAULT_JOB_OPTIONS: JobsOptions = {
  * (BullMQ ignores `add` when a job with the same id already exists).
  */
 @Injectable()
-export class QueueService implements OnModuleDestroy {
+export class QueueService implements BeforeApplicationShutdown {
   private readonly queues = new Map<QueueName, Queue>();
 
   constructor(
@@ -51,7 +51,8 @@ export class QueueService implements OnModuleDestroy {
     return job.id;
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /** Shutdown phase 2: running jobs (phase 1) may still enqueue follow-up jobs until they finish. */
+  async beforeApplicationShutdown(): Promise<void> {
     await Promise.allSettled([...this.queues.values()].map((q) => q.close()));
   }
 }

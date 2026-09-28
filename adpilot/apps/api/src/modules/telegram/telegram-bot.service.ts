@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { SettingsService } from '../settings/settings.service';
 import { AppError } from '../../common/errors/app-error';
+import { AppConfig } from '../../config/app-config';
 
-const API_BASE = 'https://api.telegram.org';
+/** Telegram counts at most 4096 characters of message text (after entity parsing). */
+const MAX_MESSAGE_CHARS = 4096;
 
 export type TelegramFailureKind = 'NOT_CONFIGURED' | 'RATE_LIMITED' | 'TEMPORARY' | 'PERMANENT' | 'CHAT_UNAVAILABLE' | 'AMBIGUOUS';
 
@@ -31,7 +33,14 @@ export interface TelegramUpdate {
 /** Thin client for the Telegram Bot API (token from Super Admin settings, stored encrypted). */
 @Injectable()
 export class TelegramBotService {
-  constructor(private readonly settings: SettingsService) {}
+  private readonly apiBase: string;
+
+  constructor(
+    private readonly settings: SettingsService,
+    config: AppConfig,
+  ) {
+    this.apiBase = config.env.TELEGRAM_API_BASE_URL.replace(/\/+$/, '');
+  }
 
   async isConfigured(): Promise<boolean> {
     const s = await this.settings.get('telegram');
@@ -49,7 +58,7 @@ export class TelegramBotService {
     const token = tokenOverride ?? (await this.token());
     try {
       const res = await axios.post<{ ok: boolean; result: T; description?: string }>(
-        `${API_BASE}/bot${token}/${method}`,
+        `${this.apiBase}/bot${token}/${method}`,
         payload,
         { timeout: timeoutMs, proxy: false },
       );
@@ -66,7 +75,7 @@ export class TelegramBotService {
   async sendMessage(chatId: string, html: string): Promise<{ message_id: number }> {
     return this.call('sendMessage', {
       chat_id: chatId,
-      text: html.slice(0, 4096),
+      text: fitTelegramHtml(html),
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
     });
@@ -120,4 +129,18 @@ export function assertTelegramConfigured(configured: boolean): void {
 /** Escapes text for Telegram's HTML parse mode. */
 export function tgEscape(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function tgUnescape(value: string): string {
+  return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+}
+
+/**
+ * Keeps a message within Telegram's limit without producing broken HTML: a message that is too long is
+ * converted to plain (escaped) text and shortened, instead of being cut in the middle of a tag or entity.
+ */
+export function fitTelegramHtml(html: string): string {
+  if (html.length <= MAX_MESSAGE_CHARS) return html;
+  const plain = tgUnescape(html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ''));
+  return tgEscape(plain.slice(0, MAX_MESSAGE_CHARS - 1) + '…');
 }

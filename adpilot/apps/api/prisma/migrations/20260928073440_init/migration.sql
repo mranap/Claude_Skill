@@ -62,7 +62,7 @@ CREATE TYPE "RuleAction" AS ENUM ('PAUSE', 'START', 'INCREASE_BUDGET', 'DECREASE
 CREATE TYPE "RuleTimeRange" AS ENUM ('TODAY', 'YESTERDAY', 'LAST_N_HOURS', 'LAST_N_DAYS');
 
 -- CreateEnum
-CREATE TYPE "RuleExecutionResult" AS ENUM ('SUCCESS', 'FAILED', 'SKIPPED', 'DRY_RUN', 'NOTIFIED');
+CREATE TYPE "RuleExecutionResult" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'SKIPPED', 'DRY_RUN', 'NOTIFIED');
 
 -- CreateEnum
 CREATE TYPE "ActorType" AS ENUM ('USER', 'SYSTEM');
@@ -1381,3 +1381,26 @@ ALTER TABLE "bulk_operations" ADD CONSTRAINT "bulk_operations_userId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "activity_events" ADD CONSTRAINT "activity_events_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Custom SQL (not expressible in the Prisma schema)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Audit log is append-only: rows can be inserted and (by the retention job) deleted, never modified.
+CREATE OR REPLACE FUNCTION audit_logs_block_update() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_logs is append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER audit_logs_no_update
+  BEFORE UPDATE ON "audit_logs"
+  FOR EACH ROW EXECUTE FUNCTION audit_logs_block_update();
+
+-- Case-insensitive lookups by e-mail are always done on the normalised (lower-case) value; enforce it.
+ALTER TABLE "users" ADD CONSTRAINT users_email_lowercase CHECK ("email" = lower("email"));
+
+-- Money and counters are never negative.
+ALTER TABLE "insights_daily" ADD CONSTRAINT insights_daily_non_negative
+  CHECK ("spend" >= 0 AND "impressions" >= 0 AND "clicks" >= 0 AND "linkClicks" >= 0);
+ALTER TABLE "users" ADD CONSTRAINT users_storage_non_negative CHECK ("storageUsedBytes" >= 0);

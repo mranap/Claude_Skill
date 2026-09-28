@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import IORedis, { Redis, RedisOptions } from 'ioredis';
 import { AppConfig } from '../../config/app-config';
 
@@ -7,7 +7,7 @@ import { AppConfig } from '../../config/app-config';
  * BullMQ gets its own connections (it requires `maxRetriesPerRequest: null`).
  */
 @Injectable()
-export class RedisService implements OnModuleDestroy {
+export class RedisService implements OnApplicationShutdown {
   readonly client: Redis;
   private readonly extra: Redis[] = [];
 
@@ -43,7 +43,8 @@ export class RedisService implements OnModuleDestroy {
     return this.create(`bull-${name}`, { maxRetriesPerRequest: null });
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /** Shutdown phase 3 (last): consumers and producers have stopped by now. */
+  async onApplicationShutdown(): Promise<void> {
     await Promise.allSettled([this.client.quit(), ...this.extra.map((c) => c.quit())]);
   }
 }

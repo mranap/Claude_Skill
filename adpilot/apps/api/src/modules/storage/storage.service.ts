@@ -32,6 +32,10 @@ export class StorageService {
         env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
           ? { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY }
           : undefined,
+      // Only send/validate the new default CRC checksums when the operation requires them: several
+      // S3-compatible providers (older MinIO, Wasabi, R2 at times) reject the "aws-chunked" trailers.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 

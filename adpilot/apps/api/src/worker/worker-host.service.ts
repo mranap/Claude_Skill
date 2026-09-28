@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { Job, Worker } from 'bullmq';
 import { hostname } from 'node:os';
 import type { SettingValue } from '@adpilot/shared';
@@ -20,7 +20,7 @@ type QueueSettings = SettingValue<'queue'>;
  * scaled on dedicated containers. Concurrency comes from Super Admin → Queue settings.
  */
 @Injectable()
-export class WorkerHostService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class WorkerHostService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new AppLogger('WorkerHost');
   private readonly workers: Worker[] = [];
   private heartbeat: NodeJS.Timeout | null = null;
@@ -111,7 +111,11 @@ export class WorkerHostService implements OnApplicationBootstrap, OnApplicationS
     await this.redis.client.set(key, JSON.stringify(payload), 'EX', 45);
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /**
+   * Shutdown phase 1 (see docs/ARCHITECTURE.md → Graceful shutdown): stop consuming and wait for the active
+   * jobs while Redis and PostgreSQL are still connected; infrastructure closes in a later phase.
+   */
+  async onModuleDestroy(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat);
     // close() waits for active jobs to finish (graceful shutdown on SIGTERM).
     await Promise.allSettled(this.workers.map((w) => w.close()));

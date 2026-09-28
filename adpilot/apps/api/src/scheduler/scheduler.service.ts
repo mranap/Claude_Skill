@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { hostname } from 'node:os';
 import { LockHandle, LockService } from '../infra/locks/lock.service';
 import { RedisService } from '../infra/redis/redis.service';
@@ -18,7 +18,7 @@ const TICK_MS = 15_000;
  * split-brain moment cannot enqueue the same work twice (BullMQ job ids are deterministic as well).
  */
 @Injectable()
-export class SchedulerService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new AppLogger('Scheduler');
   private lock: LockHandle | null = null;
   private timer: NodeJS.Timeout | null = null;
@@ -83,7 +83,8 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
     return this.lock !== null;
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /** Shutdown phase 1: stop ticking and hand leadership over immediately (Redis is still connected). */
+  async onModuleDestroy(): Promise<void> {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     if (this.lock) await this.locks.release(this.lock).catch(() => undefined);

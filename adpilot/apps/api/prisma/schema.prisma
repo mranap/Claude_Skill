@@ -196,6 +196,7 @@ enum RuleTimeRange {
 }
 
 enum RuleExecutionResult {
+  PENDING
   SUCCESS
   FAILED
   SKIPPED

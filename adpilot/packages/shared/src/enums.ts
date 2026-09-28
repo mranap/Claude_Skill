@@ -158,7 +158,7 @@ export type RuleAction = (typeof RULE_ACTIONS)[number];
 export const RULE_TIME_RANGES = ['TODAY', 'YESTERDAY', 'LAST_N_HOURS', 'LAST_N_DAYS'] as const;
 export type RuleTimeRange = (typeof RULE_TIME_RANGES)[number];
 
-export const RULE_EXECUTION_RESULTS = ['SUCCESS', 'FAILED', 'SKIPPED', 'DRY_RUN', 'NOTIFIED'] as const;
+export const RULE_EXECUTION_RESULTS = ['PENDING', 'SUCCESS', 'FAILED', 'SKIPPED', 'DRY_RUN', 'NOTIFIED'] as const;
 export type RuleExecutionResult = (typeof RULE_EXECUTION_RESULTS)[number];
 
 export const DRAFT_STATUSES = ['DRAFT', 'LAUNCHED', 'ARCHIVED'] as const;

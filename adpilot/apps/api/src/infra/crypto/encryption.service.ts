@@ -4,6 +4,7 @@ import { AppConfig } from '../../config/app-config';
 
 const ALGO = 'aes-256-gcm';
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 const PREFIX = 'enc1';
 
 /**
@@ -40,7 +41,7 @@ export class EncryptionService {
   encrypt(plaintext: string, aad: string): string {
     const key = this.keys.get(this.activeKeyId)!;
     const iv = randomBytes(IV_BYTES);
-    const cipher = createCipheriv(ALGO, key, iv);
+    const cipher = createCipheriv(ALGO, key, iv, { authTagLength: TAG_BYTES });
     cipher.setAAD(Buffer.from(aad, 'utf8'));
     const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -55,9 +56,13 @@ export class EncryptionService {
     const [, keyId, ivB64, tagB64, ctB64] = parts as [string, string, string, string, string];
     const key = this.keys.get(keyId);
     if (!key) throw new Error(`Encryption key "${keyId}" is not configured`);
-    const decipher = createDecipheriv(ALGO, key, Buffer.from(ivB64, 'base64url'));
+    const iv = Buffer.from(ivB64, 'base64url');
+    const tag = Buffer.from(tagB64, 'base64url');
+    // Reject truncated tags explicitly: GCM would otherwise accept shorter (forgeable) tags.
+    if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) throw new Error('Malformed encrypted value');
+    const decipher = createDecipheriv(ALGO, key, iv, { authTagLength: TAG_BYTES });
     decipher.setAAD(Buffer.from(aad, 'utf8'));
-    decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
+    decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64url')), decipher.final()]).toString('utf8');
   }
 
