@@ -4,7 +4,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { MetaGraphClient } from '../meta/graph/meta-graph.client';
 import { MetaProfileStatusService } from '../meta/meta-profile-status.service';
-import { MetaApiError } from '../meta/graph/meta-errors';
+import { MetaApiError, MetaNetworkError } from '../meta/graph/meta-errors';
 import { AuditService } from '../audit/audit.service';
 import { ActivityService } from '../activity/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -34,6 +34,25 @@ export interface ActionSource {
   actorUserId?: string;
   ruleId?: string;
   ruleName?: string;
+}
+
+/** Lock held while a change to one object is decided and applied (automated rules and manual budget changes). */
+export const entityLockName = (metaId: string) => `entity-action:${metaId}`;
+export const ENTITY_LOCK_TTL_MS = 120_000;
+
+/**
+ * Whether a failed `setStatus`/`setBudget` may nevertheless have changed the object in Meta: the request was
+ * sent but its answer was lost, Meta answered with an unknown or server-side error, or the failure came after
+ * the call (local bookkeeping). Meta's refusals (rate limit, validation, permission, policy, not found...) and
+ * requests that never left are definite: nothing was changed.
+ */
+export function mayHaveBeenApplied(err: unknown): boolean {
+  const source = err instanceof AppError && err.cause !== undefined ? err.cause : err;
+  if (source instanceof MetaNetworkError) return source.sent;
+  const category = source instanceof MetaApiError ? source.category : err instanceof AppError ? err.meta?.category : undefined;
+  if (category) return category === 'NETWORK' || category === 'TRANSIENT' || category === 'UNKNOWN';
+  // Our own checks (AppError without Meta details) run before the call; anything else is unexplained.
+  return !(err instanceof AppError);
 }
 
 /**
@@ -240,6 +259,7 @@ export class EntityActionsService {
       return new AppError(code, err.details.friendlyMessage, undefined, {
         meta: err.details,
         retryAfterSeconds: err.details.retryAfterMs ? Math.ceil(err.details.retryAfterMs / 1000) : undefined,
+        cause: err,
       });
     }
     return err;

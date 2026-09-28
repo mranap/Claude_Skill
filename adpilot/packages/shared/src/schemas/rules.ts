@@ -34,6 +34,13 @@ export const RULE_METRIC_LABELS: Record<RuleMetric, { label: string; money: bool
   cost_per_result: { label: 'Cost per result', money: true },
 };
 
+/**
+ * Metrics built from conversions. "Last N hours" needs the hourly Insights breakdown, which is a "Type 1"
+ * breakdown for off-Meta action metrics: Insights does not return website (Pixel) leads and purchases with it,
+ * so these metrics would read as zero. They are only available for daily time ranges.
+ */
+export const RULE_METRICS_DAILY_ONLY: readonly RuleMetric[] = ['leads', 'cpl', 'purchases', 'cpa', 'roas', 'results', 'cost_per_result'];
+
 export const RULE_OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq', 'between'] as const;
 export type RuleOperator = (typeof RULE_OPERATORS)[number];
 export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
@@ -100,6 +107,16 @@ function refineRule<T extends z.infer<typeof ruleBaseSchema>>(v: T, ctx: z.Refin
     ctx.addIssue({ code: 'custom', path: ['timeRangeValue'], message: 'Enter the number of hours/days' });
   }
   if (v.timeRange === 'LAST_N_HOURS' && v.timeRangeValue && v.timeRangeValue > 48) ctx.addIssue({ code: 'custom', path: ['timeRangeValue'], message: 'Up to 48 hours' });
+  if (v.timeRange === 'LAST_N_HOURS') {
+    v.conditions.forEach((c, i) => {
+      if (!RULE_METRICS_DAILY_ONLY.includes(c.metric)) return;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['conditions', i, 'metric'],
+        message: `${RULE_METRIC_LABELS[c.metric].label} is not available for "Last N hours": Meta does not report website conversions by hour. Use "Today" or "Last N days".`,
+      });
+    });
+  }
   if (v.minBudget && v.maxBudget && Number(v.minBudget) > Number(v.maxBudget)) ctx.addIssue({ code: 'custom', path: ['minBudget'], message: 'Minimum budget is greater than maximum budget' });
 }
 
