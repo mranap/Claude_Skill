@@ -108,4 +108,21 @@ describe('rule metrics', () => {
     expect(ruleCreateSchema.safeParse({ ...base, conditions: [{ metric: 'ctr', operator: 'lt', value: '0.5' }, { metric: 'clicks', operator: 'lt', value: '3' }] }).success).toBe(true);
     expect(ruleCreateSchema.safeParse({ ...base, timeRange: 'TODAY', conditions: [{ metric: 'leads', operator: 'lt', value: '1' }] }).success).toBe(true);
   });
+
+  it('accepts only a maximum change per execution the database can store (0 < % <= 500, 2 decimals)', () => {
+    const rule = (maxBudgetChangePercent: string) =>
+      ruleCreateSchema.safeParse({
+        name: 'r',
+        targetLevel: 'ADSET',
+        scope: { adAccountIds: ['00000000-0000-4000-8000-000000000000'] },
+        timeRange: 'TODAY',
+        action: 'INCREASE_BUDGET',
+        actionValue: '20',
+        conditions: [{ metric: 'spend', operator: 'gt', value: '50' }],
+        maxBudgetChangePercent,
+      }).success;
+    expect(rule('25')).toBe(true);
+    expect(rule('12.5')).toBe(true);
+    for (const bad of ['0', '501', '100000', '12.345']) expect(rule(bad)).toBe(false);
+  });
 });

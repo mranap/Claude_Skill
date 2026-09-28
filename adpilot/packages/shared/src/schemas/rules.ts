@@ -53,6 +53,8 @@ export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
 };
 
 const decimalString = z.string().trim().regex(/^\d{1,12}(\.\d{1,4})?$/, 'Enter a number');
+/** A percentage as stored (Decimal(7,2)). */
+const percentString = z.string().trim().regex(/^\d{1,3}(\.\d{1,2})?$/, 'Enter a percentage like 20 or 12.5');
 
 export const ruleConditionSchema = z
   .object({
@@ -87,7 +89,7 @@ export const ruleBaseSchema = z.object({
   action: z.enum(['PAUSE', 'START', 'INCREASE_BUDGET', 'DECREASE_BUDGET', 'SET_BUDGET', 'NOTIFY_ONLY']),
   /** Percent for INCREASE/DECREASE, amount (major units) for SET. */
   actionValue: decimalString.optional(),
-  maxBudgetChangePercent: decimalString.optional(),
+  maxBudgetChangePercent: percentString.optional(),
   minBudget: moneyStringSchema.optional(),
   maxBudget: moneyStringSchema.optional(),
   cooldownMinutes: z.number().int().min(30).max(7 * 24 * 60).default(360),
@@ -116,6 +118,9 @@ function refineRule<T extends z.infer<typeof ruleBaseSchema>>(v: T, ctx: z.Refin
         message: `${RULE_METRIC_LABELS[c.metric].label} is not available for "Last N hours": Meta does not report website conversions by hour. Use "Today" or "Last N days".`,
       });
     });
+  }
+  if (v.maxBudgetChangePercent && (Number(v.maxBudgetChangePercent) <= 0 || Number(v.maxBudgetChangePercent) > 500)) {
+    ctx.addIssue({ code: 'custom', path: ['maxBudgetChangePercent'], message: 'Use 1–500 %' });
   }
   if (v.minBudget && v.maxBudget && Number(v.minBudget) > Number(v.maxBudget)) ctx.addIssue({ code: 'custom', path: ['minBudget'], message: 'Minimum budget is greater than maximum budget' });
 }
