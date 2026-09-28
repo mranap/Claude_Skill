@@ -5,6 +5,7 @@ import {
   ruleCreateSchema,
   ruleExecutionsQuerySchema,
   ruleListQuerySchema,
+  majorToMinor,
   minorToMajor,
 } from '@adpilot/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -161,6 +162,17 @@ export class RulesService {
       throw AppError.validation(`Money amounts are ambiguous across currencies (${currencies.join(', ')}). Select ad accounts with the same currency.`, [
         { path: 'scope.adAccountIds', message: 'Use accounts with one currency' },
       ]);
+    }
+    // Budget amounts must exist in the account currency (no decimals for JPY, at most 2 for USD), otherwise
+    // every run of the rule would fail to convert them.
+    const amounts = { actionValue: input.action === 'SET_BUDGET' ? input.actionValue : undefined, minBudget: input.minBudget, maxBudget: input.maxBudget };
+    for (const [path, amount] of Object.entries(amounts)) {
+      if (amount === undefined) continue;
+      try {
+        majorToMinor(amount, currencies[0]);
+      } catch (err) {
+        throw AppError.validation((err as Error).message, [{ path, message: (err as Error).message }]);
+      }
     }
     return {
       name: input.name,

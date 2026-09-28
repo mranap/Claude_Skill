@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { DATE_RANGE_KEYS } from '@adpilot/shared';
 import { CurrentUser, RateLimit, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
@@ -51,12 +51,17 @@ export class CampaignsController {
     return this.actions.setStatus(e, body.status, { source: 'USER', actorUserId: user.id });
   }
 
+  /** Budget change; an optional `Idempotency-Key` header makes a repeated request return the first outcome. */
   @Post('actions/budget')
   @HttpCode(200)
   @RequirePermissions('app.campaigns.manage')
   @RateLimit({ bucket: 'entity-budget', limit: 60, windowSeconds: 60 })
-  changeBudget(@CurrentUser() user: AuthUser, @Body(zod(budgetChangeSchema)) body: z.infer<typeof budgetChangeSchema>) {
-    return this.campaigns.changeBudget(user.id, body);
+  changeBudget(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(budgetChangeSchema)) body: z.infer<typeof budgetChangeSchema>,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+  ) {
+    return this.campaigns.changeBudget(user.id, body, idempotencyKey);
   }
 
   /** Bulk pause/start with idempotency key and explicit confirmation. */

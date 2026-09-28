@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { z } from 'zod';
-import { DATE_RANGE_KEYS, applyPercent, majorToMinor, minorToMajor, paginationQuerySchema, type MetricsDto } from '@adpilot/shared';
+import { DATE_RANGE_KEYS, applyPercent, idempotencyKeySchema, majorToMinor, minorToMajor, paginationQuerySchema, type MetricsDto } from '@adpilot/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { LockService } from '../../infra/locks/lock.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { AppError } from '../../common/errors/app-error';
 import { StatsQueryService } from '../statistics/stats-query.service';
 import { toMetrics } from '../statistics/metrics';
 import { ActivityService } from '../activity/activity.service';
-import { EntityActionsService } from './entity-actions.service';
+import { ENTITY_LOCK_TTL_MS, EntityActionsService, entityLockName, mayHaveBeenApplied } from './entity-actions.service';
 import { Prisma } from '../../generated/prisma/client';
 
 export const campaignListQuerySchema = paginationQuerySchema.extend({
@@ -32,6 +34,16 @@ export const budgetChangeSchema = z.object({
 
 const METRIC_SORT = new Set(['spend', 'leads', 'cpl', 'ctr', 'cpc', 'impressions', 'purchases', 'results']);
 
+/** How long the outcome of a budget change is kept for requests repeated with the same Idempotency-Key. */
+const IDEMPOTENCY_TTL_MS = 24 * 3600_000;
+
+interface BudgetChangeResult {
+  field: 'daily_budget' | 'lifetime_budget';
+  before: string | null;
+  after: string | null;
+  currency: string;
+}
+
 @Injectable()
 export class CampaignsService {
   constructor(
@@ -39,6 +51,8 @@ export class CampaignsService {
     private readonly stats: StatsQueryService,
     private readonly actions: EntityActionsService,
     private readonly activity: ActivityService,
+    private readonly locks: LockService,
+    private readonly redis: RedisService,
   ) {}
 
   async list(userId: string, q: z.infer<typeof campaignListQuerySchema>) {
@@ -166,28 +180,72 @@ export class CampaignsService {
     };
   }
 
-  async changeBudget(userId: string, input: z.infer<typeof budgetChangeSchema>) {
-    // Relative changes and the large-change check start from the real current budget in Meta.
-    const e = await this.actions.refresh(await this.actions.resolve(userId, input.level, input.id));
-    const current = e.dailyBudget && e.dailyBudget > 0n ? e.dailyBudget : e.lifetimeBudget && e.lifetimeBudget > 0n ? e.lifetimeBudget : null;
-    if (current === null) {
-      throw AppError.validation(e.level === 'CAMPAIGN' ? 'This campaign uses ad set budgets' : 'This ad set uses the campaign budget');
+  /**
+   * Manual budget change. With an `Idempotency-Key` header, a repeated request (a retry after a timeout, a
+   * double submit) returns the first outcome instead of applying a relative change ("+20 %") a second time.
+   * A request that changed nothing (invalid value, large change not yet confirmed) does not use up its key.
+   */
+  async changeBudget(userId: string, input: z.infer<typeof budgetChangeSchema>, idempotencyKey?: string): Promise<BudgetChangeResult> {
+    if (idempotencyKey === undefined) return this.applyBudgetChange(userId, input);
+    const parsed = idempotencyKeySchema.safeParse(idempotencyKey);
+    if (!parsed.success) throw AppError.validation('Invalid Idempotency-Key header', [{ path: 'Idempotency-Key', message: 'Use 8–100 letters, digits, "-" or "_"' }]);
+    const key = this.redis.key('idempotency', 'budget', userId, parsed.data);
+    const request = JSON.stringify([input.level, input.id, input.mode, input.value]);
+    if ((await this.redis.client.set(key, JSON.stringify({ request }), 'PX', IDEMPOTENCY_TTL_MS, 'NX')) !== 'OK') {
+      const stored = JSON.parse((await this.redis.client.get(key)) ?? '{}') as { request?: string; response?: BudgetChangeResult };
+      if (stored.request !== undefined && stored.request !== request) {
+        throw new AppError('BAD_REQUEST', 'This Idempotency-Key was already used for a different budget change', undefined, { status: 422 });
+      }
+      if (stored.response) return stored.response;
+      throw AppError.conflict('This budget change is still being applied, or its result is unknown. Reload the budget before changing it again.');
     }
-    let next: bigint;
-    if (input.mode === 'SET') next = majorToMinor(input.value, e.currency);
-    else if (input.mode === 'INCREASE_PCT') next = applyPercent(current, input.value);
-    else next = applyPercent(current, `-${input.value}`);
-    const changePct = current > 0n ? Number(((next - current) * 10000n) / current) / 100 : 100;
-    if (Math.abs(changePct) > 50 && !input.confirmLargeChange) {
-      throw AppError.conflict(`This changes the budget by ${changePct.toFixed(1)} %. Confirm the large change to continue.`, {
-        requiresConfirmation: true,
-        before: minorToMajor(current, e.currency),
-        after: minorToMajor(next, e.currency),
-        currency: e.currency,
-        changePct,
-      });
+    const progress = { sending: false };
+    try {
+      const response = await this.applyBudgetChange(userId, input, progress);
+      await this.redis.client.set(key, JSON.stringify({ request, response }), 'PX', IDEMPOTENCY_TTL_MS).catch(() => undefined);
+      return response;
+    } catch (err) {
+      // Nothing was changed: the key can be used again. Otherwise it stays taken, so that a retry can never
+      // apply the change twice.
+      if (!progress.sending || !mayHaveBeenApplied(err)) await this.redis.client.del(key).catch(() => undefined);
+      throw err;
     }
-    const res = await this.actions.setBudget(e, next, { source: 'USER', actorUserId: userId }, { fresh: true });
-    return { field: res.field, before: minorToMajor(res.before, e.currency), after: minorToMajor(res.after, e.currency), currency: e.currency };
+  }
+
+  /** `progress.sending` is set once the new budget goes to Meta: only a failure from then on can hide a change. */
+  private async applyBudgetChange(userId: string, input: z.infer<typeof budgetChangeSchema>, progress = { sending: false }): Promise<BudgetChangeResult> {
+    const resolved = await this.actions.resolve(userId, input.level, input.id);
+    // Under the lock automated rules take: the change is computed from the live budget and applied with no
+    // other change to the object (a rule, another tab) in between.
+    const locked = await this.locks.withLock(entityLockName(resolved.metaId), ENTITY_LOCK_TTL_MS, async () => {
+      // Relative changes and the large-change check start from the real current budget in Meta.
+      const e = await this.actions.refresh(resolved);
+      const current = e.dailyBudget && e.dailyBudget > 0n ? e.dailyBudget : e.lifetimeBudget && e.lifetimeBudget > 0n ? e.lifetimeBudget : null;
+      if (current === null) {
+        throw AppError.validation(e.level === 'CAMPAIGN' ? 'This campaign uses ad set budgets' : 'This ad set uses the campaign budget');
+      }
+      let next: bigint;
+      try {
+        next = input.mode === 'SET' ? majorToMinor(input.value, e.currency) : applyPercent(current, input.mode === 'INCREASE_PCT' ? input.value : `-${input.value}`);
+      } catch (err) {
+        // More decimals than the currency has (e.g. any for JPY), or a percentage out of range.
+        throw AppError.validation((err as Error).message, [{ path: 'value', message: (err as Error).message }]);
+      }
+      const changePct = current > 0n ? Number(((next - current) * 10000n) / current) / 100 : 100;
+      if (Math.abs(changePct) > 50 && !input.confirmLargeChange) {
+        throw AppError.conflict(`This changes the budget by ${changePct.toFixed(1)} %. Confirm the large change to continue.`, {
+          requiresConfirmation: true,
+          before: minorToMajor(current, e.currency),
+          after: minorToMajor(next, e.currency),
+          currency: e.currency,
+          changePct,
+        });
+      }
+      progress.sending = true;
+      const res = await this.actions.setBudget(e, next, { source: 'USER', actorUserId: userId }, { fresh: true });
+      return { field: res.field, before: minorToMajor(res.before, e.currency), after: minorToMajor(res.after, e.currency), currency: e.currency };
+    });
+    if (!locked.acquired) throw AppError.conflict('Another change to this object is in progress (for example an automated rule). Try again in a moment.');
+    return locked.result;
   }
 }

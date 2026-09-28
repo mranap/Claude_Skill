@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import {
+  RULE_METRICS_DAILY_ONLY,
   RULE_METRIC_LABELS,
   RULE_OPERATOR_LABELS,
   applyPercent,
@@ -21,11 +22,13 @@ import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { MetaGraphClient } from '../meta/graph/meta-graph.client';
 import { MetaApiError } from '../meta/graph/meta-errors';
 import { AppError } from '../../common/errors/app-error';
-import { EntityActionsService, EntityRef } from '../campaigns/entity-actions.service';
+import { ENTITY_LOCK_TTL_MS, EntityActionsService, EntityRef, entityLockName, mayHaveBeenApplied } from '../campaigns/entity-actions.service';
 import { MetricValues, RuleMetricsService } from './rule-metrics.service';
-import { Prisma, type AutoRule } from '../../generated/prisma/client';
+import { Prisma, type AutoRule, type RuleExecutionResult } from '../../generated/prisma/client';
 
 const LEASE_MS = 10 * 60_000;
+/** A running evaluation renews its lease this often, so only the lease of a crashed worker runs out. */
+const LEASE_RENEW_MS = 2 * 60_000;
 
 interface Candidate {
   id: string;
@@ -46,6 +49,12 @@ export interface RuleRunSummary {
   dryRun: number;
   deferredMs?: number;
 }
+
+/** UNCONFIRMED: Meta may have applied the change (no answer); the execution row stays PENDING until verified. */
+type ActOutcome = { result: 'SUCCESS' | 'FAILED' | 'SKIPPED' | 'DRY_RUN' | 'NOTIFIED' | 'UNCONFIRMED'; text: string; rateLimitedMs?: number };
+type RecordExecution = (
+  data: Partial<Prisma.AutoRuleExecutionUncheckedCreateInput> & { result: Prisma.AutoRuleExecutionUncheckedCreateInput['result'] },
+) => Promise<{ id: string }>;
 
 export function evaluateCondition(c: RuleCondition, values: MetricValues): { ok: boolean; actual: string | null } {
   const actual = values[c.metric];
@@ -76,16 +85,76 @@ export function describeCondition(c: RuleCondition, currency: string | null): st
     : `${meta.label} ${RULE_OPERATOR_LABELS[c.operator]} ${c.value}${unit}`;
 }
 
+export interface BudgetBounds {
+  /** Maximum change per execution, in percent. */
+  maxChangePercent: string | null;
+  /** Rule minimum and maximum, and the ad account's minimum daily budget (daily budgets only), in minor units. */
+  min: bigint | null;
+  max: bigint | null;
+  accountMin: bigint | null;
+}
+
+/**
+ * The new budget of a budget rule, in minor units. The maximum and the minimums are applied first and the
+ * maximum change per execution last, so no bound can make a bigger change than that. A bound never turns the
+ * action around: an increase capped by a maximum below the current budget, or a decrease lifted by a minimum
+ * above it, is skipped instead of moving the budget the other way.
+ */
+export function planBudgetChange(
+  action: 'INCREASE_BUDGET' | 'DECREASE_BUDGET' | 'SET_BUDGET',
+  current: bigint,
+  value: string,
+  bounds: BudgetBounds,
+  currency: string,
+): { next: bigint; note: string | null } | { skip: string } {
+  const target = action === 'SET_BUDGET' ? majorToMinor(value, currency) : applyPercent(current, action === 'INCREASE_BUDGET' ? value : `-${value}`);
+  const up = target > current;
+  const fmt = (v: bigint) => `${minorToMajor(v, currency)} ${currency}`;
+  let next = target;
+  let note: string | null = null;
+  if (bounds.max !== null && next > bounds.max) {
+    next = bounds.max;
+    note = `capped at maximum ${fmt(bounds.max)}`;
+  }
+  const floor = [bounds.min ?? 0n, bounds.accountMin ?? 0n].reduce((a, b) => (a > b ? a : b));
+  if (next < floor) {
+    next = floor;
+    note = `kept at minimum ${fmt(floor)}`;
+  }
+  if (bounds.maxChangePercent) {
+    const upper = applyPercent(current, bounds.maxChangePercent);
+    const lower = applyPercent(current, `-${bounds.maxChangePercent}`);
+    if (next > upper) {
+      next = upper;
+      note = `limited to +${bounds.maxChangePercent} % per execution`;
+    } else if (next < lower) {
+      next = lower;
+      note = `limited to −${bounds.maxChangePercent} % per execution`;
+    }
+  }
+  if (next === current || up !== next > current) {
+    const bound = up ? bounds.max : floor;
+    return bound !== null && (up ? bound <= current : bound >= current)
+      ? { skip: `Budget ${fmt(current)} is already at or ${up ? 'above the maximum' : 'below the minimum'} ${fmt(bound)}` }
+      : { skip: `Budget already at the limit (${fmt(current)})` };
+  }
+  return { next, note };
+}
+
+const errorText = (err: unknown) => (err instanceof MetaApiError ? err.details.friendlyMessage : err instanceof Error ? err.message : String(err));
+
 /**
  * Automated rules. One evaluation run:
- *  1. takes a database lease on the rule (a rule is never evaluated by two workers at once);
+ *  1. takes a database lease on the rule with a token of its own, renews it while running and checks it before
+ *     every action (a rule is never evaluated by two workers at once, and a run that lost its lease stops);
  *  2. loads the matching entities and fetches fresh Insights for the configured time range;
  *  3. evaluates all conditions (AND) per entity;
  *  4. applies safeguards: cooldown, max actions per day, no repeated identical action, budget min/max and
- *     max change per execution, account minimum budget; dry-run records what would happen;
+ *     max change per execution, account minimum budget; dry-run records what would happen (with the same limits);
  *  5. writes a PENDING execution row *before* calling Meta and finalises it afterwards, so a crash can never
- *     lead to the same budget change being applied twice (a PENDING row blocks the entity until verified);
- *  6. sends one summary notification per run.
+ *     lead to the same budget change being applied twice (a PENDING row blocks the entity until verified; so
+ *     does a call whose answer was lost);
+ *  6. sends one summary notification per run, also when an ad account or the run failed part-way.
  */
 @Injectable()
 export class RuleEngineService {
@@ -107,6 +176,9 @@ export class RuleEngineService {
 
   async run(ruleId: string, opts: { manual?: boolean } = {}): Promise<RuleRunSummary | { skipped: string }> {
     const now = new Date();
+    // One token per run, not per process: a run renews and releases only its own lease, also when a second
+    // run of the rule started in the same worker after the first one's lease had expired.
+    const lease = { token: `${this.workerId}:${randomUUID()}`, lost: false };
     const leased = await this.prisma.autoRule.updateMany({
       where: {
         id: ruleId,
@@ -114,49 +186,90 @@ export class RuleEngineService {
         ...(opts.manual ? {} : { isActive: true }),
         OR: [{ leaseOwner: null }, { leaseExpiresAt: { lt: now } }],
       },
-      data: { leaseOwner: this.workerId, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) },
+      data: { leaseOwner: lease.token, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) },
     });
     if (leased.count !== 1) return { skipped: 'rule is inactive or already being evaluated' };
-    const rule = await this.prisma.autoRule.findUniqueOrThrow({ where: { id: ruleId } });
+    const heartbeat = setInterval(() => {
+      void this.renewLease(ruleId, lease.token).then(
+        (held) => (lease.lost ||= !held),
+        () => undefined,
+      );
+    }, LEASE_RENEW_MS);
+    try {
+      const rule = await this.prisma.autoRule.findUniqueOrThrow({ where: { id: ruleId } });
+      return await this.evaluate(rule, opts, lease);
+    } finally {
+      clearInterval(heartbeat);
+      await this.prisma.autoRule.updateMany({ where: { id: ruleId, leaseOwner: lease.token }, data: { leaseOwner: null, leaseExpiresAt: null } });
+    }
+  }
+
+  /** Extends this run's lease; false when another run holds it now (this one's had expired). */
+  private async renewLease(ruleId: string, token: string): Promise<boolean> {
+    const renewed = await this.prisma.autoRule.updateMany({ where: { id: ruleId, leaseOwner: token }, data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) } });
+    return renewed.count === 1;
+  }
+
+  private async evaluate(rule: AutoRule, opts: { manual?: boolean }, lease: { token: string; lost: boolean }): Promise<RuleRunSummary> {
     const runId = randomUUID();
     const summary: RuleRunSummary = { runId, evaluated: 0, matched: 0, acted: 0, skipped: 0, failed: 0, dryRun: 0 };
     const actionsTaken: string[] = [];
+    const accountErrors: { name: string; err: unknown }[] = [];
+    let accountsEvaluated = 0;
+    let runError: unknown;
+    let ruleError: string | null = null;
     try {
       const scope = rule.scope as { adAccountIds: string[]; campaignIds?: string[]; nameContains?: string };
       const conditions = rule.conditions as unknown as RuleCondition[];
-      const accounts = await this.prisma.adAccount.findMany({
-        where: { id: { in: scope.adAccountIds }, userId: rule.userId, isConnected: true },
-        include: { profile: { include: { proxy: true } } },
-      });
+      // A rule saved before "Last N hours" rejected conversion metrics can never match (they are not evaluated
+      // for that range): it reports why instead of running.
+      const unavailable = rule.timeRange === 'LAST_N_HOURS' ? conditions.find((c) => RULE_METRICS_DAILY_ONLY.includes(c.metric)) : undefined;
+      if (unavailable) ruleError = `${RULE_METRIC_LABELS[unavailable.metric].label} is not available for "Last N hours" (Meta does not report website conversions by hour); edit the rule`;
+      const accounts = ruleError
+        ? []
+        : await this.prisma.adAccount.findMany({
+            where: { id: { in: scope.adAccountIds }, userId: rule.userId, isConnected: true },
+            include: { profile: { include: { proxy: true } } },
+          });
       const { maxEntitiesPerEvaluation } = await this.settings.get('rules');
-      for (const account of accounts) {
+      accounts: for (const account of accounts) {
         if (account.profile.deletedAt || account.profile.status !== 'ACTIVE' || !account.profile.isEnabled) continue;
         const candidates = (await this.candidates(rule, account.id, scope)).slice(0, maxEntitiesPerEvaluation);
         if (!candidates.length) continue;
-        const conn = await this.connections.forProfile(account.profile);
         let values: Map<string, MetricValues>;
         try {
+          const conn = await this.connections.forProfile(account.profile);
           values = await this.metrics.fetch(account, conn, rule.targetLevel as 'CAMPAIGN' | 'ADSET' | 'AD', candidates.map((c) => c.metaId), rule.timeRange, rule.timeRangeValue ?? undefined);
         } catch (err) {
           if (err instanceof MetaApiError && err.category === 'RATE_LIMIT') {
             summary.deferredMs = err.details.retryAfterMs ?? 60_000;
             break;
           }
-          throw err;
+          // One ad account must not stop the others, nor hide the actions already taken on them.
+          this.logger.warn('Rule metrics failed for an ad account', { ruleId: rule.id, adAccountId: account.id, err: String(err) });
+          accountErrors.push({ name: account.name, err });
+          continue;
         }
+        accountsEvaluated++;
         for (const c of candidates) {
           summary.evaluated++;
           const v = values.get(c.metaId)!;
           const results = conditions.map((cond) => ({ cond, ...evaluateCondition(cond, v) }));
           if (!results.every((r) => r.ok)) continue;
           summary.matched++;
+          // Fencing: a run whose lease expired and was taken over stops before acting again.
+          if (lease.lost || !(await this.renewLease(rule.id, lease.token))) {
+            lease.lost = true;
+            this.logger.warn('Rule run lost its lease, stopping', { ruleId: rule.id, runId });
+            break accounts;
+          }
           const conditionData = {
             timeRange: rule.timeRange,
             timeRangeValue: rule.timeRangeValue,
             metrics: v,
             conditions: results.map((r) => ({ text: describeCondition(r.cond, account.currency), actual: r.actual })),
           };
-          let outcome: Awaited<ReturnType<RuleEngineService['act']>>;
+          let outcome: ActOutcome;
           try {
             outcome = await this.act(rule, runId, account.id, account.currency, account.minDailyBudget, c, conditionData);
           } catch (err) {
@@ -167,7 +280,7 @@ export class RuleEngineService {
               summary.deferredMs = meta?.retryAfterMs ?? (err instanceof MetaApiError ? err.details.retryAfterMs : undefined) ?? 60_000;
               break;
             }
-            this.logger.warn('Rule action failed', { ruleId, entity: c.metaId, err: String(err) });
+            this.logger.warn('Rule action failed', { ruleId: rule.id, entity: c.metaId, err: String(err) });
             if (err instanceof AppError && err.code === 'NOT_FOUND') summary.skipped++;
             else summary.failed++;
             continue;
@@ -178,6 +291,10 @@ export class RuleEngineService {
           } else if (outcome.result === 'DRY_RUN') {
             summary.dryRun++;
             actionsTaken.push(`[dry run] ${outcome.text}`);
+          } else if (outcome.result === 'UNCONFIRMED') {
+            // Possibly applied, so it is reported now; Meta is checked before the next action on the object.
+            summary.failed++;
+            actionsTaken.push(outcome.text);
           } else if (outcome.result === 'FAILED') summary.failed++;
           else summary.skipped++;
           if (outcome.rateLimitedMs) {
@@ -187,42 +304,41 @@ export class RuleEngineService {
         }
         if (summary.deferredMs) break;
       }
-      await this.prisma.autoRule.update({
-        where: { id: rule.id },
+    } catch (err) {
+      this.logger.error('Rule evaluation failed', { ruleId: rule.id, err });
+      runError = err;
+    }
+
+    const errors = [...(ruleError ? [ruleError] : []), ...(runError === undefined ? [] : [errorText(runError)]), ...accountErrors.map((a) => `${a.name}: ${errorText(a.err)}`)];
+    const failedEntirely = ruleError !== null || runError !== undefined || (accountErrors.length > 0 && accountsEvaluated === 0);
+    try {
+      // Written only while this run still holds the lease: a run that was taken over leaves the rule to its successor.
+      await this.prisma.autoRule.updateMany({
+        where: { id: rule.id, leaseOwner: lease.token },
         data: {
           lastRunAt: new Date(),
-          lastRunStatus: summary.failed ? 'PARTIAL' : 'OK',
-          lastRunError: null,
+          lastRunStatus: failedEntirely ? 'ERROR' : errors.length || summary.failed ? 'PARTIAL' : 'OK',
+          lastRunError: errors.length ? errors.join('; ').slice(0, 500) : null,
           ...(opts.manual ? {} : { nextRunAt: new Date(Date.now() + (summary.deferredMs ?? rule.checkIntervalMinutes * 60_000)) }),
         },
       });
+    } finally {
       if (rule.notify && actionsTaken.length) {
         await this.notifications.notify({
           userId: rule.userId,
           type: 'AUTO_RULE_TRIGGERED',
-          severity: summary.failed ? 'WARNING' : 'INFO',
+          severity: summary.failed || errors.length ? 'WARNING' : 'INFO',
           title: `Rule "${rule.name}" ${rule.isDryRun ? '(dry run) ' : ''}acted on ${actionsTaken.length} object(s)`,
           body: actionsTaken.slice(0, 15).join('\n') + (actionsTaken.length > 15 ? `\n… and ${actionsTaken.length - 15} more` : ''),
           link: `/rules/${rule.id}`,
           dedupeKey: `rule-run:${runId}`,
         });
       }
-      return summary;
-    } catch (err) {
-      this.logger.error('Rule evaluation failed', { ruleId, err });
-      await this.prisma.autoRule.update({
-        where: { id: rule.id },
-        data: {
-          lastRunAt: new Date(),
-          lastRunStatus: 'ERROR',
-          lastRunError: err instanceof MetaApiError ? err.details.friendlyMessage : (err as Error).message.slice(0, 500),
-          ...(opts.manual ? {} : { nextRunAt: new Date(Date.now() + rule.checkIntervalMinutes * 60_000) }),
-        },
-      });
-      throw err;
-    } finally {
-      await this.prisma.autoRule.updateMany({ where: { id: ruleId, leaseOwner: this.workerId }, data: { leaseOwner: null, leaseExpiresAt: null } });
     }
+    // A failure still fails the job, so it is retried with back-off (objects acted on are in their cooldown).
+    const failure = runError ?? accountErrors[0]?.err;
+    if (failure !== undefined) throw failure instanceof Error ? failure : new Error(errorText(failure));
+    return summary;
   }
 
   private async candidates(rule: AutoRule, adAccountId: string, scope: { campaignIds?: string[]; nameContains?: string }): Promise<Candidate[]> {
@@ -260,8 +376,8 @@ export class RuleEngineService {
     accountMinDaily: bigint | null,
     c: Candidate,
     conditionData: Record<string, unknown>,
-  ): Promise<{ result: 'SUCCESS' | 'FAILED' | 'SKIPPED' | 'DRY_RUN' | 'NOTIFIED'; text: string; rateLimitedMs?: number }> {
-    const record = (data: Partial<Prisma.AutoRuleExecutionUncheckedCreateInput> & { result: Prisma.AutoRuleExecutionUncheckedCreateInput['result'] }) =>
+  ): Promise<ActOutcome> {
+    const record: RecordExecution = (data) =>
       this.prisma.autoRuleExecution.create({
         data: {
           ruleId: rule.id,
@@ -278,32 +394,19 @@ export class RuleEngineService {
         },
       });
 
-    // ── Safeguards shared by all actions ──
-    // Interrupted earlier actions are verified against Meta first (whatever their age), so the history and the
-    // limits below are based on what really happened.
-    const stale = await this.prisma.autoRuleExecution.findMany({ where: { ruleId: rule.id, entityMetaId: c.metaId, result: 'PENDING' }, select: { id: true } });
-    for (const p of stale) await this.resolvePending(p.id);
-    const since = new Date(Date.now() - rule.cooldownMinutes * 60_000);
-    const recent = await this.prisma.autoRuleExecution.findFirst({
-      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: ['SUCCESS', 'PENDING', 'NOTIFIED'] }, executedAt: { gte: since } },
-      orderBy: { executedAt: 'desc' },
-    });
-    if (recent) {
-      return this.skip(rule, c, `Cooldown: last action ${Math.round((Date.now() - recent.executedAt.getTime()) / 60000)} min ago (cooldown ${rule.cooldownMinutes} min)`, record);
-    }
-    const today = await this.prisma.autoRuleExecution.count({
-      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: ['SUCCESS', 'NOTIFIED', 'PENDING'] }, executedAt: { gte: new Date(Date.now() - 86400_000) } },
-    });
-    if (today >= rule.maxActionsPerDay) return this.skip(rule, c, `Limit of ${rule.maxActionsPerDay} action(s) per 24 h reached`, record);
-
     if (rule.action === 'NOTIFY_ONLY') {
+      const limited = await this.checkLimits(rule, c, record);
+      if (limited) return limited;
       await record({ result: 'NOTIFIED', reason: 'Conditions met' });
       return { result: 'NOTIFIED', text: `"${c.name}": conditions met` };
     }
 
-    const lock = await this.locks.acquire(`entity-action:${c.metaId}`, 120_000);
-    if (!lock) return this.skip(rule, c, 'Another action on this object is in progress', record);
-    try {
+    // Changes in Meta are decided under the object's lock (manual budget changes take it too): the limits are
+    // checked and the change applied with no other action in between, so two actions can never both pass the
+    // cooldown. The lock is renewed while the action runs.
+    const locked = await this.locks.withLock(entityLockName(c.metaId), ENTITY_LOCK_TTL_MS, async (): Promise<ActOutcome> => {
+      const limited = await this.checkLimits(rule, c, record);
+      if (limited) return limited;
       // Decisions (already paused? current budget?) are made on the live state in Meta, not the local mirror.
       const entity = await this.actions.refresh(await this.actions.resolve(rule.userId, rule.targetLevel as 'CAMPAIGN' | 'ADSET' | 'AD', c.id));
       if (rule.action === 'PAUSE' || rule.action === 'START') {
@@ -318,87 +421,89 @@ export class RuleEngineService {
         return this.finishAction(pending.id, text, () => this.actions.setStatus(entity, target, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }, { fresh: true }).then(() => undefined));
       }
       return this.budgetAction(rule, entity, currency, accountMinDaily, c, record);
-    } finally {
-      await this.locks.release(lock).catch(() => undefined);
-    }
+    });
+    return locked.acquired ? locked.result : this.skip(rule, c, 'Another action on this object is in progress', record);
   }
 
-  private async budgetAction(
-    rule: AutoRule,
-    e: EntityRef,
-    currency: string,
-    accountMinDaily: bigint | null,
-    c: Candidate,
-    record: (d: Partial<Prisma.AutoRuleExecutionUncheckedCreateInput> & { result: Prisma.AutoRuleExecutionUncheckedCreateInput['result'] }) => Promise<{ id: string }>,
-  ) {
+  /**
+   * Safeguards shared by all actions: cooldown and maximum actions per 24 h for the object. Interrupted or
+   * unconfirmed earlier actions are verified against Meta first (whatever their age), so the limits are based
+   * on what really happened. A dry run counts its own DRY_RUN rows, so it previews what the live rule would do.
+   */
+  private async checkLimits(rule: AutoRule, c: Candidate, record: RecordExecution): Promise<ActOutcome | null> {
+    const stale = await this.prisma.autoRuleExecution.findMany({ where: { ruleId: rule.id, entityMetaId: c.metaId, result: 'PENDING' }, select: { id: true } });
+    for (const p of stale) await this.resolvePending(p.id);
+    const counted: RuleExecutionResult[] = rule.isDryRun ? ['SUCCESS', 'PENDING', 'NOTIFIED', 'DRY_RUN'] : ['SUCCESS', 'PENDING', 'NOTIFIED'];
+    const since = new Date(Date.now() - rule.cooldownMinutes * 60_000);
+    const recent = await this.prisma.autoRuleExecution.findFirst({
+      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: counted }, executedAt: { gte: since } },
+      orderBy: { executedAt: 'desc' },
+    });
+    if (recent) {
+      return this.skip(rule, c, `Cooldown: last action ${Math.round((Date.now() - recent.executedAt.getTime()) / 60000)} min ago (cooldown ${rule.cooldownMinutes} min)`, record);
+    }
+    const today = await this.prisma.autoRuleExecution.count({
+      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: counted }, executedAt: { gte: new Date(Date.now() - 86400_000) } },
+    });
+    if (today >= rule.maxActionsPerDay) return this.skip(rule, c, `Limit of ${rule.maxActionsPerDay} action(s) per 24 h reached`, record);
+    return null;
+  }
+
+  private async budgetAction(rule: AutoRule, e: EntityRef, currency: string, accountMinDaily: bigint | null, c: Candidate, record: RecordExecution): Promise<ActOutcome> {
     const current = e.dailyBudget && e.dailyBudget > 0n ? e.dailyBudget : e.lifetimeBudget && e.lifetimeBudget > 0n ? e.lifetimeBudget : null;
     if (current === null) return this.skip(rule, c, e.level === 'CAMPAIGN' ? 'Campaign uses ad set budgets' : 'Ad set uses the campaign budget', record);
-    const value = rule.actionValue!.toString();
-    let next =
-      rule.action === 'SET_BUDGET' ? majorToMinor(value, currency) : rule.action === 'INCREASE_BUDGET' ? applyPercent(current, value) : applyPercent(current, `-${value}`);
-    const notes: string[] = [];
-    if (rule.maxBudgetChangePercent) {
-      const maxPct = rule.maxBudgetChangePercent.toString();
-      const upper = applyPercent(current, maxPct);
-      const lower = applyPercent(current, `-${maxPct}`);
-      if (next > upper) {
-        next = upper;
-        notes.push(`limited to +${maxPct} % per execution`);
-      }
-      if (next < lower) {
-        next = lower;
-        notes.push(`limited to −${maxPct} % per execution`);
-      }
+    let plan: ReturnType<typeof planBudgetChange>;
+    try {
+      plan = planBudgetChange(rule.action as 'INCREASE_BUDGET' | 'DECREASE_BUDGET' | 'SET_BUDGET', current, rule.actionValue!.toString(), {
+        maxChangePercent: rule.maxBudgetChangePercent?.toString() ?? null,
+        min: rule.minBudget ? majorToMinor(rule.minBudget.toString(), currency) : null,
+        max: rule.maxBudget ? majorToMinor(rule.maxBudget.toString(), currency) : null,
+        accountMin: e.dailyBudget ? accountMinDaily : null,
+      }, currency);
+    } catch (err) {
+      // An amount saved before amounts were checked against the account currency (e.g. decimals for JPY).
+      return this.skip(rule, c, `Invalid amount in the rule: ${(err as Error).message}`, record);
     }
-    if (rule.maxBudget) {
-      const max = majorToMinor(rule.maxBudget.toString(), currency);
-      if (next > max) {
-        next = max;
-        notes.push(`capped at maximum ${minorToMajor(max, currency)} ${currency}`);
-      }
-    }
-    const minFromRule = rule.minBudget ? majorToMinor(rule.minBudget.toString(), currency) : 0n;
-    const floor = [minFromRule, e.dailyBudget ? accountMinDaily ?? 0n : 0n].reduce((a, b) => (a > b ? a : b), 0n);
-    if (next < floor) {
-      next = floor;
-      notes.push(`kept at minimum ${minorToMajor(floor, currency)} ${currency}`);
-    }
-    if (next === current) return this.skip(rule, c, `Budget already at the limit (${minorToMajor(current, currency)} ${currency})`, record);
-    const text = `"${c.name}" budget ${minorToMajor(current, currency)} → ${minorToMajor(next, currency)} ${currency}${notes.length ? ` (${notes.join(', ')})` : ''}`;
+    if ('skip' in plan) return this.skip(rule, c, plan.skip, record);
+    const { next, note } = plan;
+    const text = `"${c.name}" budget ${minorToMajor(current, currency)} → ${minorToMajor(next, currency)} ${currency}${note ? ` (${note})` : ''}`;
     if (rule.isDryRun) {
-      await record({ result: 'DRY_RUN', oldValue: current.toString(), newValue: next.toString(), reason: `Dry run${notes.length ? `; ${notes.join(', ')}` : ''}` });
-      return { result: 'DRY_RUN' as const, text };
+      await record({ result: 'DRY_RUN', oldValue: current.toString(), newValue: next.toString(), reason: `Dry run${note ? `; ${note}` : ''}` });
+      return { result: 'DRY_RUN', text };
     }
-    const pending = await record({ result: 'PENDING', oldValue: current.toString(), newValue: next.toString(), reason: notes.join(', ') || null });
+    const pending = await record({ result: 'PENDING', oldValue: current.toString(), newValue: next.toString(), reason: note });
     return this.finishAction(pending.id, text, () =>
       this.actions.setBudget(e, next, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }, { fresh: true }).then(() => undefined),
     );
   }
 
-  private async finishAction(executionId: string, text: string, fn: () => Promise<void>) {
+  private async finishAction(executionId: string, text: string, fn: () => Promise<void>): Promise<ActOutcome> {
     try {
       await fn();
       await this.prisma.autoRuleExecution.update({ where: { id: executionId }, data: { result: 'SUCCESS', metaResponse: { success: true } } });
-      return { result: 'SUCCESS' as const, text };
+      return { result: 'SUCCESS', text };
     } catch (err) {
       const meta = (err as { meta?: { category?: string; code?: number; retryAfterMs?: number; message?: string } }).meta;
-      const rateLimited = meta?.category === 'RATE_LIMIT';
-      await this.prisma.autoRuleExecution.update({
-        where: { id: executionId },
-        data: {
-          result: 'FAILED',
-          errorMessage: (err as Error).message.slice(0, 1000),
-          errorCode: meta?.code ?? null,
-          metaResponse: meta ? (meta as Prisma.InputJsonValue) : Prisma.DbNull,
-        },
-      });
-      return { result: 'FAILED' as const, text: `${text} — failed: ${(err as Error).message}`, rateLimitedMs: rateLimited ? meta?.retryAfterMs ?? 60_000 : undefined };
+      const error = {
+        errorMessage: (err as Error).message.slice(0, 1000),
+        errorCode: meta?.code ?? null,
+        metaResponse: meta ? (meta as Prisma.InputJsonValue) : Prisma.DbNull,
+      };
+      if (mayHaveBeenApplied(err)) {
+        // The request may have reached Meta (its answer was lost, or Meta reported an unknown error). The row
+        // stays PENDING: the cooldown and the daily limit keep counting it until it is verified in Meta.
+        await this.prisma.autoRuleExecution.update({ where: { id: executionId }, data: error });
+        return { result: 'UNCONFIRMED', text: `${text} — not confirmed by Meta (${(err as Error).message}); it is checked before the next action` };
+      }
+      await this.prisma.autoRuleExecution.update({ where: { id: executionId }, data: { result: 'FAILED', ...error } });
+      return { result: 'FAILED', text: `${text} — failed: ${(err as Error).message}`, rateLimitedMs: meta?.category === 'RATE_LIMIT' ? meta.retryAfterMs ?? 60_000 : undefined };
     }
   }
 
   /**
-   * A PENDING row means a previous run stopped between "intent recorded" and "result recorded". Verify the
-   * real value in Meta and finalise the row, so the history is correct and nothing is applied twice.
+   * A PENDING row means a previous run stopped between "intent recorded" and "result recorded", or its call to
+   * Meta got no answer. Verify the real value in Meta and finalise the row, so the history is correct and
+   * nothing is applied twice.
    */
   private async resolvePending(executionId: string): Promise<void> {
     const ex = await this.prisma.autoRuleExecution.findUniqueOrThrow({ where: { id: executionId }, include: { rule: true } });
@@ -417,19 +522,14 @@ export class RuleEngineService {
         ex.action === 'PAUSE' || ex.action === 'START' ? data.status === ex.newValue : data.daily_budget === ex.newValue || data.lifetime_budget === ex.newValue;
       await this.prisma.autoRuleExecution.update({
         where: { id: executionId },
-        data: { result: applied ? 'SUCCESS' : 'FAILED', errorMessage: applied ? null : 'The worker stopped before the change was confirmed; Meta shows it was not applied' },
+        data: { result: applied ? 'SUCCESS' : 'FAILED', errorMessage: applied ? null : 'The change was never confirmed, and Meta shows it was not applied' },
       });
     } catch (err) {
       this.logger.warn('Could not verify pending rule execution', { executionId, err: String(err) });
     }
   }
 
-  private async skip(
-    rule: AutoRule,
-    c: Candidate,
-    reason: string,
-    record: (d: Partial<Prisma.AutoRuleExecutionUncheckedCreateInput> & { result: Prisma.AutoRuleExecutionUncheckedCreateInput['result'] }) => Promise<{ id: string }>,
-  ) {
+  private async skip(rule: AutoRule, c: Candidate, reason: string, record: RecordExecution): Promise<ActOutcome> {
     // Avoid flooding the history: the same skip reason is recorded at most once per cooldown window.
     const last = await this.prisma.autoRuleExecution.findFirst({
       where: { ruleId: rule.id, entityMetaId: c.metaId },
@@ -438,6 +538,6 @@ export class RuleEngineService {
     });
     const sameRecent = last?.result === 'SKIPPED' && last.reason?.split(':')[0] === reason.split(':')[0] && Date.now() - last.executedAt.getTime() < rule.cooldownMinutes * 60_000;
     if (!sameRecent) await record({ result: 'SKIPPED', reason });
-    return { result: 'SKIPPED' as const, text: `"${c.name}" skipped: ${reason}` };
+    return { result: 'SKIPPED', text: `"${c.name}" skipped: ${reason}` };
   }
 }

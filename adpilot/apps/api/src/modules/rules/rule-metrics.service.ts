@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { DateTime } from 'luxon';
-import { currencyDecimals, type RuleMetric } from '@adpilot/shared';
+import { RULE_METRICS_DAILY_ONLY, currencyDecimals, type RuleMetric } from '@adpilot/shared';
 import { MetaConnection, MetaGraphClient } from '../meta/graph/meta-graph.client';
 import { actId } from '../meta/meta-fields';
 import { BaseCounters, addRow, emptyCounters, toMetrics } from '../statistics/metrics';
@@ -102,8 +102,23 @@ export class RuleMetricsService {
       }
     }
     const out = new Map<string, MetricValues>();
-    for (const id of metaIds) out.set(id, this.values(counters.get(id) ?? emptyCounters(), account.currency));
+    for (const id of metaIds) {
+      const acc = counters.get(id);
+      const v = acc ? this.values(acc, account.currency) : this.withoutDelivery(account.currency);
+      // Hourly rows lack website conversions: those metrics are unknown, not zero.
+      if (hourly) for (const m of RULE_METRICS_DAILY_ONLY) v[m] = null;
+      out.set(id, v);
+    }
     return out;
+  }
+
+  /**
+   * An object without an Insights row has no delivery reported in the range. Spend and impressions count as
+   * zero, but outcome counts are not evaluated: "results < 1" must not pause an ad set that has not had a
+   * chance to deliver yet (a new one, or any ad set just after midnight with "Today").
+   */
+  private withoutDelivery(currency: string): MetricValues {
+    return { ...this.values(emptyCounters(), currency), clicks: null, leads: null, purchases: null, results: null };
   }
 
   values(c: BaseCounters, currency: string): MetricValues {
