@@ -13,8 +13,9 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { FormField } from '@/components/shared/form';
 import { cn } from '@/lib/utils/cn';
 import { humanize } from '@/lib/utils/strings';
-import { newKey, type VariantInput } from '../../campaign-settings/context';
+import { newKey, useSettingsUi, type VariantInput } from '../../campaign-settings/context';
 import { OptionalInput, SelectInput, SettingsSection } from '../../campaign-settings/fields';
+import { LeadFormSelect } from '../../campaign-settings/targeting-pickers';
 import { CreativeField } from '../../creatives/creative-picker';
 import type { WizardValues } from './steps';
 
@@ -188,10 +189,16 @@ function AdCard({
   onDuplicate: () => void;
 }) {
   const form = useFormContext<WizardValues>();
+  const ui = useSettingsUi();
   const base = `variants.${variantIndex}.ads.${adIndex}` as const;
-  const [format, destination, defaultCta] = useWatch({
+  const [format, destination, defaultCta, pageId] = useWatch({
     control: form.control,
-    name: ['settings.creative.format', 'settings.destination', 'settings.creative.callToAction'],
+    name: [
+      'settings.creative.format',
+      'settings.destination',
+      'settings.creative.callToAction',
+      'settings.identity.pageId',
+    ],
   });
   const [primaryText, headline] = useWatch({
     control: form.control,
@@ -395,15 +402,17 @@ function AdCard({
                   <FormField
                     control={form.control}
                     name={`${base}.leadFormId`}
-                    label="Instant form id"
-                    description="Overrides the default lead form."
+                    label="Instant Form"
                     render={({ field, controlProps }) => (
-                      <OptionalInput
+                      <LeadFormSelect
+                        hint="Overrides the default lead form for this ad."
                         controlProps={controlProps}
                         value={field.value}
                         onChange={field.onChange}
-                        inputMode="numeric"
+                        adAccountId={ui.assetsAccountId}
+                        pageId={pageId}
                         disabled={disabled}
+                        defaultLabel="Default form of the launch"
                       />
                     )}
                   />

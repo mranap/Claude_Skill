@@ -20,6 +20,7 @@ import { humanize } from '@/lib/utils/strings';
 import { useAccountPages, usePixels } from '../ad-accounts/api';
 import { useGoal, useSettingsForm, useSettingsUi } from './context';
 import { OptionalInput, SelectInput, SettingsSection } from './fields';
+import { LeadFormSelect } from './targeting-pickers';
 
 function toLocalInput(iso: string | undefined): string {
   if (!iso) return '';
@@ -421,6 +422,7 @@ export function CreativeOptionsSection() {
   const form = useSettingsForm();
   const ui = useSettingsUi();
   const { destination, rule } = useGoal();
+  const pageId = useWatch({ control: form.control, name: 'settings.identity.pageId' });
   return (
     <SettingsSection
       id="creative"
@@ -470,15 +472,15 @@ export function CreativeOptionsSection() {
           <FormField
             control={form.control}
             name="settings.creative.leadFormId"
-            label="Instant form id"
-            description="Default lead form of every ad (an ad can use its own)."
+            label="Instant Form"
             render={({ field, controlProps }) => (
-              <OptionalInput
+              <LeadFormSelect
+                hint="Default lead form of every ad (an ad can use its own)."
                 controlProps={controlProps}
                 value={field.value}
                 onChange={field.onChange}
-                inputMode="numeric"
-                placeholder="Lead form id"
+                adAccountId={ui.assetsAccountId}
+                pageId={pageId}
                 disabled={ui.disabled}
               />
             )}

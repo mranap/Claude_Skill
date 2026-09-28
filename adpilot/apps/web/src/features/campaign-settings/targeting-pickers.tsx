@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, ChevronsUpDown, ExternalLink, LoaderCircle, Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type * as React from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,6 +48,22 @@ function interestCategory(hit: InterestHit): string {
   return path.join(' › ');
 }
 
+/** Field description rendered by the picker itself, so it sits right under the control (above the manual toggle). */
+function Hint({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <p id={id} className="text-xs leading-relaxed text-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+function describedBy(
+  controlProps: FieldControlProps | undefined,
+  ...ids: (string | false | null | undefined)[]
+) {
+  return [controlProps?.['aria-describedby'], ...ids].filter(Boolean).join(' ') || undefined;
+}
+
 function ManualToggle({ open, onToggle, label }: { open: boolean; onToggle: () => void; label: string }) {
   return (
     <button
@@ -73,6 +89,7 @@ export function LocalePicker({
   disabled,
   controlProps,
   placeholder = 'All languages',
+  hint,
 }: {
   value: Locale[];
   onChange: (value: Locale[]) => void;
@@ -80,7 +97,9 @@ export function LocalePicker({
   disabled?: boolean;
   controlProps?: FieldControlProps;
   placeholder?: string;
+  hint?: React.ReactNode;
 }) {
+  const hintId = useId();
   const locales = useLocales(adAccountId);
   const [manual, setManual] = useState(false);
   const options = useMemo(() => {
@@ -108,6 +127,7 @@ export function LocalePicker({
     <div className="grid gap-2">
       <MultiCombobox
         {...controlProps}
+        aria-describedby={describedBy(controlProps, hint || unavailable ? hintId : null)}
         value={value.map((v) => String(v.key))}
         onValueChange={(keys) =>
           onChange(
@@ -127,9 +147,19 @@ export function LocalePicker({
         emptyText={unavailable ?? 'No language found'}
         disabled={disabled}
       />
-      {unavailable ? <p className="text-xs text-muted-foreground">{unavailable}</p> : null}
+      {hint || unavailable ? (
+        <Hint id={hintId}>
+          {hint}
+          {hint && unavailable ? ' ' : null}
+          {unavailable}
+        </Hint>
+      ) : null}
       {!disabled && !unavailable ? (
-        <ManualToggle open={manual} onToggle={() => setManual((v) => !v)} label="Enter a locale key manually" />
+        <ManualToggle
+          open={manual}
+          onToggle={() => setManual((v) => !v)}
+          label="Enter a locale key manually"
+        />
       ) : null}
       {showManual ? (
         <PairListEditor
@@ -160,13 +190,16 @@ export function InterestPicker({
   adAccountId,
   disabled,
   controlProps,
+  hint,
 }: {
   value: Interest[];
   onChange: (value: Interest[]) => void;
   adAccountId: string | null | undefined;
   disabled?: boolean;
   controlProps?: FieldControlProps;
+  hint?: React.ReactNode;
 }) {
+  const hintId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [manual, setManual] = useState(false);
@@ -178,7 +211,9 @@ export function InterestPicker({
 
   const toggle = (hit: Interest) =>
     onChange(
-      selected.has(hit.id) ? value.filter((v) => v.id !== hit.id) : [...value, { id: hit.id, name: hit.name }],
+      selected.has(hit.id)
+        ? value.filter((v) => v.id !== hit.id)
+        : [...value, { id: hit.id, name: hit.name }],
     );
 
   const status: React.ReactNode = tooShort ? (
@@ -235,6 +270,7 @@ export function InterestPicker({
           <PopoverTrigger asChild disabled={disabled || !adAccountId}>
             <button
               {...controlProps}
+              aria-describedby={describedBy(controlProps, hint || !adAccountId ? hintId : null)}
               type="button"
               role="combobox"
               aria-expanded={open}
@@ -244,7 +280,11 @@ export function InterestPicker({
               )}
             >
               <span className="truncate">
-                {!adAccountId ? 'Search unavailable' : value.length ? 'Add interest' : 'Broad targeting (no interests)'}
+                {!adAccountId
+                  ? 'Search unavailable'
+                  : value.length
+                    ? 'Add interest'
+                    : 'Broad targeting (no interests)'}
               </span>
               <ChevronsUpDown className="size-4 shrink-0" />
             </button>
@@ -257,12 +297,17 @@ export function InterestPicker({
                 onValueChange={setQuery}
                 trailing={
                   search.isFetching && !tooShort ? (
-                    <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+                    <LoaderCircle
+                      className="size-4 shrink-0 animate-spin text-muted-foreground"
+                      aria-hidden
+                    />
                   ) : null
                 }
               />
               <CommandList>
-                <CommandEmpty className="px-3 py-4 text-left text-xs text-muted-foreground">{status}</CommandEmpty>
+                <CommandEmpty className="px-3 py-4 text-left text-xs text-muted-foreground">
+                  {status}
+                </CommandEmpty>
                 {hits.length ? (
                   <CommandGroup>
                     {hits.map((hit) => {
@@ -271,7 +316,10 @@ export function InterestPicker({
                       return (
                         <CommandItem key={hit.id} value={hit.id} onSelect={() => toggle(hit)}>
                           <Check
-                            className={cn('size-4 shrink-0', selected.has(hit.id) ? 'opacity-100' : 'opacity-0')}
+                            className={cn(
+                              'size-4 shrink-0',
+                              selected.has(hit.id) ? 'opacity-100' : 'opacity-0',
+                            )}
                           />
                           <span className="grid min-w-0 flex-1 gap-0.5">
                             <span className="truncate">{hit.name}</span>
@@ -297,13 +345,19 @@ export function InterestPicker({
           </PopoverContent>
         </Popover>
       </div>
-      {!adAccountId ? (
-        <p className="text-xs text-muted-foreground">
-          Connect an ad account to search interests, or enter interest IDs manually.
-        </p>
+      {hint || !adAccountId ? (
+        <Hint id={hintId}>
+          {hint}
+          {hint && !adAccountId ? ' ' : null}
+          {!adAccountId ? 'Connect an ad account to search interests, or enter interest IDs manually.' : null}
+        </Hint>
       ) : null}
       {!disabled && adAccountId ? (
-        <ManualToggle open={manual} onToggle={() => setManual((v) => !v)} label="Enter an interest ID manually" />
+        <ManualToggle
+          open={manual}
+          onToggle={() => setManual((v) => !v)}
+          label="Enter an interest ID manually"
+        />
       ) : null}
       {manual || (!adAccountId && !disabled) ? (
         <PairListEditor
@@ -337,6 +391,7 @@ export function LeadFormSelect({
   disabled,
   controlProps,
   defaultLabel,
+  hint,
 }: {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
@@ -346,7 +401,9 @@ export function LeadFormSelect({
   controlProps?: FieldControlProps;
   /** Adds an option that clears the value (per-ad override: "use the default form"). */
   defaultLabel?: string;
+  hint?: React.ReactNode;
 }) {
+  const hintId = useId();
   const forms = useLeadForms(adAccountId, pageId);
   const [manual, setManual] = useState(false);
   const reason = !adAccountId
@@ -360,22 +417,25 @@ export function LeadFormSelect({
     return (
       <div className="grid gap-1.5">
         <OptionalInput
-          controlProps={controlProps}
+          controlProps={
+            controlProps && { ...controlProps, 'aria-describedby': describedBy(controlProps, hintId) }
+          }
           value={value}
           onChange={onChange}
           inputMode="numeric"
           placeholder={defaultLabel ? 'Default form' : 'Instant form ID'}
           disabled={disabled}
         />
-        {forms.error ? (
-          <p className="text-xs text-destructive-fg">{getErrorMessage(forms.error)}</p>
-        ) : reason ? (
-          <p className="text-xs text-muted-foreground">{reason}</p>
-        ) : noForms ? (
-          <p className="text-xs text-muted-foreground">
-            This Page has no Instant Forms yet. Create one in Meta Business Suite, or paste a form ID.
-          </p>
-        ) : null}
+        <Hint id={hintId}>
+          {hint ? <>{hint} </> : null}
+          {forms.error ? (
+            <span className="text-destructive-fg">{getErrorMessage(forms.error)}</span>
+          ) : reason ? (
+            reason
+          ) : noForms ? (
+            'This Page has no Instant Forms yet. Create one in Meta Business Suite, or paste a form ID.'
+          ) : null}
+        </Hint>
         {manual && forms.data?.length ? (
           <button
             type="button"
@@ -395,10 +455,13 @@ export function LeadFormSelect({
     ...(forms.data ?? []).map((f) => ({
       value: f.id,
       label: f.name,
-      description: [f.status !== 'ACTIVE' ? humanize(f.status) : null, f.locale, f.id].filter(Boolean).join(' · '),
+      description: [f.status !== 'ACTIVE' ? humanize(f.status) : null, f.locale, f.id]
+        .filter(Boolean)
+        .join(' · '),
       disabled: f.status !== 'ACTIVE',
     })),
-    ...(value && !known.has(value)
+    // A stored form that the Page does not list (another Page, deleted): keep it visible and selectable.
+    ...(value && forms.isSuccess && !known.has(value)
       ? [{ value, label: `Form ${value}`, description: 'Not found among this Page’s forms' }]
       : []),
   ];
@@ -406,13 +469,20 @@ export function LeadFormSelect({
   return (
     <div className="grid gap-1.5">
       <SelectInput
-        controlProps={controlProps}
-        value={value ?? (defaultLabel ? DEFAULT_FORM : undefined)}
+        controlProps={
+          controlProps && {
+            ...controlProps,
+            'aria-describedby': describedBy(controlProps, hint ? hintId : null),
+          }
+        }
+        // While the forms load, the stored value has no option yet: show the loading placeholder instead.
+        value={forms.isLoading ? undefined : (value ?? (defaultLabel ? DEFAULT_FORM : undefined))}
         onChange={(v) => onChange(v === DEFAULT_FORM ? undefined : v)}
         options={options}
         placeholder={forms.isLoading ? 'Loading forms…' : 'Choose an Instant Form'}
         disabled={disabled || forms.isLoading}
       />
+      {hint ? <Hint id={hintId}>{hint}</Hint> : null}
       {!disabled ? (
         <ManualToggle open={false} onToggle={() => setManual(true)} label="Enter a form ID instead" />
       ) : null}
@@ -422,7 +492,9 @@ export function LeadFormSelect({
 
 // ───────────── Manual entry ─────────────
 
-type Pair<K extends 'key' | 'id'> = K extends 'key' ? { key: number; name: string } : { id: string; name: string };
+type Pair<K extends 'key' | 'id'> = K extends 'key'
+  ? { key: number; name: string }
+  : { id: string; name: string };
 
 /** Editable list of `{ key|id, name }` pairs entered by ID (fallback when the look-ups are unavailable). */
 export function PairListEditor<K extends 'key' | 'id'>({

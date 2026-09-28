@@ -158,7 +158,11 @@ export function StatisticsPage() {
       start(Math.ceil((nextRefreshAt - Date.now()) / 1000));
   }, [nextRefreshAt, start]);
   const zones = [
-    ...new Set((data?.sync ?? []).map((s) => accountById.get(s.adAccountId)?.timezoneName).filter(Boolean)),
+    ...new Set(
+      (data?.sync ?? [])
+        .map((s) => s.timezoneName ?? accountById.get(s.adAccountId)?.timezoneName)
+        .filter(Boolean),
+    ),
   ] as string[];
   const otherCurrencies = (data?.totals ?? [])
     .map((t) => t.currency)
@@ -393,7 +397,14 @@ function SyncCard({
 function SyncRow({ sync, account }: { sync: StatsSyncInfo; account: AdAccountDto | undefined }) {
   const cooldown = useCooldown();
   const refresh = useRefreshStatistics(cooldown, sync.adAccountId);
-  const tz = account?.timezoneName;
+  const tz = sync.timezoneName ?? account?.timezoneName;
+  const error = sync.error ?? account?.statsSyncError;
+  // The server reports when this account may be refreshed again: count down without asking first.
+  const { start } = cooldown;
+  const nextAt = sync.nextManualRefreshAt ? new Date(sync.nextManualRefreshAt).getTime() : 0;
+  useEffect(() => {
+    if (nextAt > Date.now()) start(Math.ceil((nextAt - Date.now()) / 1000));
+  }, [nextAt, start]);
   return (
     <div className="flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0">
       <div className="grid min-w-0 gap-0.5">
@@ -403,7 +414,9 @@ function SyncRow({ sync, account }: { sync: StatsSyncInfo; account: AdAccountDto
         >
           {sync.name}
         </Link>
-        <span className="text-xs text-muted-foreground">{account ? `${account.currency} · ${tz}` : '—'}</span>
+        <span className="text-xs text-muted-foreground">
+          {[account?.currency, tz].filter(Boolean).join(' · ') || '—'}
+        </span>
         <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <StatusBadge status={sync.status} tone={SYNC_TONES[sync.status] ?? 'muted'} size="sm" />
           {sync.lastStatsSyncAt ? (
@@ -416,8 +429,8 @@ function SyncRow({ sync, account }: { sync: StatsSyncInfo; account: AdAccountDto
             'never synced'
           )}
         </span>
-        {sync.status === 'FAILED' && account?.statsSyncError ? (
-          <span className="text-xs text-destructive-fg">{account.statsSyncError}</span>
+        {sync.status === 'FAILED' && error ? (
+          <span className="text-xs text-destructive-fg">{error}</span>
         ) : null}
       </div>
       <CooldownButton

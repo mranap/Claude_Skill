@@ -12,12 +12,9 @@ import {
   placementIssues,
   type ManualPlacements,
 } from '@adpilot/shared';
-import { ExternalLink, Plus, Sparkles, X } from 'lucide-react';
-import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { MultiCombobox } from '@/components/ui/multi-combobox';
 import { RadioCard, RadioGroup } from '@/components/ui/radio-group';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -28,6 +25,7 @@ import { formatNumber } from '@/lib/utils/format';
 import { useAudiences } from '../ad-accounts/api';
 import { useSettingsForm, useSettingsUi } from './context';
 import { CheckboxGroup, SelectInput, SettingsSection } from './fields';
+import { InterestPicker, LocalePicker } from './targeting-pickers';
 
 const AGES = Array.from({ length: 65 - 13 + 1 }, (_, i) => i + 13);
 export const COUNTRY_PRESETS = [{ label: 'All EU countries', values: [...EU_COUNTRY_CODES] }];
@@ -172,17 +170,14 @@ export function AudienceSection() {
             control={form.control}
             name="settings.targeting.locales"
             label="Languages"
-            description="Meta locale keys (e.g. 6 = English (US)). Leave empty to target all languages."
-            render={({ field }) => (
-              <PairListEditor
+            render={({ field, controlProps }) => (
+              <LocalePicker
+                hint="Leave empty to target all languages."
+                controlProps={controlProps}
                 value={field.value ?? []}
                 onChange={field.onChange}
-                idKey="key"
-                numeric
-                idLabel="Locale key"
-                nameLabel="Language"
+                adAccountId={ui.assetsAccountId}
                 disabled={ui.disabled}
-                docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/targeting-search#locales"
               />
             )}
           />
@@ -244,132 +239,20 @@ export function AudienceSection() {
             control={form.control}
             name="settings.targeting.interests"
             label="Detailed targeting (interests)"
-            description="Interest ids from Meta's targeting search. Leave empty for broad targeting."
-            render={({ field }) => (
-              <PairListEditor
+            render={({ field, controlProps }) => (
+              <InterestPicker
+                hint="People who match any of the interests can see the ads. Leave empty for broad targeting."
+                controlProps={controlProps}
                 value={field.value ?? []}
                 onChange={field.onChange}
-                idKey="id"
-                idLabel="Interest id"
-                nameLabel="Interest name"
+                adAccountId={ui.assetsAccountId}
                 disabled={ui.disabled}
-                docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting#interests"
               />
             )}
           />
         </>
       ) : null}
     </SettingsSection>
-  );
-}
-
-type Pair<K extends 'key' | 'id'> = K extends 'key'
-  ? { key: number; name: string }
-  : { id: string; name: string };
-
-/** Editable list of `{ key|id, name }` pairs (Meta locales / interests entered by id). */
-export function PairListEditor<K extends 'key' | 'id'>({
-  value,
-  onChange,
-  idKey,
-  numeric = false,
-  idLabel,
-  nameLabel,
-  disabled,
-  docsHref,
-}: {
-  value: Pair<K>[];
-  onChange: (value: Pair<K>[]) => void;
-  idKey: K;
-  numeric?: boolean;
-  idLabel: string;
-  nameLabel: string;
-  disabled?: boolean;
-  docsHref?: string;
-}) {
-  const [id, setId] = useState('');
-  const [name, setName] = useState('');
-  const valid = numeric ? /^\d{1,9}$/.test(id) && Number(id) > 0 : /^\d{1,30}$/.test(id);
-  const add = () => {
-    if (!valid) return;
-    const item = (
-      idKey === 'key'
-        ? { key: Number(id), name: name.trim() || `Locale ${id}` }
-        : { id, name: name.trim() || id }
-    ) as Pair<K>;
-    const exists = value.some((v) => String((v as Record<string, unknown>)[idKey]) === id);
-    if (!exists) onChange([...value, item]);
-    setId('');
-    setName('');
-  };
-  return (
-    <div className="grid gap-2">
-      {value.length ? (
-        <div className="flex flex-wrap gap-1.5">
-          {value.map((v) => {
-            const k = String((v as Record<string, unknown>)[idKey]);
-            return (
-              <span
-                key={k}
-                className="inline-flex h-6 items-center gap-1 rounded bg-secondary pr-0.5 pl-2 text-xs font-medium"
-              >
-                {v.name} <span className="font-mono text-muted-foreground">{k}</span>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() =>
-                    onChange(value.filter((x) => String((x as Record<string, unknown>)[idKey]) !== k))
-                  }
-                  className="flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                  aria-label={`Remove ${v.name}`}
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={id}
-          onChange={(e) => setId(e.target.value.replace(/\D/g, ''))}
-          placeholder={idLabel}
-          inputMode="numeric"
-          className="h-8 w-32"
-          aria-label={idLabel}
-          disabled={disabled}
-        />
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={nameLabel}
-          className="h-8 min-w-40 flex-1"
-          aria-label={nameLabel}
-          disabled={disabled}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              add();
-            }
-          }}
-        />
-        <Button type="button" variant="outline" size="sm" onClick={add} disabled={disabled || !valid}>
-          <Plus />
-          Add
-        </Button>
-        {docsHref ? (
-          <a
-            href={docsHref}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            Find ids <ExternalLink className="size-3" />
-          </a>
-        ) : null}
-      </div>
-    </div>
   );
 }
 

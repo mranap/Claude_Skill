@@ -9,9 +9,10 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/shared/empty-state';
 import { FormField } from '@/components/shared/form';
 import { countryName } from '@/lib/utils/countries';
-import { COUNTRY_PRESETS, PairListEditor, ageOptions, countrySelectOptions } from './audience-section';
+import { COUNTRY_PRESETS, ageOptions, countrySelectOptions } from './audience-section';
 import { newKey, newVariant, useSettingsForm, useSettingsUi, type VariantInput } from './context';
 import { AmountInput, SelectInput, SettingsSection } from './fields';
+import { LocalePicker } from './targeting-pickers';
 
 /**
  * Language/geo groups ("variants"): each one becomes an ad set with its own countries, languages,
@@ -181,16 +182,15 @@ export function VariantsEditor({
                 control={form.control}
                 name={`variants.${index}.locales`}
                 label="Languages"
-                description="Empty = default languages of the audience."
-                render={({ field: f }) => (
-                  <PairListEditor
+                render={({ field: f, controlProps }) => (
+                  <LocalePicker
+                    hint="Empty = default languages of the audience."
+                    controlProps={controlProps}
                     value={f.value ?? []}
                     onChange={f.onChange}
-                    idKey="key"
-                    numeric
-                    idLabel="Locale key"
-                    nameLabel="Language"
+                    adAccountId={ui.assetsAccountId}
                     disabled={ui.disabled}
+                    placeholder="Default languages"
                   />
                 )}
               />
