@@ -32,6 +32,13 @@ export interface NotifyInput {
   inApp?: boolean;
 }
 
+/** A notification written inside a caller's transaction whose deliveries are not queued yet (see notifyInTx). */
+export interface PendingNotification {
+  notificationId: string;
+  created: boolean;
+  deliveries: { id: string; channel: 'EMAIL' | 'TELEGRAM' }[];
+}
+
 /**
  * Every notification is stored in the in-app Notification Center first (always, regardless of channel
  * preferences), then one delivery row per external channel is created and processed by the EMAIL/TELEGRAM
@@ -52,19 +59,7 @@ export class NotificationsService {
     let deliveryIds: { id: string; channel: 'EMAIL' | 'TELEGRAM' }[] = [];
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        const n = await tx.notification.create({
-          data: {
-            userId: input.userId,
-            type: input.type,
-            severity: input.severity ?? 'INFO',
-            title: input.title.slice(0, 200),
-            body: input.body.slice(0, 4000),
-            link: input.link ?? null,
-            data: (input.data ?? undefined) as Prisma.InputJsonValue | undefined,
-            dedupeKey: input.dedupeKey ?? null,
-            showInApp: input.inApp ?? true,
-          },
-        });
+        const n = await tx.notification.create({ data: this.notificationRow(input) });
         const deliveries = [];
         for (const channel of channels) {
           deliveries.push(
@@ -105,8 +100,8 @@ export class NotificationsService {
     }
   }
 
-  async channelsFor(userId: string, type: NotificationType): Promise<('EMAIL' | 'TELEGRAM')[]> {
-    const pref = await this.prisma.notificationPreference.findUnique({
+  async channelsFor(userId: string, type: NotificationType, db: Prisma.TransactionClient = this.prisma): Promise<('EMAIL' | 'TELEGRAM')[]> {
+    const pref = await db.notificationPreference.findUnique({
       where: { userId_type: { userId, type } },
       select: { channel: true },
     });
@@ -114,10 +109,54 @@ export class NotificationsService {
     const out: ('EMAIL' | 'TELEGRAM')[] = [];
     if (channel === 'EMAIL' || channel === 'BOTH') out.push('EMAIL');
     if (channel === 'TELEGRAM' || channel === 'BOTH') {
-      const tg = await this.prisma.telegramConnection.findUnique({ where: { userId }, select: { isActive: true } });
+      const tg = await db.telegramConnection.findUnique({ where: { userId }, select: { isActive: true } });
       if (tg?.isActive) out.push('TELEGRAM');
     }
     return out;
+  }
+
+  /**
+   * notify() inside the caller's transaction: the notification and its delivery rows commit or roll back with
+   * the state change they report, so a crash or a failed insert can no longer lose the alert while the change
+   * stays (a retry then sees the change as already recorded). Pass the result to dispatch() once the
+   * transaction committed; deliveries that never get queued (the process died in between) are picked up by the
+   * outbox sweep. A duplicate dedupeKey is skipped without aborting the transaction.
+   */
+  async notifyInTx(tx: Prisma.TransactionClient, input: NotifyInput): Promise<PendingNotification> {
+    const channels = input.channels ?? (await this.channelsFor(input.userId, input.type, tx));
+    const [n] = await tx.notification.createManyAndReturn({ data: [this.notificationRow(input)], skipDuplicates: true, select: { id: true } });
+    if (!n) {
+      const existing = input.dedupeKey
+        ? await tx.notification.findUnique({ where: { userId_dedupeKey: { userId: input.userId, dedupeKey: input.dedupeKey } }, select: { id: true } })
+        : null;
+      return { notificationId: existing?.id ?? '', created: false, deliveries: [] };
+    }
+    const deliveries = channels.length
+      ? await tx.notificationDelivery.createManyAndReturn({
+          data: channels.map((channel) => ({ notificationId: n.id, userId: input.userId, channel })),
+          select: { id: true, channel: true },
+        })
+      : [];
+    return { notificationId: n.id, created: true, deliveries };
+  }
+
+  /** Queues the deliveries of a notification written with notifyInTx(), after its transaction committed. */
+  async dispatch(pending: PendingNotification): Promise<void> {
+    for (const d of pending.deliveries) await this.enqueueDelivery(d.id, d.channel);
+  }
+
+  private notificationRow(input: NotifyInput): Prisma.NotificationUncheckedCreateInput {
+    return {
+      userId: input.userId,
+      type: input.type,
+      severity: input.severity ?? 'INFO',
+      title: input.title.slice(0, 200),
+      body: input.body.slice(0, 4000),
+      link: input.link ?? null,
+      data: (input.data ?? undefined) as Prisma.InputJsonValue | undefined,
+      dedupeKey: input.dedupeKey ?? null,
+      showInApp: input.inApp ?? true,
+    };
   }
 
   async getPreferences(userId: string): Promise<{ type: NotificationType; channel: NotificationChannelPref }[]> {

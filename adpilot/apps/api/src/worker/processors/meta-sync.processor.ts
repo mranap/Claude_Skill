@@ -5,7 +5,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { SettingsService } from '../../modules/settings/settings.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { MetaConnectionFactory } from '../../modules/meta/meta-connection.factory';
-import { MetaAssetsService } from '../../modules/meta/meta-assets.service';
+import { AssetSyncResult, MetaAssetsService } from '../../modules/meta/meta-assets.service';
 import { MetaProfileStatusService } from '../../modules/meta/meta-profile-status.service';
 import { TokenInspectorService } from '../../modules/meta/token-inspector.service';
 import { MetaApiError } from '../../modules/meta/graph/meta-errors';
@@ -45,26 +45,24 @@ export class MetaSyncProcessor implements QueueProcessor {
 
   /**
    * Every sync request is its own job; runs are serialised per profile and coalesced: a request is skipped
-   * when a sync that *started after the request was made* already ran (it saw the same or newer state).
-   * A request made while a sync is running waits for it and then runs, so changes made meanwhile (e.g. an
-   * ad account connected mid-sync) are always picked up.
+   * when a sync that *started after the request was made* already succeeded (it saw the same or newer state).
+   * Only a successful run records its start, so the retry, deferral or stalled re-run of a job whose run failed
+   * is never mistaken for a covered request. A request made while a sync is running waits for it and then runs,
+   * so changes made meanwhile (e.g. an ad account connected mid-sync) are always picked up.
    */
   private async assetSync(job: Job<MetaSyncJob>, token?: string) {
     const { profileId } = job.data;
     const startedKey = this.redis.key('meta-sync', 'started', profileId);
     const lastStarted = Number((await this.redis.client.get(startedKey)) ?? 0);
     if (lastStarted >= job.timestamp) return { skipped: 'covered by a newer sync' };
-    const lock = await this.locks.acquire(`meta-sync:${profileId}`, 15 * 60_000);
-    if (!lock) return deferJob(job, token, 10_000);
-    try {
-      await this.redis.client.set(startedKey, String(Date.now()), 'EX', 7 * 24 * 3600);
-      return await this.runAssetSync(job, token);
-    } finally {
-      await this.locks.release(lock);
-    }
+    // The lock is renewed while the run lasts: discovery of a large profile can outlast any fixed TTL.
+    const run = await this.locks.withLock(`meta-sync:${profileId}`, 5 * 60_000, () => this.runAssetSync(job, token, startedKey));
+    if (!run.acquired) return deferJob(job, token, 10_000);
+    return run.result;
   }
 
-  private async runAssetSync(job: Job<MetaSyncJob>, token?: string) {
+  private async runAssetSync(job: Job<MetaSyncJob>, token: string | undefined, startedKey: string) {
+    const startedAt = Date.now();
     const { profileId, userId } = job.data;
     const profile = await this.loadProfile(profileId);
     if (!profile || profile.userId !== userId) return { skipped: 'profile not found' };
@@ -74,9 +72,10 @@ export class MetaSyncProcessor implements QueueProcessor {
     }
     const { assetSyncIntervalHours } = await this.settings.get('meta');
     await this.prisma.metaProfile.update({ where: { id: profileId }, data: { syncStatus: 'RUNNING' } });
+    let result: AssetSyncResult;
     try {
       const conn = await this.connections.forProfile(profile);
-      const result = await this.assets.syncProfile(profileId, userId, conn);
+      result = await this.assets.syncProfile(profileId, userId, conn);
       await this.prisma.metaProfile.update({
         where: { id: profileId },
         data: {
@@ -86,7 +85,6 @@ export class MetaSyncProcessor implements QueueProcessor {
           nextAssetSyncAt: new Date(Date.now() + assetSyncIntervalHours * 3600_000),
         },
       });
-      return result;
     } catch (err) {
       const final = !(err instanceof MetaApiError && err.category === 'RATE_LIMIT') && job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       await this.prisma.metaProfile.update({
@@ -107,8 +105,12 @@ export class MetaSyncProcessor implements QueueProcessor {
           dedupeKey: `profile-sync-failed:${profileId}:${Math.floor(Date.now() / DAY)}`,
         });
       }
-      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus });
+      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus, tokenFingerprint: profile.tokenFingerprint });
     }
+    // Covers every request made before this run started (see assetSync); if it is lost, a later request only
+    // runs one redundant sync.
+    await this.redis.client.set(startedKey, String(startedAt), 'EX', 7 * 24 * 3600).catch(() => undefined);
+    return result;
   }
 
   private async tokenCheck(job: Job<TokenCheckJob>) {
@@ -116,20 +118,24 @@ export class MetaSyncProcessor implements QueueProcessor {
     const profile = await this.loadProfile(profileId);
     if (!profile || !profile.tokenEnc) return { skipped: true };
     const conn = await this.connections.forProfile(profile);
+    // Every write below is conditional on the inspected token: the user may replace it during the check.
+    const inspected = { id: profileId, tokenFingerprint: profile.tokenFingerprint };
     const inspection = await this.inspector.inspect(conn);
     if (inspection.status === 'ERROR') {
       // Network/proxy problem — not a token problem; keep the current status and retry later.
-      await this.prisma.metaProfile.update({ where: { id: profileId }, data: { lastValidationError: inspection.message, lastValidatedAt: new Date() } });
+      await this.prisma.metaProfile.updateMany({ where: inspected, data: { lastValidationError: inspection.message, lastValidatedAt: new Date() } });
       throw new Error(inspection.message);
     }
-    await this.profileStatus.applyInspection(profileId, inspection);
+    await this.profileStatus.applyInspection(profileId, inspection, profile.tokenFingerprint);
 
-    // "Expiring soon" warning, once per token (expiryWarnedAt is reset when the token is replaced).
+    // "Expiring soon" warning, once per token (expiryWarnedAt is reset when the token is replaced). The claim
+    // commits together with the notification, so a failure in between cannot use the warning up.
     const expiresAt = inspection.expiresAt ? new Date(inspection.expiresAt) : null;
     if (inspection.valid && expiresAt && expiresAt.getTime() - Date.now() < 7 * DAY) {
-      const claimed = await this.prisma.metaProfile.updateMany({ where: { id: profileId, expiryWarnedAt: null }, data: { expiryWarnedAt: new Date() } });
-      if (claimed.count === 1) {
-        await this.notifications.notify({
+      const pending = await this.prisma.$transaction(async (tx) => {
+        const claimed = await tx.metaProfile.updateMany({ where: { ...inspected, expiryWarnedAt: null }, data: { expiryWarnedAt: new Date() } });
+        if (claimed.count !== 1) return null;
+        return this.notifications.notifyInTx(tx, {
           userId: profile.userId,
           type: 'TOKEN_EXPIRING_SOON',
           severity: 'WARNING',
@@ -138,7 +144,8 @@ export class MetaSyncProcessor implements QueueProcessor {
           link: `/meta-profiles/${profileId}`,
           dedupeKey: `token-expiring:${profileId}:${expiresAt.getTime()}`,
         });
-      }
+      });
+      if (pending) await this.notifications.dispatch(pending);
     }
     return { status: inspection.status };
   }
