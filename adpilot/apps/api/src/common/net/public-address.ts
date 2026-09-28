@@ -50,7 +50,7 @@ export function isPublicAddress(ip: string): boolean {
   const lower = ip.toLowerCase();
   // IPv4-mapped IPv6 (::ffff:a.b.c.d) is judged by its IPv4 part.
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-  if (mapped) return !reserved.check(mapped[1]!, 'ipv4');
+  if (mapped) return !reserved.check(mapped[1], 'ipv4');
   return !reserved.check(lower, 'ipv6');
 }
 

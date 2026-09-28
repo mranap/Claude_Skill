@@ -57,7 +57,7 @@ export class MetaApiLogService implements BeforeApplicationShutdown {
       durationMs: Math.round(e.durationMs),
       retryCount: e.retryCount,
       rateLimited: e.rateLimited,
-      usage: (e.usage ?? undefined) as Prisma.InputJsonValue | undefined,
+      usage: (e.usage ?? undefined),
       jobId: e.jobId ?? null,
     });
     if (this.buffer.length >= 100) void this.flush();

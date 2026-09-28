@@ -36,8 +36,8 @@ export class StatsQueryService {
   private async rows(accounts: AccountRef[], ranges: Map<string, LocalRange>, level: EntityLevel, filter: { metaObjectIds?: string[]; metaCampaignId?: string }) {
     if (!accounts.length) return [];
     const all = [...ranges.values()];
-    const minSince = all.reduce((m, r) => (r.since < m ? r.since : m), all[0]!.since);
-    const maxUntil = all.reduce((m, r) => (r.until > m ? r.until : m), all[0]!.until);
+    const minSince = all.reduce((m, r) => (r.since < m ? r.since : m), all[0].since);
+    const maxUntil = all.reduce((m, r) => (r.until > m ? r.until : m), all[0].until);
     const rows = await this.prisma.insightDaily.findMany({
       where: {
         adAccountId: { in: accounts.map((a) => a.id) },

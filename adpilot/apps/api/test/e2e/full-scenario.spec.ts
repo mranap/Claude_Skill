@@ -223,8 +223,8 @@ describe('full platform scenario (28 steps)', () => {
     expect(job.status, JSON.stringify(job.items.filter((i: { status: string }) => i.status !== 'VERIFIED' && i.status !== 'CREATED'))).toBe('COMPLETED');
     const campaigns = stack.meta.objectsOf('campaign').filter((o) => String(o.fields.name).includes(launchCode));
     expect(campaigns).toHaveLength(1);
-    const adsets = stack.meta.objectsOf('adset').filter((o) => o.fields.campaign_id === campaigns[0]!.id);
-    const ads = stack.meta.objectsOf('ad').filter((o) => o.fields.campaign_id === campaigns[0]!.id);
+    const adsets = stack.meta.objectsOf('adset').filter((o) => o.fields.campaign_id === campaigns[0].id);
+    const ads = stack.meta.objectsOf('ad').filter((o) => o.fields.campaign_id === campaigns[0].id);
     const diag = JSON.stringify({
       items: job.items.map((i: { kind: string; key: string; status: string; metaId: string | null }) => [i.kind, i.key, i.status, i.metaId]),
       adsets: stack.meta.objectsOf('adset').map((o) => [o.id, o.fields.campaign_id, o.fields.name, o.fields.status]),

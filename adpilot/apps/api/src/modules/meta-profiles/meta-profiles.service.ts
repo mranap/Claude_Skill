@@ -18,7 +18,7 @@ import { JOBS, QUEUES } from '../../infra/queue/queues';
 import { maskSecret } from '../../infra/logger/sanitize';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../../common/errors/app-error';
-import { MetaConnectionFactory, ProfileWithProxy } from '../meta/meta-connection.factory';
+import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { TokenInspectorService } from '../meta/token-inspector.service';
 import { MetaProfileStatusService } from '../meta/meta-profile-status.service';
 import { Prisma } from '../../generated/prisma/client';
@@ -85,7 +85,7 @@ export class MetaProfilesService {
 
   async connectionFor(userId: string, id: string) {
     const row = await this.findOwned(userId, id);
-    return { profile: row, conn: await this.connections.forProfile(row as ProfileWithProxy) };
+    return { profile: row, conn: await this.connections.forProfile(row) };
   }
 
   // ───────────── mutations ─────────────
@@ -173,7 +173,7 @@ export class MetaProfilesService {
       } else if (current.proxyId) {
         await this.prisma.proxy.update({
           where: { id: current.proxyId },
-          data: this.proxyData(userId, current.proxyId, input.proxy, true) as Prisma.ProxyUpdateInput,
+          data: this.proxyData(userId, current.proxyId, input.proxy, true),
         });
       } else {
         const proxyId = randomUUID();

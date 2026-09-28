@@ -67,7 +67,7 @@ export class TokenInspectorService {
     const status: TokenInspection['status'] = noAdsAccess ? 'PERMISSION_REVOKED' : 'ACTIVE';
     const typeRaw = (debug?.type ?? '').toUpperCase();
     const tokenType: TokenInspection['tokenType'] =
-      typeRaw === 'USER' || typeRaw === 'PAGE' || typeRaw === 'APP' || typeRaw === 'SYSTEM_USER' ? (typeRaw as TokenInspection['tokenType']) : 'UNKNOWN';
+      typeRaw === 'USER' || typeRaw === 'PAGE' || typeRaw === 'APP' || typeRaw === 'SYSTEM_USER' ? (typeRaw) : 'UNKNOWN';
 
     let message = 'Token is valid.';
     if (noAdsAccess) message = 'The token is valid but has neither ads_management nor ads_read permission.';

@@ -68,7 +68,7 @@ export function parseUsageHeaders(headers: Record<string, string | string[] | un
       for (const item of list as Record<string, unknown>[]) {
         out.business.push({
           businessId,
-          type: String(item.type ?? 'unknown'),
+          type: typeof item.type === 'string' ? item.type : 'unknown',
           callCount: num(item.call_count),
           totalCputime: num(item.total_cputime),
           totalTime: num(item.total_time),

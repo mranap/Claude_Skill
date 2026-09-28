@@ -371,8 +371,8 @@ export class MetaEmulator {
     if (method === 'GET' && path === '/me/accounts') {
       return ok(this.page(tok.pages.map((id) => this.pages.get(id)!).map((pg) => ({ id: pg.id, name: pg.name, category: pg.category, ...(pg.ig ? { instagram_business_account: pg.ig } : {}) })), p));
     }
-    if (method === 'GET' && seg.length === 2 && this.businesses.has(seg[0]!)) {
-      const b = this.businesses.get(seg[0]!)!;
+    if (method === 'GET' && seg.length === 2 && this.businesses.has(seg[0])) {
+      const b = this.businesses.get(seg[0])!;
       if (seg[1] === 'owned_ad_accounts') return ok(this.page(b.owned.map((id) => this.accountView(this.accounts.get(id)!)), p));
       if (seg[1] === 'client_ad_accounts') return ok(this.page(b.client.map((id) => this.accountView(this.accounts.get(id)!)), p));
       if (seg[1] === 'owned_pages') return ok(this.page(b.pages.map((id) => this.pages.get(id)!).map((pg) => ({ id: pg.id, name: pg.name, category: pg.category })), p));
@@ -405,7 +405,7 @@ export class MetaEmulator {
       if (method === 'POST' && edge === 'adsets') return this.createAdSet(act, p);
       if (method === 'POST' && edge === 'adcreatives') return this.createCreative(act, p);
       if (method === 'POST' && edge === 'ads') return this.createAd(act, p);
-      if (method === 'GET' && ['campaigns', 'adsets', 'ads', 'adcreatives'].includes(edge!)) {
+      if (method === 'GET' && ['campaigns', 'adsets', 'ads', 'adcreatives'].includes(edge)) {
         const type = ({ campaigns: 'campaign', adsets: 'adset', ads: 'ad', adcreatives: 'creative' } as const)[edge as 'campaigns'];
         return ok(this.page(this.filterList(this.objectsOf(type).filter((o) => o.account === act), p), p));
       }

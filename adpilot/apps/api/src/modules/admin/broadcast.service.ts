@@ -88,12 +88,12 @@ export class BroadcastService {
             title: b.subject,
             body: b.body,
             dedupeKey: `broadcast:${b.id}`,
-            channels: b.channels as ('EMAIL' | 'TELEGRAM')[],
+            channels: b.channels,
             inApp: b.inApp,
           });
           count++;
         }
-        cursor = users[users.length - 1]!.id;
+        cursor = users[users.length - 1].id;
       }
       await this.prisma.broadcast.update({
         where: { id: b.id },

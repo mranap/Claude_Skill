@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import { z } from 'zod';
-import { LAUNCH_JOB_TERMINAL_STATUSES, launchRequestSchema, paginationQuerySchema, type LaunchJobStatus } from '@adpilot/shared';
+import { LAUNCH_JOB_TERMINAL_STATUSES, launchRequestSchema, paginationQuerySchema } from '@adpilot/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { QueueService, jobId } from '../../infra/queue/queue.service';
 import { JOBS, QUEUES } from '../../infra/queue/queues';
@@ -24,7 +24,7 @@ function displayPayload(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(displayPayload);
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>;
-    if (typeof o.$ref === 'string') return `‹${o.field} of ${o.$ref}›`;
+    if (typeof o.$ref === 'string') return `‹${typeof o.field === 'string' ? o.field : 'value'} of ${o.$ref}›`;
     return Object.fromEntries(Object.entries(o).map(([k, val]) => [k, displayPayload(val)]));
   }
   return v;
@@ -191,7 +191,7 @@ export class LaunchesService {
   async cancel(userId: string, id: string) {
     const job = await this.prisma.launchJob.findFirst({ where: { id, userId } });
     if (!job) throw AppError.notFound('Launch');
-    if (LAUNCH_JOB_TERMINAL_STATUSES.includes(job.status as LaunchJobStatus)) throw AppError.conflict('This launch has already finished');
+    if (LAUNCH_JOB_TERMINAL_STATUSES.includes(job.status)) throw AppError.conflict('This launch has already finished');
     await this.prisma.launchJob.update({ where: { id }, data: { cancelRequestedAt: new Date() } });
     await this.audit.log({ action: 'campaign.launch_cancel_requested', actorUserId: userId, subjectUserId: userId, targetType: 'launch_job', targetId: id });
     return { ok: true };

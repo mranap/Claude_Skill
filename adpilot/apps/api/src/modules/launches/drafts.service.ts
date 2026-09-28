@@ -84,7 +84,7 @@ export class DraftsService {
         userId,
         name: tpl.name,
         templateId: tpl.id,
-        config: { version: 1, templateId: tpl.id, name: tpl.name, settings: parsed.data.settings, variants: parsed.data.variants } as Prisma.InputJsonValue,
+        config: { version: 1, templateId: tpl.id, name: tpl.name, settings: parsed.data.settings, variants: parsed.data.variants },
       },
     });
     await this.prisma.campaignTemplate.update({ where: { id: tpl.id }, data: { lastUsedAt: new Date() } });

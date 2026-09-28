@@ -151,7 +151,7 @@ export class LaunchExecutorService {
         if (after.status === 'FAILED') {
           await this.prisma.launchJobItem.updateMany({
             where: { launchJobId: job.id, parentKey: item.key, status: { in: ['PENDING'] } },
-            data: { status: 'SKIPPED', lastError: { message: 'The ad set was not created' } as Prisma.InputJsonValue },
+            data: { status: 'SKIPPED', lastError: { message: 'The ad set was not created' } },
           });
         }
       }
@@ -168,7 +168,7 @@ export class LaunchExecutorService {
         const creativeAfter = await this.prisma.launchJobItem.findUniqueOrThrow({ where: { id: creative.id } });
         if (!ad) continue;
         if (creativeAfter.status === 'FAILED') {
-          await this.prisma.launchJobItem.updateMany({ where: { id: ad.id, status: 'PENDING' }, data: { status: 'SKIPPED', lastError: { message: 'The ad creative was not created' } as Prisma.InputJsonValue } });
+          await this.prisma.launchJobItem.updateMany({ where: { id: ad.id, status: 'PENDING' }, data: { status: 'SKIPPED', lastError: { message: 'The ad creative was not created' } } });
           continue;
         }
         await this.createObject(job, conn, ad, `/${actId(metaAccountId)}/ads`, 'ad.create', metaAccountId);
@@ -246,7 +246,7 @@ export class LaunchExecutorService {
         data: {
           status: 'CREATED',
           metaId: ready.metaImageHash ?? ready.metaVideoId,
-          response: { imageHash: ready.metaImageHash, videoId: ready.metaVideoId, thumbnailUrl: ready.thumbnailUrl } as Prisma.InputJsonValue,
+          response: { imageHash: ready.metaImageHash, videoId: ready.metaVideoId, thumbnailUrl: ready.thumbnailUrl },
           lastError: Prisma.DbNull,
         },
       });
@@ -287,12 +287,12 @@ export class LaunchExecutorService {
     });
     try {
       const res = await this.graph.call<{ id: string }>(conn, { method: 'POST', path: endpoint, params: payload, category, metaAccountId });
-      await this.markCreated(job.id, current, res.data.id, res.data as unknown as Record<string, unknown>);
+      await this.markCreated(job.id, current, res.data.id, res.data);
     } catch (err) {
       if (err instanceof MetaNetworkError) {
         if (!err.sent) {
           // Never reached Meta: safe to send again later.
-          await this.prisma.launchJobItem.update({ where: { id: current.id }, data: { status: 'PENDING', inFlightSince: null, lastError: { message: err.message } as Prisma.InputJsonValue } });
+          await this.prisma.launchJobItem.update({ where: { id: current.id }, data: { status: 'PENDING', inFlightSince: null, lastError: { message: err.message } } });
         }
         throw err; // ambiguous → stays IN_FLIGHT → reconciled on the next attempt
       }
@@ -447,7 +447,7 @@ export class LaunchExecutorService {
   private async skipAll(jobId: string, kinds: Item['kind'][], message: string) {
     await this.prisma.launchJobItem.updateMany({
       where: { launchJobId: jobId, kind: { in: kinds }, status: { in: ['PENDING'] } },
-      data: { status: 'SKIPPED', lastError: { message } as Prisma.InputJsonValue },
+      data: { status: 'SKIPPED', lastError: { message } },
     });
   }
 
@@ -501,7 +501,7 @@ export class LaunchExecutorService {
         type: 'CAMPAIGN_CREATION_FAILED',
         severity: status === 'PARTIAL_FAILURE' ? 'WARNING' : 'ERROR',
         title: `Campaign "${job.name}": ${status === 'PARTIAL_FAILURE' ? 'partially created' : 'creation failed'}`,
-        body: `${String(error?.message ?? 'Some objects could not be created.')} Open the launch to see the details and retry.`,
+        body: `${typeof error?.message === 'string' ? error.message : 'Some objects could not be created.'} Open the launch to see the details and retry.`,
         link: `/launch/jobs/${job.id}`,
         dedupeKey: `launch-finished:${job.id}:${job.attempt}`,
       });

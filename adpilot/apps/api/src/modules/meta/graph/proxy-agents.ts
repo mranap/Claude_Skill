@@ -47,8 +47,8 @@ export function agentFor(proxy?: ProxyConfig | null): HttpsAgent {
   const url = proxyUrl(proxy);
   agent =
     proxy.type === 'SOCKS5'
-      ? (new SocksProxyAgent(url, { keepAlive: true }) as unknown as HttpsAgent)
-      : (new HttpsProxyAgent(url, { keepAlive: true }) as unknown as HttpsAgent);
+      ? (new SocksProxyAgent(url, { keepAlive: true }))
+      : (new HttpsProxyAgent(url, { keepAlive: true }));
   if (cache.size >= MAX_CACHED) {
     const oldest = cache.keys().next().value;
     if (oldest) {

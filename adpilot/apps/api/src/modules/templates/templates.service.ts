@@ -85,7 +85,7 @@ export class TemplatesService {
         name: input.name,
         description: input.description ?? null,
         objective: input.config.settings.objective,
-        config: input.config as unknown as Prisma.InputJsonValue,
+        config: input.config,
       },
     });
     await this.audit.log({ action: 'template.created', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: row.id, metadata: { name: row.name } });
@@ -101,7 +101,7 @@ export class TemplatesService {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.isArchived !== undefined ? { isArchived: input.isArchived } : {}),
-        ...(input.config ? { config: input.config as unknown as Prisma.InputJsonValue, objective: input.config.settings.objective } : {}),
+        ...(input.config ? { config: input.config, objective: input.config.settings.objective } : {}),
       },
     });
     await this.audit.log({ action: 'template.updated', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: id });
@@ -137,7 +137,7 @@ export class TemplatesService {
   }
 
   /** Stored configs are re-validated on read so older/invalid documents are normalised (defaults applied). */
-  parseStored(config: unknown): TemplateConfig | unknown {
+  parseStored(config: unknown): unknown {
     const parsed = templateConfigSchema.safeParse(config);
     return parsed.success ? parsed.data : config;
   }

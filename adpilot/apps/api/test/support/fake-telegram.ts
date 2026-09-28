@@ -178,7 +178,7 @@ function balancedHtml(text: string): boolean {
   while ((m = re.exec(text))) {
     const token = m[0];
     if (token === '<' || token.startsWith('&')) return false;
-    const name = m[1]!.toLowerCase();
+    const name = m[1].toLowerCase();
     if (token.startsWith('</')) {
       if (stack.pop() !== name) return false;
     } else if (!token.endsWith('/>')) stack.push(name);

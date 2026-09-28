@@ -1,0 +1,107 @@
+# Security model
+
+AdPilot stores access tokens that can spend real money. The design goal: a compromise of one component
+(browser session, database dump, backup, log file, one tenant's account) must not expose secrets or other
+tenants' data.
+
+## 1. Authentication
+
+- **Passwords**: Argon2id (memory 64 MiB, 3 iterations, parallelism 1), rehashed on login when parameters
+  change; minimum 10 characters with letters and digits. Constant-time dummy verification for unknown e-mails
+  (no user enumeration by timing); one generic error message for unknown e-mail / wrong password.
+- **Lockout & rate limits**: account lock after N failed attempts (default 5 → 15 min, configurable), per-IP and
+  per-e-mail limits for login, password reset and 2FA; limits are shared by all API replicas (Redis). Rate-limit
+  keys use hashed identifiers.
+- **Two-factor authentication**: TOTP (RFC 6238, SHA-1, 30 s, ±1 step), secret stored encrypted, 10 one-time
+  recovery codes stored as hashes, single-use MFA ticket (Redis) between the password and the code step.
+  Super Admin can require 2FA for administrators.
+- **Sessions**: short-lived JWT access token (15 min, `HttpOnly`, `SameSite=Lax`, `__Host-` prefix, `Secure`) +
+  opaque rotating refresh token (`HttpOnly`, `SameSite=Strict`, path `/api/auth`) stored as a SHA-256 hash.
+  Refresh rotation with a 60 s grace for parallel tabs; reuse of an old refresh token after the grace window
+  revokes the session (token theft detection). Idle and absolute session lifetimes are configurable; sessions
+  are listed and can be revoked by the user or an administrator; password change/reset and blocking revoke
+  sessions immediately (a revoked session fails on the next request, not after the access token expires).
+- **One-time tokens** (password reset, invitation, e-mail change: 256-bit; Telegram link: 192-bit, 10 minutes):
+  only their hashes are stored, single use (atomic compare-and-set), short expiry.
+- **Forced password change** for temporary passwords set by an administrator: only the password-change endpoint
+  and sign-out work until it is changed.
+
+## 2. Authorization and tenant isolation
+
+- RBAC: permissions (`app.*`, `admin.*`) grouped in roles; `SUPER_ADMIN` has all permissions. Administrators
+  cannot assign roles above their own, cannot modify Super Admins, and the last Super Admin cannot be removed.
+- Every tenant-owned query filters by `userId` (ownership helpers such as `findOwned()`); foreign ids return
+  `404` (existence is not revealed). References inside payloads (profile, ad account, template, draft, creative,
+  pixel, page, audience, campaign ids) are verified to belong to the user before use.
+- Workers re-check ownership (job payloads carry the user id and are validated against the row).
+- Integration tests cover IDOR attempts on every resource type.
+
+## 3. CSRF, XSS and HTTP hardening
+
+- CSRF: `SameSite` cookies + Origin/Referer allow-list + double-submit token (`X-CSRF-Token`) bound to the
+  session with an HMAC; pre-login tokens are only accepted by public auth endpoints.
+- XSS: React escapes output; the web app sends a strict Content-Security-Policy (`default-src 'self'`, no
+  external scripts, `frame-ancestors 'none'`); the API answers JSON only with `default-src 'none'`. E-mail
+  templates and Telegram messages escape all user-provided values. Uploaded files are served with their
+  verified content type and `Content-Disposition`, never as HTML/SVG.
+- Helmet headers, `X-Content-Type-Options`, `Referrer-Policy`, HSTS in production, no `X-Powered-By`, body size
+  limits, request timeouts, `trust proxy` limited to the configured number of proxies.
+
+## 4. Secrets
+
+- **Encryption at rest**: Meta access tokens, app secrets, proxy passwords, 2FA secrets, SMTP password, Telegram
+  bot token and webhook secret are encrypted with **AES-256-GCM** (random 96-bit IV per value, 128-bit tag,
+  truncated tags rejected). Each value is bound to its location with additional authenticated data
+  (`meta_profile:<id>:token`, …), so ciphertext copied to another row does not decrypt.
+- **Keys** live only in the environment (`ENCRYPTION_KEYS`), never in the database or its backups. A key ring
+  allows rotation: add a key, make it active, restart, run `node dist/cli/rotate-keys.js` (re-encrypts every
+  secret with compare-and-set, safe while running), remove the old key.
+- **Never returned**: tokens are shown masked (`EAAB****7ds`); secret settings are write-only (`passwordSet:
+  true`); an empty input keeps a secret, only an explicit clear removes it.
+- **Never logged**: structured logs pass through a sanitizer (tokens, `access_token=`, Bearer values, URL
+  credentials, secret-looking keys) and pino redaction; the Meta API log stores paths without tokens; job payloads
+  do not contain secrets (connections are built in the worker from encrypted rows).
+- Decrypted secrets exist only in memory for the duration of a request or job.
+
+## 5. Network
+
+- Meta profile proxies (HTTP/HTTPS/SOCKS5 with remote DNS) are only a network route for that profile's Meta
+  calls. **SSRF protection**: proxy hosts must resolve to public addresses (loopback, private, link-local incl.
+  cloud metadata, CGNAT, multicast and reserved ranges are refused), checked when saving/testing and again when
+  connecting; a Super Admin can allow private proxies for company-internal proxy servers.
+- The server never fetches arbitrary user-supplied URLs.
+- Only Caddy is exposed; PostgreSQL, Redis (password, `noeviction`), MinIO (least-privilege app user) and the
+  services are on the internal Docker network.
+
+## 6. Files
+
+Uploads are streamed (busboy) with per-file and per-request limits and per-user storage quotas; the type is
+detected from the content (ffprobe/sharp), not from the name or declared MIME type; images are re-encoded for
+previews; videos are probed for duration, resolution and codecs; storage keys are generated server-side (no
+user-controlled paths).
+
+## 7. Auditing and monitoring
+
+- Audit log (append-only: a database trigger blocks UPDATE/DELETE) for sign-ins, security changes, admin
+  actions, profile/token changes, launches, budget/status changes, rule actions, settings changes.
+- System log for worker/scheduler failures; Meta API log with error codes and `fbtrace_id`; login history per
+  user; retention periods configurable.
+
+## 8. Backups
+
+`pg_dump` custom-format backups to a separate bucket. Backups contain encrypted secrets but **not** the keys —
+keep `.env` (or at least `ENCRYPTION_KEYS`) in a separate secrets store, otherwise a restore cannot decrypt
+tokens. Backups can be restored into an empty database with `pg_restore` (see DEPLOYMENT.md).
+
+## 9. Review
+
+The code was reviewed specifically for race conditions, duplicate creation, retries, infinite loops, memory
+leaks, queue deadlocks, scheduler logic, time zones, permission checks, IDOR, SQL injection, XSS, CSRF, secret
+leakage, encryption, Meta API correctness, file validation, duplicate notifications, repeated rule execution
+and budget calculations. Findings and fixes are listed in the git history (commit messages describe each fix)
+and covered by regression tests in `apps/api/test`.
+
+## 10. Reporting a vulnerability
+
+Please report security issues privately to the platform operator (see Super Admin → Settings → General →
+support e-mail) instead of opening a public issue.

@@ -120,7 +120,7 @@ export class TestStack {
       .useValue({ isLeader: true, onApplicationBootstrap: () => undefined, onApplicationShutdown: () => undefined })
       .overrideProvider(TelegramPollerService)
       .useValue({ onApplicationBootstrap: () => undefined, onApplicationShutdown: () => undefined })
-      .setLogger({ log() {}, warn() {}, error() {}, debug() {}, verbose() {}, fatal() {} } as never)
+      .setLogger({ log() {}, warn() {}, error() {}, debug() {}, verbose() {}, fatal() {} })
       .compile();
     await this.scheduler.init();
   }
@@ -207,7 +207,7 @@ export class TestStack {
 
   /** Updates a settings group and makes every running context see it immediately. */
   async setSettings(key: Parameters<SettingsService['update']>[0], patch: Record<string, unknown>, secrets: Record<string, string | null> = {}): Promise<void> {
-    await this.api.get(SettingsService).update(key, patch as never, secrets);
+    await this.api.get(SettingsService).update(key, patch, secrets);
     for (const ctx of [this.api, this.worker, this.scheduler]) await ctx?.get(SettingsService).invalidate(key);
   }
 
@@ -264,7 +264,7 @@ export class TestStack {
     while (Date.now() < deadline) {
       try {
         const v = await fn();
-        if (v) return v as T;
+        if (v) return v;
       } catch (err) {
         last = err;
       }

@@ -35,7 +35,7 @@ export async function rotateEncryptedData(prisma: PrismaClient, enc: EncryptionS
       const secret = rotate(r.appSecretEnc, Aad.metaAppSecret(r.id));
       if (secret) report.metaAppSecrets += (await prisma.metaProfile.updateMany({ where: { id: r.id, appSecretEnc: r.appSecretEnc }, data: { appSecretEnc: secret } })).count;
     }
-    cursor = rows[rows.length - 1]!.id;
+    cursor = rows[rows.length - 1].id;
   }
 
   for (let cursor: string | undefined; ; ) {
@@ -45,7 +45,7 @@ export async function rotateEncryptedData(prisma: PrismaClient, enc: EncryptionS
       const pw = rotate(r.passwordEnc, Aad.proxyPassword(r.id));
       if (pw) report.proxyPasswords += (await prisma.proxy.updateMany({ where: { id: r.id, passwordEnc: r.passwordEnc }, data: { passwordEnc: pw } })).count;
     }
-    cursor = rows[rows.length - 1]!.id;
+    cursor = rows[rows.length - 1].id;
   }
 
   for (let cursor: string | undefined; ; ) {
@@ -63,7 +63,7 @@ export async function rotateEncryptedData(prisma: PrismaClient, enc: EncryptionS
       const pending = rotate(r.twoFactorPendingSecretEnc, Aad.totpPendingSecret(r.id));
       if (pending) report.totpSecrets += (await prisma.user.updateMany({ where: { id: r.id, twoFactorPendingSecretEnc: r.twoFactorPendingSecretEnc }, data: { twoFactorPendingSecretEnc: pending } })).count;
     }
-    cursor = rows[rows.length - 1]!.id;
+    cursor = rows[rows.length - 1].id;
   }
 
   for (const [key, fields] of Object.entries(SECRET_SETTING_FIELDS) as [SettingKey, readonly string[]][]) {
@@ -74,7 +74,7 @@ export async function rotateEncryptedData(prisma: PrismaClient, enc: EncryptionS
       if (!value) return;
       let changed = 0;
       for (const field of fields) {
-        const current = typeof value[field] === 'string' ? (value[field] as string) : null;
+        const current = typeof value[field] === 'string' ? (value[field]) : null;
         const next = rotate(current, Aad.setting(`${key}.${field}`));
         if (next) {
           value[field] = next;

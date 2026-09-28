@@ -122,7 +122,7 @@ export class NotificationsService {
 
   async getPreferences(userId: string): Promise<{ type: NotificationType; channel: NotificationChannelPref }[]> {
     const rows = await this.prisma.notificationPreference.findMany({ where: { userId } });
-    const map = new Map(rows.map((r) => [r.type as NotificationType, r.channel as NotificationChannelPref]));
+    const map = new Map(rows.map((r) => [r.type, r.channel]));
     return NOTIFICATION_TYPES.map((type) => ({ type, channel: map.get(type) ?? DEFAULT_NOTIFICATION_PREFS[type] }));
   }
 

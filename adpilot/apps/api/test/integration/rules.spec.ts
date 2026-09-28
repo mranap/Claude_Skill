@@ -30,7 +30,7 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
     ...overrides,
   });
 
-  const budgetOf = (key: string) => stack.meta.objects.get(sets[key]!)!.fields.daily_budget;
+  const budgetOf = (key: string) => stack.meta.objects.get(sets[key])!.fields.daily_budget;
 
   beforeAll(async () => {
     await stack.start({ worker: true, scheduler: true });
@@ -102,7 +102,7 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
 
   it('computes relative changes from the live Meta budget, not a stale local copy', async () => {
     // The budget was changed in Ads Manager after the last sync; the local mirror still says 60.00.
-    stack.meta.objects.get(sets.cheap!)!.fields.daily_budget = '9000';
+    stack.meta.objects.get(sets.cheap)!.fields.daily_budget = '9000';
     stack.meta.insightOverrides.set(`${sets.cheap}|${today()}`, { spend: '90.00', leads: 1 }); // CPL 90
     const created = expectStatus(await user.client.post('/api/rules', rule({ name: 'Live state', scope: { adAccountIds: [accountId], nameContains: 'cheap' } })), 201).body;
     await engine().run(created.id, { manual: true });
@@ -137,7 +137,7 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
         runId: '00000000-0000-4000-8000-000000000001',
         adAccountId: accountId,
         entityLevel: 'ADSET',
-        entityMetaId: sets.pausable!,
+        entityMetaId: sets.pausable,
         entityName: 'Ad set pausable',
         action: 'PAUSE',
         result: 'PENDING',
@@ -149,10 +149,10 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
     });
     await engine().run(created.id, { manual: true });
     const rows = await stack.prisma.autoRuleExecution.findMany({ where: { ruleId: created.id }, orderBy: { executedAt: 'asc' } });
-    expect(rows[0]!.result).toBe('FAILED');
-    expect(rows[0]!.errorMessage).toMatch(/not applied/);
+    expect(rows[0].result).toBe('FAILED');
+    expect(rows[0].errorMessage).toMatch(/not applied/);
     expect(rows.filter((r) => r.result === 'SUCCESS')).toHaveLength(1);
-    expect(stack.meta.objects.get(sets.pausable!)!.fields.status).toBe('PAUSED');
+    expect(stack.meta.objects.get(sets.pausable)!.fields.status).toBe('PAUSED');
     const pauseCalls = stack.meta.requests.filter((r) => r.method === 'POST' && r.path === `/${sets.pausable}` && r.params.status === 'PAUSED');
     expect(pauseCalls).toHaveLength(1);
   });

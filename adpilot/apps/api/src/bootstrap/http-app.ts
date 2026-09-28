@@ -37,7 +37,7 @@ export function configureHttpApp(app: NestExpressApplication): void {
   });
 
   // Large creative uploads (videos up to several GB) must not be cut by Node's default 5 minute timeout.
-  const server = app.getHttpServer() as Server;
+  const server: Server = app.getHttpServer();
   server.requestTimeout = 2 * 60 * 60 * 1000;
   server.headersTimeout = 70_000;
   server.keepAliveTimeout = 65_000;
@@ -59,7 +59,7 @@ export function installGracefulShutdown(app: NestExpressApplication, drainTimeou
     }
     shuttingDown = true;
     logger.info({ signal }, 'Shutting down: draining HTTP connections');
-    const server = app.getHttpServer() as Server;
+    const server: Server = app.getHttpServer();
     const drained = new Promise<void>((resolve) => server.close(() => resolve()));
     const timeout = new Promise<void>((resolve) => setTimeout(resolve, drainTimeoutMs).unref());
     await Promise.race([drained, timeout]);

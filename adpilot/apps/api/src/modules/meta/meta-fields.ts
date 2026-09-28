@@ -106,7 +106,7 @@ export function actId(metaAccountId: string): string {
 }
 
 export function toBigIntOrNull(v: unknown): bigint | null {
-  if (v === null || v === undefined || v === '') return null;
+  if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'bigint') return null;
   const s = String(v).trim();
   if (!/^-?\d+$/.test(s)) return null;
   return BigInt(s);

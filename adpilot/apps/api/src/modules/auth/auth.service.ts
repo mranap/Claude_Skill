@@ -252,7 +252,7 @@ export class AuthService {
   async validateResetToken(token: string): Promise<{ valid: boolean; purpose?: string }> {
     const row = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash: this.hashing.sha256(token) } });
     const valid = !!row && !row.usedAt && row.expiresAt > new Date();
-    return valid ? { valid, purpose: row!.purpose } : { valid: false };
+    return valid ? { valid, purpose: row.purpose } : { valid: false };
   }
 
   /** Consumes a one-time reset/invitation token atomically and sets the new password. */

@@ -50,9 +50,9 @@ export function hotp(key: Buffer, counter: number, digits = TOTP_DIGITS, algorit
   const msg = Buffer.alloc(8);
   msg.writeBigUInt64BE(BigInt(counter));
   const hmac = createHmac(algorithm, key).update(msg).digest();
-  const offset = hmac[hmac.length - 1]! & 0x0f;
+  const offset = hmac[hmac.length - 1] & 0x0f;
   const binary =
-    ((hmac[offset]! & 0x7f) << 24) | (hmac[offset + 1]! << 16) | (hmac[offset + 2]! << 8) | hmac[offset + 3]!;
+    ((hmac[offset] & 0x7f) << 24) | (hmac[offset + 1] << 16) | (hmac[offset + 2] << 8) | hmac[offset + 3];
   return String(binary % 10 ** digits).padStart(digits, '0');
 }
 

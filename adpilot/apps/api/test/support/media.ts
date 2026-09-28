@@ -37,7 +37,7 @@ export async function uploadCreative(client: ApiClient, path: string, mime: stri
   const res = expectStatus(await client.request('POST', '/api/creatives/upload', undefined, { form }), 200).body as {
     results: { ok: boolean; error?: string; file?: { id: string; status: string; type: string } }[];
   };
-  const r = res.results[0]!;
+  const r = res.results[0];
   if (!r.ok || !r.file) throw new Error(`Upload failed: ${r.error}`);
   return r.file;
 }

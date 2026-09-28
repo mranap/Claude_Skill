@@ -74,14 +74,14 @@ export class MetaRateLimitService {
     const { throttleThresholdPct, pauseThresholdPct } = await this.settings.get('meta');
     const keys = this.keys(scope);
     const names = Object.keys(keys);
-    const values = await this.redis.client.mget(...names.map((n) => keys[n]!));
+    const values = await this.redis.client.mget(...names.map((n) => keys[n]));
     const now = Date.now();
     let maxPct = 0;
     for (let i = 0; i < names.length; i++) {
       const raw = values[i];
       if (!raw) continue;
       const st = JSON.parse(raw) as ScopeState;
-      if (st.blockedUntil > now) throw new MetaRateLimitedError(st.blockedUntil - now, names[i]!);
+      if (st.blockedUntil > now) throw new MetaRateLimitedError(st.blockedUntil - now, names[i]);
       // Usage percentages decay; ignore data older than 10 minutes for pacing decisions.
       if (now - st.at < 10 * 60_000) maxPct = Math.max(maxPct, st.pct);
     }
@@ -101,7 +101,7 @@ export class MetaRateLimitService {
     const now = Date.now();
     const writes: [string, ScopeState][] = [];
     if (usage.app) {
-      writes.push([keys.app!, { pct: Math.max(usage.app.callCount, usage.app.totalTime, usage.app.totalCputime), blockedUntil: 0, at: now }]);
+      writes.push([keys.app, { pct: Math.max(usage.app.callCount, usage.app.totalTime, usage.app.totalCputime), blockedUntil: 0, at: now }]);
     }
     if (usage.adAccount && keys.account) {
       const pct = usage.adAccount.utilPct;
@@ -132,7 +132,7 @@ export class MetaRateLimitService {
 
     const code = err.metaCode;
     const target =
-      code === 4 ? keys.app! : code === 17 ? keys.account ?? keys.token! : code && code >= 80000 ? keys.business ?? keys.account ?? keys.token! : keys.account ?? keys.token!;
+      code === 4 ? keys.app : code === 17 ? keys.account ?? keys.token : code && code >= 80000 ? keys.business ?? keys.account ?? keys.token : keys.account ?? keys.token;
     if (!delay) {
       const strikeKey = `${target}:strikes`;
       const strikes = await this.redis.client.incr(strikeKey);
@@ -157,7 +157,7 @@ export class MetaRateLimitService {
       if (keys.length) {
         const vals = await this.redis.client.mget(...keys);
         keys.forEach((k, i) => {
-          if (vals[i] && !k.endsWith(':strikes')) out.push({ key: k.replace(`${this.redis.prefix}:meta:rl:`, ''), state: JSON.parse(vals[i]!) });
+          if (vals[i] && !k.endsWith(':strikes')) out.push({ key: k.replace(`${this.redis.prefix}:meta:rl:`, ''), state: JSON.parse(vals[i]) });
         });
       }
     } while (cursor !== '0' && out.length < 1000);

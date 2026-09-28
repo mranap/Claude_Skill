@@ -93,7 +93,7 @@ export class AdminLogsController {
     ]);
     return {
       systemSources: sources.map((s) => s.source),
-      metaCategories: [...new Set(categories.map((c) => c.category.split('.')[0]!))],
+      metaCategories: [...new Set(categories.map((c) => c.category.split('.')[0]))],
       errorCategories: META_ERROR_CATEGORIES,
     };
   }

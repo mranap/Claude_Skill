@@ -91,7 +91,7 @@ describe('account monitoring, statistics and notifications', () => {
       expect(history[0]).toMatchObject({ fromStatus: 1, toStatus: 2, disableReason: 1 });
       const notifications = await stack.prisma.notification.findMany({ where: { userId: user.id, type: 'AD_ACCOUNT_STATUS_CHANGED' } });
       expect(notifications).toHaveLength(1);
-      expect(notifications[0]!.title).toMatch(/Active → Disabled/);
+      expect(notifications[0].title).toMatch(/Active → Disabled/);
 
       await stack.smtp.waitFor((m) => m.to.includes(user.email) && /Disabled/.test(m.subject));
       const tg = await stack.telegram.waitForMessage(chatId, (m) => /Disabled/.test(m.text));

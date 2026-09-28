@@ -72,7 +72,7 @@ describe('campaign payload', () => {
 describe('ad set payload', () => {
   it('references the campaign, sets promoted_object for pixel conversions and converts the budget', () => {
     const c = config();
-    const p = buildAdSetPayload(c, c.variants[0]!, 'AdSet', 'USD', {});
+    const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'USD', {});
     expect(p.campaign_id).toEqual({ $ref: 'campaign', field: 'metaId' });
     expect(p).toMatchObject({
       status: 'ACTIVE',
@@ -89,7 +89,7 @@ describe('ad set payload', () => {
 
   it('adds DSA beneficiary/payor for EU targeting, falling back to the ad account defaults', () => {
     const c = config({}, [{ key: 'de', label: 'DE', countries: ['DE'], ads: [{ key: 'a', creativeFileId: VIDEO, primaryText: 'x', link: 'https://e.com' }] }]);
-    const p = buildAdSetPayload(c, c.variants[0]!, 'AdSet', 'EUR', { dsaBeneficiary: 'Acme GmbH', dsaPayor: 'Acme GmbH' });
+    const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'EUR', { dsaBeneficiary: 'Acme GmbH', dsaPayor: 'Acme GmbH' });
     expect(p.dsa_beneficiary).toBe('Acme GmbH');
     expect(p.dsa_payor).toBe('Acme GmbH');
   });
@@ -105,7 +105,7 @@ describe('ad set payload', () => {
       },
       [{ key: 'v', label: 'V', countries: ['US'], budgetAmount: '40', ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'x', link: 'https://e.com' }] }],
     );
-    const p = buildAdSetPayload(c, c.variants[0]!, 'AdSet', 'USD', {});
+    const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'USD', {});
     expect(p.daily_budget).toBe('4000');
     expect(p.bid_constraints).toEqual({ roas_average_floor: 15000 });
     expect(p.attribution_spec).toEqual([{ event_type: 'CLICK_THROUGH', window_days: 1 }]);
@@ -123,7 +123,7 @@ describe('ad set payload', () => {
         devicePlatforms: ['mobile'],
       },
     });
-    const t = buildTargeting(c.settings, c.variants[0]!);
+    const t = buildTargeting(c.settings, c.variants[0]);
     expect(t).toMatchObject({
       geo_locations: { countries: ['US', 'CA'] },
       age_min: 25,
@@ -144,8 +144,8 @@ describe('ad set payload', () => {
 describe('creative and ad payloads', () => {
   it('video creative references the uploaded video and its thumbnail, opts out of enhancements', () => {
     const c = config();
-    const ad = c.variants[0]!.ads[0]!;
-    const p = buildCreativePayload(c, c.variants[0]!, ad, 'Creative', refs) as any;
+    const ad = c.variants[0].ads[0];
+    const p = buildCreativePayload(c, c.variants[0], ad, 'Creative', refs) as any;
     expect(p.object_story_spec.page_id).toBe('666');
     expect(p.object_story_spec.video_data).toMatchObject({
       video_id: { $ref: `media:${VIDEO}`, field: 'videoId' },
@@ -164,7 +164,7 @@ describe('creative and ad payloads', () => {
     const c = config({ creative: { format: 'SINGLE_IMAGE', enhancements: 'META_DEFAULT', urlParameters: 'utm_source=fb' } }, [
       { key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'Buy', link: 'https://e.com' }] },
     ]);
-    const p = buildCreativePayload(c, c.variants[0]!, c.variants[0]!.ads[0]!, 'Creative', refs) as any;
+    const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
     expect(p.object_story_spec.link_data).toMatchObject({ link: 'https://e.com', image_hash: { $ref: `media:${IMAGE}`, field: 'imageHash' } });
     expect(p.url_tags).toBe('utm_source=fb');
     expect(p.degrees_of_freedom_spec).toBeUndefined();
@@ -189,7 +189,7 @@ describe('creative and ad payloads', () => {
         ],
       },
     ]);
-    const p = buildCreativePayload(c, c.variants[0]!, c.variants[0]!.ads[0]!, 'Creative', refs) as any;
+    const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
     const cards = p.object_story_spec.link_data.child_attachments;
     expect(cards).toHaveLength(2);
     expect(cards[0]).toMatchObject({ link: 'https://e.com', name: 'One', image_hash: { field: 'imageHash' } });
@@ -201,7 +201,7 @@ describe('creative and ad payloads', () => {
       { destination: 'ON_AD', optimizationGoal: 'LEAD_GENERATION', creative: { format: 'SINGLE_VIDEO', callToAction: 'SIGN_UP', leadFormId: '999' } },
       [{ key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', creativeFileId: VIDEO, primaryText: 'x' }] }],
     );
-    const p = buildCreativePayload(c, c.variants[0]!, c.variants[0]!.ads[0]!, 'Creative', refs) as any;
+    const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
     expect(p.object_story_spec.video_data.call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
   });
 

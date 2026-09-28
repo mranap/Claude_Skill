@@ -80,9 +80,6 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     );
   }
 
-  const count = (type: 'campaign' | 'adset' | 'ad' | 'creative', code?: string) =>
-    stack.meta.objectsOf(type).filter((o) => o.fields.status !== 'DELETED' && (!code || String(o.fields.name).includes(code) || type !== 'campaign')).length;
-
   it('dry run shows the exact plan and sends nothing to Meta', async () => {
     const before = stack.meta.requests.filter((r) => r.method === 'POST').length;
     const res = expectStatus(await user.client.post('/api/launches/dry-run', { config: config() }), 200).body;

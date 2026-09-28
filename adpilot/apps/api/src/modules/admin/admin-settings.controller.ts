@@ -78,7 +78,7 @@ export class AdminSettingsController {
     const values = { ...body.values } as Record<string, unknown>;
     if (key === 'telegram') await this.prepareTelegram(values, secrets);
 
-    const updated = await this.settings.update(key, values as never, secrets, user.id);
+    const updated = await this.settings.update(key, values, secrets, user.id);
     if (key === 'telegram') await this.applyTelegramMode().catch((err: Error) => {
       throw new AppError('BAD_REQUEST', `Settings saved, but the webhook could not be configured: ${err.message}`);
     });

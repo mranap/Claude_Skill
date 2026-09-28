@@ -28,7 +28,7 @@ export class FakeProxy {
         return;
       }
       const [host, port] = (req.url ?? '').split(':');
-      const upstream = net.connect(Number(port), host!, () => {
+      const upstream = net.connect(Number(port), host, () => {
         if (upstream.localPort) this.upstreamPorts.add(upstream.localPort);
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head.length) upstream.write(head);
