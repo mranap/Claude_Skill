@@ -131,8 +131,10 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
 
     // Entities are synchronised into the platform and the user is notified.
     await stack.waitFor(async () => (await stack.prisma.ad.count({ where: { userId: user.id } })) === 2);
-    const notification = await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_LAUNCHED' } });
-    expect(notification?.title).toBeTruthy();
+    const notification = await stack.waitFor(() => stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_LAUNCHED' } }), {
+      message: 'launch notification missing',
+    });
+    expect(notification.title).toBeTruthy();
   });
 
   it('reconciles an object whose creation response was lost (no duplicate ad)', async () => {
@@ -226,8 +228,9 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     const campaign = stack.meta.objectsOf('campaign').find((o) => String(o.fields.name).includes(job.code))!;
     expect(campaign.fields.status).toBe('PAUSED');
     expect(stack.meta.objectsOf('adset').filter((o) => o.fields.campaign_id === campaign.id)).toHaveLength(1);
-    const notification = await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_CREATION_FAILED' } });
-    expect(notification).not.toBeNull();
+    await stack.waitFor(() => stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_CREATION_FAILED' } }), {
+      message: 'failure notification missing',
+    });
 
     expectStatus(await user.client.post(`/api/launches/${job.id}/retry`), 200);
     const retried = await waitForLaunch(job.id);

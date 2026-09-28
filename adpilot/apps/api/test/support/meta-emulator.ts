@@ -40,6 +40,8 @@ export interface EmuAccount {
   balance: string;
   spend_cap: string;
   min_daily_budget: number;
+  /** Lowest campaign spend cap Meta accepts (numeric string, minor units). */
+  min_campaign_group_spend_cap?: string;
   business?: { id: string; name: string };
   default_dsa_payor?: string;
   default_dsa_beneficiary?: string;
@@ -166,6 +168,7 @@ export class MetaEmulator {
       balance: '0',
       spend_cap: '0',
       min_daily_budget: 100,
+      min_campaign_group_spend_cap: '10000',
       business: { id: businessId, name: 'Test Business' },
     });
     this.accounts.set(acc2, {
@@ -180,6 +183,7 @@ export class MetaEmulator {
       balance: '0',
       spend_cap: '0',
       min_daily_budget: 500,
+      min_campaign_group_spend_cap: '40000',
     });
     this.businesses.set(businessId, { id: businessId, name: 'Test Business', verification_status: 'verified', owned: [acc1], client: [], pages: [pageId] });
     this.pages.set(pageId, { id: pageId, name: 'Joint Care', category: 'Health/beauty', ig: { id: nextId(), username: 'jointcare' } });
@@ -471,6 +475,10 @@ export class MetaEmulator {
     const cbo = p.daily_budget !== undefined || p.lifetime_budget !== undefined;
     if (!cbo && p.is_adset_budget_sharing_enabled === undefined) {
       return bad('(#100) is_adset_budget_sharing_enabled must be set when the campaign does not use a campaign budget', 'Must specify True or False in is_adset_budget_sharing_enabled field');
+    }
+    const minSpendCap = this.accounts.get(act)!.min_campaign_group_spend_cap;
+    if (p.spend_cap !== undefined && minSpendCap !== undefined && Number(p.spend_cap) < Number(minSpendCap)) {
+      return { status: 400, body: this.err(100, 'Campaign group spend cap is less than minimum', 'OAuthException', false, 2446307) };
     }
     const o = this.store('campaign', act, {
       name: p.name,

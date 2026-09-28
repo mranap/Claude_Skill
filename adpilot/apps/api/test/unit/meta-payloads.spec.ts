@@ -7,6 +7,7 @@ import {
   buildCreativePayload,
   buildTargeting,
   ENHANCEMENT_OPT_OUT_FEATURES,
+  LEAD_FORM_LINK,
   renderName,
   resolveRefs,
 } from '../../src/modules/launches/meta-payloads';
@@ -196,13 +197,33 @@ describe('creative and ad payloads', () => {
     expect(cards[1]).toMatchObject({ link: 'https://e.com/2', video_id: { field: 'videoId' }, picture: { field: 'thumbnailUrl' } });
   });
 
-  it('lead form CTA uses lead_gen_form_id', () => {
-    const c = config(
-      { destination: 'ON_AD', optimizationGoal: 'LEAD_GENERATION', creative: { format: 'SINGLE_VIDEO', callToAction: 'SIGN_UP', leadFormId: '999' } },
-      [{ key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', creativeFileId: VIDEO, primaryText: 'x' }] }],
-    );
-    const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
-    expect(p.object_story_spec.video_data.call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
+  it('lead form ads use lead_gen_form_id and the Lead Ads placeholder link (image, video, carousel)', () => {
+    const lead = (format: string, ad: Record<string, unknown>) => {
+      const c = config(
+        { destination: 'ON_AD', optimizationGoal: 'LEAD_GENERATION', creative: { format, callToAction: 'SIGN_UP', leadFormId: '999' } },
+        [{ key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', primaryText: 'x', ...ad }] }],
+      );
+      return (buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any).object_story_spec;
+    };
+    expect(LEAD_FORM_LINK).toBe('http://fb.me/');
+    // video_data has no link field: the call to action carries it next to the form.
+    expect(lead('SINGLE_VIDEO', { creativeFileId: VIDEO }).video_data.call_to_action).toEqual({ type: 'SIGN_UP', value: { link: LEAD_FORM_LINK, lead_gen_form_id: '999' } });
+    const image = lead('SINGLE_IMAGE', { creativeFileId: IMAGE }).link_data;
+    expect(image.link).toBe(LEAD_FORM_LINK);
+    expect(image.call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
+    const carousel = lead('CAROUSEL', { cards: [{ creativeFileId: IMAGE }, { creativeFileId: VIDEO, link: 'https://e.com/2' }] }).link_data;
+    expect(carousel.link).toBe(LEAD_FORM_LINK);
+    expect(carousel.child_attachments.map((a: any) => a.link)).toEqual([LEAD_FORM_LINK, LEAD_FORM_LINK]);
+    expect(carousel.child_attachments[0].call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
+  });
+
+  it('opts out of every verified enhancement that changes how the ad looks', () => {
+    expect(ENHANCEMENT_OPT_OUT_FEATURES.IMAGE).toEqual(expect.arrayContaining(['image_background_gen', 'creative_stickers', 'reveal_details_over_time', 'text_translation']));
+    for (const kind of ['VIDEO', 'CAROUSEL'] as const) {
+      expect(ENHANCEMENT_OPT_OUT_FEATURES[kind]).toEqual(expect.arrayContaining(['creative_stickers', 'reveal_details_over_time', 'text_translation']));
+    }
+    // Image-only features are never sent for other formats.
+    expect(ENHANCEMENT_OPT_OUT_FEATURES.VIDEO).not.toContain('image_background_gen');
   });
 
   it('ad payload links ad set and creative references', () => {
