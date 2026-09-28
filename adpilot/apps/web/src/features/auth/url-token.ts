@@ -33,7 +33,9 @@ function stripToken(): void {
 }
 
 function subscribe(): () => void {
-  // Runs after hydration: the token was captured by the first client render, now drop it from the URL.
+  // React subscribes right after hydration and only then reads the client snapshot: capture the token
+  // first, then drop it from the URL (the snapshot keeps returning the captured value).
+  readToken();
   stripToken();
   return () => undefined;
 }
