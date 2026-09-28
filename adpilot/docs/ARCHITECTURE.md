@@ -96,15 +96,17 @@ worker slot. Concurrency per queue is a Super Admin setting.
 | `meta-token-check` / `meta-asset-sync` | 5 / 10 min | profiles due for token validation / discovery |
 | `auto-rules` | 1 min | active rules with `nextRunAt <= now` |
 | `launch-recovery` | 5 min | unfinished launches without a queued job (e.g. Redis lost) |
-| `notification-outbox-sweep` | 1 min | deliveries that were never enqueued or stuck |
-| `retention-cleanup`, `database-backup` | 10 min | daily retention, scheduled backups |
+| `notification-outbox-sweep` | 1 min | deliveries and bulk operations whose job was lost (re-queued) or ran out of attempts (bulk: closed); deliveries stuck in SENDING |
+| `retention-cleanup`, `database-backup` | 10 min | daily retention; scheduled backups; fails backups whose worker died (no heartbeat) |
 
 Claiming is a single `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING`, which moves the next
-due time forward in the same statement — two schedulers can never enqueue the same work.
+due time forward in the same statement — two schedulers can never enqueue the same work. The leader lease is
+renewed every 10 s, also during a long tick, and leadership is re-checked before each task.
 
 ### Graceful shutdown
 
-1. Consumers stop (workers finish running jobs, scheduler releases leadership) — `onModuleDestroy`;
+1. Consumers stop (workers finish running jobs, the scheduler finishes its running task, then releases
+   leadership) — `onModuleDestroy`;
 2. buffers flush and queues close — `beforeApplicationShutdown`;
 3. Redis and PostgreSQL disconnect — `onApplicationShutdown`.
 The API first stops accepting connections and drains in-flight requests (`installGracefulShutdown`).
@@ -141,8 +143,9 @@ transfer chunks → finish), then the job defers until `status.video_status = re
 
 `STATISTICS_SYNC` for one ad account: refresh the entity mirror when due, then fetch daily Insights
 (`time_increment=1`) per level (account, campaign, ad set, ad) for a rolling window in the **ad account time
-zone** (3 days by default; 30 days on the first sync) and upsert into `insights_daily`. Recent days are re-read
-because Meta keeps attributing late conversions. Requests that return "too much data" are split by date range.
+zone** (8 days by default; 30 days on the first sync; once a week 28 days, after which Meta no longer revises
+Insights) and upsert into `insights_daily`, page by page. Recent days are re-read because Meta keeps attributing
+late conversions. Requests that return "too much data" are split by date range.
 Money stays decimal; leads/purchases are de-duplicated across action types; "Results" uses Meta's `results`
 field. Manual refresh is allowed once per cooldown (backend compare-and-set).
 
@@ -151,9 +154,15 @@ field. Manual refresh is allowed once per cooldown (backend compare-and-set).
 Every minute the scheduler claims due rules; `AUTO_RULE_CHECK` evaluates one rule under a lease:
 candidates from the mirror → fresh metrics from Insights for the rule's time range → all conditions (AND) →
 safeguards (cooldown per object, max actions per 24 h, same action not repeated, min/max budget, max change per
-execution, account minimum budget) → **live state read from Meta** → a `PENDING` execution row → the Meta call →
-`SUCCESS`/`FAILED`. A `PENDING` row left by a crash is verified against Meta before anything else happens for
-that object. Dry-run rules record `DRY_RUN` rows only. One summary notification per run.
+execution, account minimum budget; a bound never turns an increase into a cut or vice versa) → **live state read
+from Meta** → a `PENDING` execution row → the Meta call → `SUCCESS`/`FAILED`. Cooldown, daily limit and pending
+checks for Meta-changing actions run inside the per-object lock. A call whose answer was lost stays `PENDING`
+(it counts for the cooldown) and, like a row left by a crash, is verified against Meta before anything else
+happens for that object. Each run holds its own lease token, renews it and stops acting if another run took
+over; one ad account's error does not stop the others. Metrics Meta does not report by hour (website
+conversions) cannot be used with "Last N hours". Dry-run rules record `DRY_RUN` rows only (and respect the same
+limits). One summary notification per run, also when the run fails part-way. Manual budget changes take the same
+per-object lock and accept an `Idempotency-Key` header.
 
 ## 8. Notifications
 
