@@ -223,6 +223,7 @@ schedule, and shows missing required/recommended permissions on the profile.
 pnpm --filter @adpilot/api test               # unit tests
 pnpm --filter @adpilot/api test:integration   # API/worker/scheduler against PostgreSQL + Redis
 pnpm --filter @adpilot/api test:e2e           # the full 28-step acceptance scenario
+pnpm test:e2e:web                             # browser tests of the web app (local stack, see below)
 ```
 
 Integration and end-to-end tests run the real API, worker and scheduler in-process against a dedicated
@@ -233,7 +234,12 @@ CONNECT proxy. Covered: authentication, sessions, 2FA, CSRF, rate limits, RBAC a
 profiles and proxies, discovery, launch idempotency (double click, lost responses, ambiguity window, rate-limit
 deferral, worker restart, partial failure + retry), statistics intervals and cooldowns, account status
 notifications (exactly once), Telegram delivery guarantees, automated rules (safeguards, live state, dry run,
-crash recovery, leases), key rotation. The web app has Playwright flows (see `apps/web`).
+crash recovery, leases), key rotation.
+
+The web app has a Playwright suite (17 browser tests: the full launch flow on the Meta emulator, invitation and
+reset links, targeting pickers and Instant Forms, countdowns) that runs against a local stack:
+`pnpm test:e2e:web` — see [apps/web/README.md](apps/web/README.md#end-to-end-tests) for the setup and the
+environment variables (no credentials are stored in the repository).
 
 ## Security
 

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { env } from './support/env';
 
 /**
  * End-to-end suite for the web app against a running stack (web + API + worker + scheduler + Meta emulator).
@@ -17,10 +18,10 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   outputDir: 'test-results',
-  reporter: [['list']],
+  reporter: [['list'], ['./support/skip-reasons.ts']],
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    baseURL: env.baseUrl,
     viewport: { width: 1440, height: 900 },
     actionTimeout: 20_000,
     navigationTimeout: 45_000,

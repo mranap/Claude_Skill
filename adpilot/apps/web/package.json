@@ -7,8 +7,9 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "typecheck": "next typegen && tsc --noEmit",
-    "lint": "eslint ."
+    "typecheck": "next typegen && tsc --noEmit && tsc --noEmit -p e2e",
+    "lint": "eslint .",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {
     "@adpilot/shared": "workspace:*",

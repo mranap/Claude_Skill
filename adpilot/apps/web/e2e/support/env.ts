@@ -3,6 +3,7 @@
  * mail catcher's output come from environment variables, and a spec skips when one it needs is missing.
  */
 export const env = {
+  baseUrl: process.env.E2E_BASE_URL || 'http://localhost:3000',
   adminEmail: process.env.E2E_ADMIN_EMAIL ?? '',
   adminPassword: process.env.E2E_ADMIN_PASSWORD ?? '',
   /** Access token printed by the Meta API emulator (apps/api/test/support/meta-emulator.ts). */
