@@ -3,6 +3,7 @@
 import {
   RULE_METRIC_LABELS,
   RULE_METRICS,
+  RULE_METRICS_DAILY_ONLY,
   RULE_OPERATOR_LABELS,
   RULE_OPERATORS,
   ruleCreateSchema,
@@ -237,7 +238,7 @@ export function RuleEditor({ rule, onSaved }: { rule?: RuleDto; onSaved?: (rule:
             <CardDescription>All conditions must be true (AND). Metrics are read fresh from Meta for the chosen period, in each ad account&apos;s time zone.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <ConditionsEditor form={form} currency={currency} />
+            <ConditionsEditor form={form} currency={currency} hourly={timeRange === 'LAST_N_HOURS'} />
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -483,7 +484,16 @@ function CampaignScopeField({ control, adAccountIds }: { control: Control<RuleFo
   );
 }
 
-function ConditionsEditor({ form, currency }: { form: UseFormReturn<RuleFormInput, unknown, RuleFormOutput>; currency: string | undefined }) {
+function ConditionsEditor({
+  form,
+  currency,
+  hourly,
+}: {
+  form: UseFormReturn<RuleFormInput, unknown, RuleFormOutput>;
+  currency: string | undefined;
+  /** "Last N hours": Meta has no hourly website conversions, so conversion metrics are unavailable. */
+  hourly: boolean;
+}) {
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'conditions' });
   const values = useWatch({ control: form.control, name: 'conditions' });
   const rootError = form.formState.errors.conditions?.root?.message ?? form.formState.errors.conditions?.message;
@@ -532,11 +542,14 @@ function ConditionsEditor({ form, currency }: { form: UseFormReturn<RuleFormInpu
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {RULE_METRICS.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {RULE_METRIC_LABELS[m].label}
-                        </SelectItem>
-                      ))}
+                      {RULE_METRICS.map((m) => {
+                        const unavailable = hourly && RULE_METRICS_DAILY_ONLY.includes(m);
+                        return (
+                          <SelectItem key={m} value={m} disabled={unavailable} description={unavailable ? 'Not reported by hour; use a daily period' : undefined}>
+                            {RULE_METRIC_LABELS[m].label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 )}

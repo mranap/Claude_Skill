@@ -24,6 +24,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { countryName } from '@/lib/utils/countries';
 import { cn } from '@/lib/utils/cn';
 import { formatAmount } from '@/lib/utils/money';
+import { READ_ACCESS } from '@/lib/permissions';
 import { humanize } from '@/lib/utils/strings';
 import { ActivityTimeline } from '../activity/activity-timeline';
 import { formatMetric, metricColumns } from '../statistics/metrics';
@@ -87,7 +88,7 @@ export function CampaignDetailPage({ id }: { id: string }) {
 }
 
 function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: CampaignDetail; range: StatsRange; onRangeChange: (r: StatsRange) => void; fetching: boolean }) {
-  const { can } = useAuth();
+  const { can, canAny } = useAuth();
   const canManage = can('app.campaigns.manage');
   const searchParams = useSearchParams();
   const focusAdSet = searchParams.get('adset');
@@ -246,7 +247,7 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
                     Open in Ads Manager
                   </a>
                 </DropdownMenuItem>
-                {campaign.launchJobId ? (
+                {campaign.launchJobId && can('app.campaigns.launch') ? (
                   <DropdownMenuItem asChild>
                     <Link href={`/launches/${campaign.launchJobId}`}>
                       <Rocket />
@@ -254,7 +255,7 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
                     </Link>
                   </DropdownMenuItem>
                 ) : null}
-                {campaign.templateId ? (
+                {campaign.templateId && canAny(READ_ACCESS.templates) ? (
                   <DropdownMenuItem asChild>
                     <Link href={`/templates/${campaign.templateId}`}>
                       <LayoutTemplate />

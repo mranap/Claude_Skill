@@ -34,11 +34,6 @@ export function QueueSettingsForm({ values, readOnly }: { values: AdminSettingGr
           <NumberField control={form.control} name="bulkConcurrency" label="Bulk operations" min={1} max={20} />
         </FieldGrid>
       </FieldSection>
-      <FieldSection title="Retries" description="Failed jobs are retried with exponential back-off.">
-        <FieldGrid columns={3}>
-          <NumberField control={form.control} name="maxJobAttempts" label="Max attempts per job" min={1} max={20} />
-        </FieldGrid>
-      </FieldSection>
     </SettingsFormCard>
   );
 }

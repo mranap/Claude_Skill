@@ -8,7 +8,8 @@ import { useSyncExternalStore } from 'react';
  * for older links. The token is kept in memory and removed from the address bar right after the page
  * mounts, so it does not stay in the history or leak through screenshots.
  */
-let captured: string | null = null;
+/** The captured token belongs to the page it arrived on (reset-password and confirm-email share this module). */
+let captured: { path: string; token: string } | null = null;
 
 function tokenFromUrl(): string | null {
   const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('token');
@@ -17,8 +18,8 @@ function tokenFromUrl(): string | null {
 
 function readToken(): string | null {
   const token = tokenFromUrl();
-  if (token) captured = token;
-  return captured;
+  if (token) captured = { path: window.location.pathname, token };
+  return captured && captured.path === window.location.pathname ? captured.token : null;
 }
 
 function stripToken(): void {

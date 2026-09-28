@@ -3,7 +3,7 @@
 import { applyPercent } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, TriangleAlert, X } from 'lucide-react';
-import { useCallback, useEffect, useEffectEvent, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -171,9 +171,17 @@ function BudgetDialogBody({ entity, onDone }: { entity: EntityRef; onDone: () =>
   const invalidate = useInvalidateCampaignData();
   const kind = budget.type === 'DAILY' ? 'Daily' : 'Lifetime';
 
+  // One idempotency key per requested change: a retry of the same change reuses it (and can never apply a
+  // relative change twice), a different value or mode gets a new one.
+  const keyRef = useRef<{ change: string; key: string } | null>(null);
+  const idempotencyKey = () => {
+    const change = `${mode}:${value}`;
+    if (keyRef.current?.change !== change) keyRef.current = { change, key: crypto.randomUUID() };
+    return keyRef.current.key;
+  };
   const mutation = useMutation({
     mutationFn: (confirmLargeChange: boolean) =>
-      campaignsApi.changeBudget({ level: entity.level as 'CAMPAIGN' | 'ADSET', id: entity.id, mode, value, confirmLargeChange }),
+      campaignsApi.changeBudget({ level: entity.level as 'CAMPAIGN' | 'ADSET', id: entity.id, mode, value, confirmLargeChange }, idempotencyKey()),
     onSuccess: (result) => {
       toast.success(`${kind} budget updated`, {
         description: `${entity.name}: ${formatAmount(result.before, result.currency)} → ${formatAmount(result.after, result.currency)}`,

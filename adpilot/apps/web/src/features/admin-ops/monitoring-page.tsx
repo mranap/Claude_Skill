@@ -522,6 +522,16 @@ function WorkersTab() {
 
 // ───────────── Meta rate limits ─────────────
 
+/** "acct:123" → "Ad account act_123"; the API reports scopes by their Redis key. */
+function describeScope(key: string): string {
+  const [kind, ...rest] = key.split(':');
+  if (kind === 'acct') return `Ad account act_${rest.join(':')}`;
+  if (kind === 'app') return `App ${rest.join(':')}`;
+  if (kind === 'tok') return `Token of Meta profile ${rest.join(':').slice(0, 8)}`;
+  if (kind === 'buc') return `Business ${rest[0] ?? ''}${rest[1] ? ` · ${rest.slice(1).join(':').replace(/_/g, ' ').toLowerCase()}` : ''}`;
+  return key;
+}
+
 function RateLimitsTab() {
   const limits = useRateLimits();
   const now = useNow(1000);
@@ -548,7 +558,10 @@ function RateLimitsTab() {
               return (
                 <li key={r.key} className="grid gap-1.5">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="min-w-0 truncate font-mono text-xs">{r.key}</span>
+                    <span className="grid min-w-0">
+                      <span className="truncate font-medium">{describeScope(r.key)}</span>
+                      <span className="truncate font-mono text-xs text-muted-foreground">{r.key}</span>
+                    </span>
                     <span className="flex items-center gap-2">
                       {blocked ? (
                         <Badge variant="danger" size="sm">

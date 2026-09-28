@@ -27,7 +27,9 @@ export const campaignsApi = {
   get: (id: string, params: Record<string, string>, signal?: AbortSignal) => api.get<CampaignDetail>(`/campaigns/${id}`, params, { signal }),
   setStatus: (body: { level: EntityActionLevel; id: string; status: 'ACTIVE' | 'PAUSED' }) =>
     api.post<StatusChangeResult>('/campaigns/actions/status', body),
-  changeBudget: (body: BudgetChangeBody) => api.post<BudgetChangeResult>('/campaigns/actions/budget', body),
+  /** The Idempotency-Key makes a retried request (timeout, double submit) return the first outcome. */
+  changeBudget: (body: BudgetChangeBody, idempotencyKey: string) =>
+    api.post<BudgetChangeResult>('/campaigns/actions/budget', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
   bulkStatus: (body: { level: EntityActionLevel; ids: string[]; status: 'ACTIVE' | 'PAUSED'; idempotencyKey: string; confirmed: true }) =>
     api.post<BulkOperationDto>('/campaigns/actions/bulk-status', body),
   bulk: (id: string) => api.get<BulkOperationDto>(`/campaigns/bulk/${id}`),
