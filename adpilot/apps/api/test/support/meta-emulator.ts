@@ -1213,6 +1213,8 @@ export class MetaEmulator {
 if (process.argv[1]?.endsWith('meta-emulator.ts')) {
   const emulator = new MetaEmulator();
   const world = emulator.seed();
+  // Manual testing covers Instant Forms too (the automated tests start without this permission).
+  emulator.tokens.get(world.token)?.scopes.push('pages_manage_ads');
   emulator.videoPollsUntilReady = 1;
   void emulator.start(Number(process.argv[2] ?? 4010)).then(() => {
     console.log(JSON.stringify({ baseUrl: emulator.baseUrl, ...world }, null, 2));
