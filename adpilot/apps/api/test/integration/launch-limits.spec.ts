@@ -198,7 +198,9 @@ describe('launch limits (Meta minimums, bounded waits, leases, daily caps, activ
     });
     const job = await waitForLaunch(await launch(config({ name: 'Parent gone' })));
     expectLaunchStatus(job, 'PARTIAL_FAILURE');
-    expect(job.items.filter((i) => i.status === 'FAILED')).toEqual([expect.objectContaining({ key: 'ad:en:a1', errorCategory: 'NOT_FOUND' })]);
+    // 100/33 means "deleted or no access" (VALIDATION, since it may be a permission problem); either way the
+    // parent cannot hold the ad, so the item fails at once instead of being re-checked.
+    expect(job.items.filter((i) => i.status === 'FAILED')).toEqual([expect.objectContaining({ key: 'ad:en:a1', errorCategory: 'VALIDATION' })]);
   });
 
   it('a second run of the same launch in the same process is refused, so nothing is created twice', async () => {

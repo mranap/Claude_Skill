@@ -96,7 +96,8 @@ export class EntityActionsService {
     if (!account.isConnected || account.profile.deletedAt || account.profile.status !== 'ACTIVE') {
       throw new AppError('META_AUTH_ERROR', 'The Meta profile of this ad account is not active');
     }
-    return { conn: await this.connections.forProfile(account.profile), profileId: account.profileId };
+    const conn = await this.connections.forProfile(account.profile);
+    return { conn, profileId: account.profileId, tokenFingerprint: conn.tokenFingerprint };
   }
 
   /**
@@ -105,7 +106,7 @@ export class EntityActionsService {
    * current value.
    */
   async refresh(e: EntityRef): Promise<EntityRef> {
-    const { conn, profileId } = await this.connFor(e);
+    const { conn, profileId, tokenFingerprint } = await this.connFor(e);
     let data: { name?: string; status?: string; effective_status?: string; daily_budget?: string; lifetime_budget?: string };
     try {
       data = await this.graph.get(
@@ -117,7 +118,7 @@ export class EntityActionsService {
       );
     } catch (err) {
       if (err instanceof MetaApiError) {
-        await this.profileStatus.onApiError(profileId, err);
+        await this.profileStatus.onApiError(profileId, err, tokenFingerprint);
         if (err.category === 'NOT_FOUND') {
           await this.markDeleted(e);
           throw AppError.notFound(this.levelLabel(e.level));
@@ -150,11 +151,11 @@ export class EntityActionsService {
   async setStatus(e0: EntityRef, status: 'ACTIVE' | 'PAUSED', src: ActionSource, opts: { fresh?: boolean } = {}): Promise<{ changed: boolean; before: string | null; after: string }> {
     const e = opts.fresh ? e0 : await this.refresh(e0);
     if (e.status === status) return { changed: false, before: e.status, after: status };
-    const { conn, profileId } = await this.connFor(e);
+    const { conn, profileId, tokenFingerprint } = await this.connFor(e);
     try {
       await this.graph.call(conn, { method: 'POST', path: `/${e.metaId}`, params: { status }, category: `${e.level.toLowerCase()}.status`, metaAccountId: e.metaAccountId, safeToRetry: true });
     } catch (err) {
-      if (err instanceof MetaApiError) await this.profileStatus.onApiError(profileId, err);
+      if (err instanceof MetaApiError) await this.profileStatus.onApiError(profileId, err, tokenFingerprint);
       throw this.toAppError(err);
     }
     const data = { status, effectiveStatus: status === 'PAUSED' ? 'PAUSED' : e.effectiveStatus === 'PAUSED' ? 'ACTIVE' : e.effectiveStatus };
@@ -203,11 +204,11 @@ export class EntityActionsService {
       throw AppError.validation(`The daily budget cannot be lower than ${minorToMajor(e.minDailyBudget, e.currency)} ${e.currency} for this ad account`);
     }
     if (newMinor === before) return { field, before, after: newMinor };
-    const { conn, profileId } = await this.connFor(e);
+    const { conn, profileId, tokenFingerprint } = await this.connFor(e);
     try {
       await this.graph.call(conn, { method: 'POST', path: `/${e.metaId}`, params: { [field]: newMinor.toString() }, category: `${e.level.toLowerCase()}.budget`, metaAccountId: e.metaAccountId, safeToRetry: true });
     } catch (err) {
-      if (err instanceof MetaApiError) await this.profileStatus.onApiError(profileId, err);
+      if (err instanceof MetaApiError) await this.profileStatus.onApiError(profileId, err, tokenFingerprint);
       throw this.toAppError(err);
     }
     const data = field === 'daily_budget' ? { dailyBudget: newMinor } : { lifetimeBudget: newMinor };

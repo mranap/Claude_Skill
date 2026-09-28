@@ -20,6 +20,7 @@ export interface MetaAdAccountData {
   balance?: string;
   spend_cap?: string;
   min_daily_budget?: number | string;
+  min_campaign_group_spend_cap?: string;
   is_prepay_account?: boolean;
   default_dsa_payor?: string;
   default_dsa_beneficiary?: string;
@@ -52,6 +53,8 @@ export class AccountStatusService {
       balance: toBigIntOrNull(data.balance) ?? account.balance,
       spendCap: data.spend_cap !== undefined ? toBigIntOrNull(data.spend_cap) : account.spendCap,
       minDailyBudget: data.min_daily_budget !== undefined ? toBigIntOrNull(data.min_daily_budget) : account.minDailyBudget,
+      minCampaignGroupSpendCap:
+        data.min_campaign_group_spend_cap !== undefined ? toBigIntOrNull(data.min_campaign_group_spend_cap) : account.minCampaignGroupSpendCap,
       isPrepayAccount: data.is_prepay_account ?? account.isPrepayAccount,
       defaultDsaPayor: data.default_dsa_payor ?? account.defaultDsaPayor,
       defaultDsaBeneficiary: data.default_dsa_beneficiary ?? account.defaultDsaBeneficiary,

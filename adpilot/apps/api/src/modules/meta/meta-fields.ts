@@ -15,6 +15,7 @@ export const AD_ACCOUNT_FIELDS = [
   'balance',
   'spend_cap',
   'min_daily_budget',
+  'min_campaign_group_spend_cap',
   'is_prepay_account',
   'default_dsa_payor',
   'default_dsa_beneficiary',

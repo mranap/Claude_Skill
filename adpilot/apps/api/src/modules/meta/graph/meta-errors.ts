@@ -30,6 +30,14 @@ export function isBudgetChangeLimit(e: { code?: number; subcode?: number }): boo
   return e.code === 613 && e.subcode === BUDGET_CHANGE_LIMIT_SUBCODE;
 }
 
+/**
+ * The object does not exist or this token cannot see it: NOT_FOUND, or 100/33 ("does not exist, cannot be loaded
+ * due to missing permissions"), which is classified VALIDATION because it may be a permission problem.
+ */
+export function isMissingOrInaccessible(e: { category: string; code?: number; subcode?: number }): boolean {
+  return e.category === 'NOT_FOUND' || (e.code === 100 && e.subcode === 33);
+}
+
 export class MetaApiError extends Error {
   constructor(
     readonly details: MetaErrorDetails,

@@ -66,7 +66,7 @@ export class AccountStatusProcessor implements QueueProcessor {
       if (err instanceof MetaApiError && err.category !== 'RATE_LIMIT') {
         await this.statusService.markCheckFailed(accounts.map((a) => a.id), err.details.friendlyMessage);
       }
-      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus });
+      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus, tokenFingerprint: conn.tokenFingerprint });
     }
   }
 }

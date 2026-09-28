@@ -66,7 +66,7 @@ export class StatisticsProcessor implements QueueProcessor {
           dedupeKey: `stats-failed:${account.id}:${new Date().toISOString().slice(0, 10)}`,
         });
       }
-      return handleMetaJobError(err, job, token, { profileId: account.profileId, profileStatus: this.profileStatus });
+      return handleMetaJobError(err, job, token, { profileId: account.profileId, profileStatus: this.profileStatus, tokenFingerprint: conn.tokenFingerprint });
     }
   }
 }

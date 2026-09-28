@@ -20,7 +20,7 @@ import { AuditService } from '../audit/audit.service';
 import { AppLogger } from '../../infra/logger/logger';
 import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { MetaGraphClient } from '../meta/graph/meta-graph.client';
-import { MetaApiError } from '../meta/graph/meta-errors';
+import { isBudgetChangeLimit, MetaApiError } from '../meta/graph/meta-errors';
 import { AppError } from '../../common/errors/app-error';
 import { ENTITY_LOCK_TTL_MS, EntityActionsService, EntityRef, entityLockName, mayHaveBeenApplied } from '../campaigns/entity-actions.service';
 import { MetricValues, RuleMetricsService } from './rule-metrics.service';
@@ -275,7 +275,13 @@ export class RuleEngineService {
           } catch (err) {
             // One object must not stop the whole run: a throttled call defers the rest of the run, a deleted
             // object is skipped, anything else is counted as failed for this object.
-            const meta = (err as { meta?: { category?: string; retryAfterMs?: number } }).meta;
+            const meta = (err as { meta?: { category?: string; retryAfterMs?: number; code?: number; subcode?: number } }).meta;
+            const details = meta ?? (err instanceof MetaApiError ? err.details : undefined);
+            if (details && isBudgetChangeLimit(details)) {
+              // Meta blocks budget changes of this one ad set for an hour: skip it, the others are not affected.
+              summary.skipped++;
+              continue;
+            }
             if (meta?.category === 'RATE_LIMIT' || (err instanceof MetaApiError && err.category === 'RATE_LIMIT')) {
               summary.deferredMs = meta?.retryAfterMs ?? (err instanceof MetaApiError ? err.details.retryAfterMs : undefined) ?? 60_000;
               break;
@@ -483,7 +489,7 @@ export class RuleEngineService {
       await this.prisma.autoRuleExecution.update({ where: { id: executionId }, data: { result: 'SUCCESS', metaResponse: { success: true } } });
       return { result: 'SUCCESS', text };
     } catch (err) {
-      const meta = (err as { meta?: { category?: string; code?: number; retryAfterMs?: number; message?: string } }).meta;
+      const meta = (err as { meta?: { category?: string; code?: number; subcode?: number; retryAfterMs?: number; message?: string } }).meta;
       const error = {
         errorMessage: (err as Error).message.slice(0, 1000),
         errorCode: meta?.code ?? null,
@@ -496,7 +502,9 @@ export class RuleEngineService {
         return { result: 'UNCONFIRMED', text: `${text} — not confirmed by Meta (${(err as Error).message}); it is checked before the next action` };
       }
       await this.prisma.autoRuleExecution.update({ where: { id: executionId }, data: { result: 'FAILED', ...error } });
-      return { result: 'FAILED', text: `${text} — failed: ${(err as Error).message}`, rateLimitedMs: meta?.category === 'RATE_LIMIT' ? meta.retryAfterMs ?? 60_000 : undefined };
+      // The per-ad-set budget-change limit only concerns this object: the run goes on with the others.
+      const throttled = meta?.category === 'RATE_LIMIT' && !isBudgetChangeLimit(meta);
+      return { result: 'FAILED', text: `${text} — failed: ${(err as Error).message}`, rateLimitedMs: throttled ? meta.retryAfterMs ?? 60_000 : undefined };
     }
   }
 

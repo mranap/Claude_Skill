@@ -7,7 +7,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AppLogger } from '../../infra/logger/logger';
 import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { MetaConnection, MetaGraphClient } from '../meta/graph/meta-graph.client';
-import { MetaApiError, MetaNetworkError } from '../meta/graph/meta-errors';
+import { MetaApiError, MetaNetworkError, isMissingOrInaccessible } from '../meta/graph/meta-errors';
 import { MetaProfileStatusService } from '../meta/meta-profile-status.service';
 import { MAX_PROCESSING_WAIT_MS, MetaMediaService, type MediaStepResult } from '../creatives/meta-media.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -261,7 +261,7 @@ export class LaunchExecutorService {
         return { kind: 'defer', delayMs: err.details.retryAfterMs ?? 60_000, reason: 'Meta rate limit' };
       }
       if (err instanceof MetaApiError && (err.category === 'AUTH' || err.category === 'PERMISSION')) {
-        await this.profileStatus.onApiError(job.profileId, err);
+        await this.profileStatus.onApiError(job.profileId, err, job.profile.tokenFingerprint);
         return this.finish(job, 'FAILED', { message: err.details.friendlyMessage, meta: err.details });
       }
       throw err; // transient: BullMQ retries with backoff, state is preserved in the items
@@ -391,7 +391,7 @@ export class LaunchExecutorService {
       try {
         found = await this.reconcile(job, conn, current, metaAccountId);
       } catch (err) {
-        if (!(err instanceof MetaApiError) || err.category !== 'NOT_FOUND') throw err;
+        if (!(err instanceof MetaApiError) || !isMissingOrInaccessible(err.details)) throw err;
         if (current.kind === 'ADSET' || current.kind === 'AD') {
           // The parent is gone (e.g. deleted in Ads Manager): the object cannot exist there nor be created.
           await this.failItem(current, { message: err.details.friendlyMessage, meta: err.details }, err.category);
@@ -523,7 +523,7 @@ export class LaunchExecutorService {
         return pick(await this.graph.paginate<Row>(conn, `/${parentMetaId}/ads`, { fields: 'id,name,created_time' }, 'reconcile.ad', { metaAccountId }, 1000));
       }
     } catch (err) {
-      if (err instanceof MetaApiError && ['RATE_LIMIT', 'AUTH', 'PERMISSION', 'NOT_FOUND'].includes(err.category)) throw err;
+      if (err instanceof MetaApiError && (['RATE_LIMIT', 'AUTH', 'PERMISSION'].includes(err.category) || isMissingOrInaccessible(err.details))) throw err;
       this.logger.warn('Reconciliation lookup failed', { item: item.key, err: String(err) });
       // Unknown state: do not risk a duplicate — wait and retry the lookup, but not forever.
       const wait = await this.startWait(item, 60_000, 'Could not verify an interrupted request yet');

@@ -223,7 +223,7 @@ export class MetaProfilesService {
   async validate(userId: string, id: string): Promise<TokenInspection> {
     const { conn } = await this.connectionFor(userId, id);
     const inspection = await this.inspector.inspect(conn);
-    await this.status.applyInspection(id, inspection);
+    await this.status.applyInspection(id, inspection, conn.tokenFingerprint);
     return inspection;
   }
 

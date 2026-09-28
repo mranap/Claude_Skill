@@ -64,7 +64,7 @@ export class CreativeUploadProcessor implements QueueProcessor {
           data: { status: 'FAILED', error: err.details.friendlyMessage, errorCode: err.metaCode ?? null },
         });
       }
-      return handleMetaJobError(err, job, token, { profileId: profile.id, profileStatus: this.profileStatus });
+      return handleMetaJobError(err, job, token, { profileId: profile.id, profileStatus: this.profileStatus, tokenFingerprint: profile.tokenFingerprint });
     }
   }
 }

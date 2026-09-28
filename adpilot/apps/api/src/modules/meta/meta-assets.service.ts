@@ -122,6 +122,7 @@ export class MetaAssetsService {
             balance: toBigIntOrNull(a.balance),
             spendCap: toBigIntOrNull(a.spend_cap),
             minDailyBudget: toBigIntOrNull(a.min_daily_budget),
+            minCampaignGroupSpendCap: toBigIntOrNull(a.min_campaign_group_spend_cap),
             isPrepayAccount: a.is_prepay_account ?? null,
             defaultDsaPayor: a.default_dsa_payor ?? null,
             defaultDsaBeneficiary: a.default_dsa_beneficiary ?? null,

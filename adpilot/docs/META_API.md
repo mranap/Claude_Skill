@@ -124,16 +124,21 @@ mapped to readable texts (unknown future codes are shown as "Reason #N"). Only r
 | Code / subcode | Category | Behaviour |
 |---|---|---|
 | 4, 17, 32, 613, 80000–80014; subcodes 2446079, 1487742, 1504022, 1504039 | RATE_LIMIT | scope blocked for the header-provided or back-off time; jobs defer |
+| 613 / 1487632 (budget changed more than 4 times per hour) | RATE_LIMIT | only that object's budget changes are blocked for an hour; rules skip it and continue |
+| 613 / 1487225 (daily ad-creation limit) | VALIDATION | not retried; the launch fails the remaining objects with a clear message |
 | 190 (subcodes 458, 459, 460, 463 expired, 464, 467, 492), 102 | AUTH | profile marked expired/invalid, owner notified, not retried |
-| 10, 200–299, 294 | PERMISSION | profile marked *permission revoked* (when relevant), not retried |
+| 10, 200–299, 294 | PERMISSION | the operation fails; the profile's token check is brought forward, and only `debug_token` (missing scopes) marks the profile *permission revoked* — an object-level error such as 200/1870034 never suspends a whole profile |
 | 368 | POLICY | not retried; Meta's message shown |
-| 803, 100/33 | NOT_FOUND | object missing or not accessible |
-| 1, 2, `is_transient=true`, HTTP 5xx | TRANSIENT | retried with back-off (creation is reconciled first) |
+| 803 | NOT_FOUND | object missing |
+| 100 / 33 | VALIDATION | "deleted or no access" (can also be a missing permission, so the object is not marked deleted) |
+| 1, 2, 3910001, `is_transient=true`, HTTP 5xx | TRANSIENT | retried with back-off (creation is reconciled first) |
 | 100, other 4xx | VALIDATION | not retried; `error_user_title`/`error_user_msg` shown to the user |
 | network before sending / through the proxy | NETWORK / PROXY | retried; proxy problems point to the profile's proxy |
 
-Every call is logged in `meta_api_logs` (method, path without secrets, status, code/subcode, fbtrace_id,
-duration, retries, usage) for the Super Admin.
+Profile status changes and token inspections are written only if the token they were made with is still the
+profile's current token (fingerprint compare-and-set): a late error from a replaced token never marks the new one
+invalid. Every call is logged in `meta_api_logs` (method, path without secrets, status, code/subcode,
+fbtrace_id, duration, retries, usage) for the Super Admin.
 
 ## 7. Rate limits
 
@@ -142,7 +147,8 @@ The rate-limit manager (Redis, shared by all workers) reads `X-App-Usage`, `X-Ad
 `X-FB-Ads-Insights-Throttle`:
 - above the throttle threshold (75 %, configurable) calls to that scope are paced;
 - above the pause threshold (90 %) or after a throttling error, the scope (app / token / ad account / business
-  use case) is blocked until the regain time (or exponential back-off 1–30 min) — requests are not sent;
+  use case per ad account) is blocked until the regain time (or exponential back-off 1–30 min) — requests are
+  not sent. A block is never shortened by a response that was already in flight;
 - per-ad-account concurrency is limited (default 4);
 - work is batched where Meta supports it (`?ids=` for accounts, pagination with `limit`), and discovery/stats are
   incremental. Rate limits are never "solved" with more tokens or proxies.

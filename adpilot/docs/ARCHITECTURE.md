@@ -174,7 +174,10 @@ per-object lock and accept an `Idempotency-Key` header.
 
 `notify()` stores the notification (in-app center) and one **delivery** row per channel allowed by the user's
 preference for that type (Email / Telegram / Both / Off) in one transaction, deduplicated by
-`(userId, dedupeKey)`; then enqueues each delivery. Delivery states: `PENDING → SENDING → SENT | FAILED |
+`(userId, dedupeKey)`; then enqueues each delivery. Alerts about a state change (ad account status, token
+status, token expiry, campaign stopped, ad rejected) are written with `notifyInTx()` in the same transaction as
+the change, so a crash can never commit the change without its alert; the outbox sweep queues deliveries whose
+enqueue was lost. Delivery states: `PENDING → SENDING → SENT | FAILED |
 SKIPPED | UNCERTAIN`. A send whose outcome is unknown (timeout after the request was sent) becomes
 `UNCERTAIN` and is **not** retried — a message is never sent twice. Telegram rate limits (429) honour
 `retry_after`; a chat that blocked the bot deactivates the link. The outbox sweep re-enqueues deliveries whose
