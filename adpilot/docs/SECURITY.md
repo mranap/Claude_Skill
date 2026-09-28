@@ -82,7 +82,8 @@ user-controlled paths).
 
 ## 7. Auditing and monitoring
 
-- Audit log (append-only: a database trigger blocks UPDATE/DELETE) for sign-ins, security changes, admin
+- Audit log (append-only: database triggers block every UPDATE, and every DELETE except the retention job's,
+  which runs in a transaction marked with a transaction-local setting) for sign-ins, security changes, admin
   actions, profile/token changes, launches, budget/status changes, rule actions, settings changes.
 - System log for worker/scheduler failures; Meta API log with error codes and `fbtrace_id`; login history per
   user; retention periods configurable.

@@ -21,7 +21,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const requestId = RequestContext.get()?.requestId;
 
     const { status, body } = this.toBody(exception, requestId);
-    if (status >= 500) {
+    if (exception instanceof AppError) {
+      // Deliberate application errors are expected outcomes (maintenance mode, an unreachable proxy); only
+      // server-side ones are worth a line, and never with a stack trace. Maintenance 503s are not logged.
+      if (status >= 500 && exception.code !== 'MAINTENANCE') {
+        this.logger.warn('Request failed', { code: exception.code, message: exception.message, path: req.path, method: req.method });
+      }
+    } else if (status >= 500) {
       this.logger.error('Unhandled error', { err: exception, path: req.path, method: req.method });
     }
     if (body.error.retryAfterSeconds) {

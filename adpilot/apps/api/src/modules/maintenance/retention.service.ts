@@ -58,12 +58,17 @@ export class RetentionService {
   }
 
   private async batchDelete(table: string, column: string, olderThan: Date, extraWhere = ''): Promise<number> {
+    const sql = `DELETE FROM "${table}" WHERE id IN (SELECT id FROM "${table}" WHERE ${column} < $1 ${extraWhere} LIMIT 5000)`;
     let total = 0;
     for (let i = 0; i < 200; i++) {
-      const deleted = await this.prisma.$executeRawUnsafe(
-        `DELETE FROM "${table}" WHERE id IN (SELECT id FROM "${table}" WHERE ${column} < $1 ${extraWhere} LIMIT 5000)`,
-        olderThan,
-      );
+      const deleted =
+        table === 'audit_logs'
+          ? // The audit log trigger rejects every DELETE except inside a transaction marked as retention.
+            await this.prisma.$transaction(async (tx) => {
+              await tx.$queryRaw`SELECT set_config('adpilot.audit_retention', 'on', true)`;
+              return tx.$executeRawUnsafe(sql, olderThan);
+            })
+          : await this.prisma.$executeRawUnsafe(sql, olderThan);
       total += deleted;
       if (deleted < 5000) break;
     }

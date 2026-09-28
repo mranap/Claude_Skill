@@ -43,7 +43,7 @@ retryAfterSeconds? }, requestId }` (Meta errors carry friendly text plus code/su
 | Launching | `campaign_templates`, `launch_drafts`, `launch_jobs` (unique `userId + idempotencyKey`, unique `code`), `launch_job_items` (one row per Meta object, unique `launchJobId + key`) |
 | Mirror & stats | `campaigns`, `ad_sets`, `ads` (local mirror of Meta objects), `insights_daily` (unique `adAccountId + level + metaObjectId + date`) |
 | Automation | `auto_rules`, `auto_rule_executions`, `bulk_operations` |
-| Operations | `activity_events` (timelines), `audit_logs` (append-only: UPDATE/DELETE blocked by a trigger), `meta_api_logs`, `system_logs`, `system_settings`, `backups` |
+| Operations | `activity_events` (timelines), `audit_logs` (append-only: triggers block UPDATE, and DELETE outside the retention job), `meta_api_logs`, `system_logs`, `system_settings`, `backups` |
 
 Conventions: UUID primary keys; every tenant-owned row has `userId` and every query filters on it; money in
 **minor units** (`BigInt`) for budgets and `Decimal` for reported spend — never floating point; timestamps in
