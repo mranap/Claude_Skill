@@ -47,6 +47,10 @@ Set `DOMAIN`, `ACME_EMAIL`, `SUPER_ADMIN_EMAIL` and a strong `SUPER_ADMIN_PASSWO
 and digits). **Store a copy of `.env` in a password manager / secrets store** — the encryption keys are needed to
 read stored Meta tokens after a restore.
 
+`docker-compose.yml` passes each container only the variables it reads (`x-app-env`), so infrastructure secrets
+such as `MINIO_ROOT_PASSWORD` or the initial `SUPER_ADMIN_PASSWORD` never reach the long-running application
+processes. A variable added to `.env` for the application must therefore also be listed in `x-app-env`.
+
 ## 4. Start
 
 ```bash
