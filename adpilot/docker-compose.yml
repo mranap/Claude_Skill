@@ -1,0 +1,182 @@
+# AdPilot — production stack for a single Linux VPS (see docs/DEPLOYMENT.md).
+#
+#   cp .env.example .env   # fill in every value marked REQUIRED
+#   docker compose up -d --build
+#   docker compose up -d --scale worker=3     # more background workers
+#
+# Only Caddy publishes ports (80/443, automatic HTTPS). PostgreSQL, Redis, MinIO, the API and the web app are
+# reachable only on the internal Docker network.
+
+x-app: &app
+  image: ${ADPILOT_API_IMAGE:-adpilot-api:latest}
+  build:
+    context: .
+    target: api
+  restart: unless-stopped
+  env_file: .env
+  environment: &app-env
+    NODE_ENV: production
+    APP_URL: https://${DOMAIN:?set DOMAIN in .env}
+    DATABASE_URL: postgresql://${POSTGRES_USER:-adpilot}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-adpilot}
+    REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+    S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+    S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+    COOKIE_SECURE: 'true'
+    TRUST_PROXY: '1'
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    minio-init:
+      condition: service_completed_successfully
+      # Not needed when an external S3 provider is used and the minio services are removed.
+      required: false
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: '5'
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    logging: *logging
+
+  web:
+    image: ${ADPILOT_WEB_IMAGE:-adpilot-web:latest}
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    logging: *logging
+
+  api:
+    <<: *app
+    command: ['node', '--enable-source-maps', 'dist/main.js']
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app
+    command: ['node', '--enable-source-maps', 'dist/worker.js']
+    # Let running jobs (uploads, launches) finish on redeploy; they resume safely if the timeout is hit.
+    stop_grace_period: 120s
+    healthcheck:
+      disable: true
+
+  scheduler:
+    <<: *app
+    command: ['node', '--enable-source-maps', 'dist/scheduler.js']
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+
+  migrate:
+    image: ${ADPILOT_MIGRATE_IMAGE:-adpilot-migrate:latest}
+    build:
+      context: .
+      target: migrate
+    env_file: .env
+    environment: *app-env
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-adpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-adpilot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 256mb
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # BullMQ requires maxmemory-policy noeviction; AOF keeps queued jobs across restarts.
+    command: ['sh', '-c', 'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec --maxmemory-policy noeviction']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Self-hosted S3-compatible storage. To use AWS S3 / another provider instead, set S3_ENDPOINT (or leave it
+  # empty for AWS), S3_REGION and the access keys in .env and remove `minio` and `minio-init`.
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-adpilot-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Creates the buckets and a least-privilege application user (the app never uses the MinIO root account).
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-adpilot-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET:-adpilot-media}
+      S3_BACKUP_BUCKET: ${S3_BACKUP_BUCKET:-adpilot-backups}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+    volumes:
+      - ./deploy/minio-init.sh:/minio-init.sh:ro
+    entrypoint: ['sh', '/minio-init.sh']
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddy_data:
+  caddy_config:

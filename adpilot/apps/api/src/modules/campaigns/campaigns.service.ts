@@ -167,7 +167,8 @@ export class CampaignsService {
   }
 
   async changeBudget(userId: string, input: z.infer<typeof budgetChangeSchema>) {
-    const e = await this.actions.resolve(userId, input.level, input.id);
+    // Relative changes and the large-change check start from the real current budget in Meta.
+    const e = await this.actions.refresh(await this.actions.resolve(userId, input.level, input.id));
     const current = e.dailyBudget && e.dailyBudget > 0n ? e.dailyBudget : e.lifetimeBudget && e.lifetimeBudget > 0n ? e.lifetimeBudget : null;
     if (current === null) {
       throw AppError.validation(e.level === 'CAMPAIGN' ? 'This campaign uses ad set budgets' : 'This ad set uses the campaign budget');
@@ -186,7 +187,7 @@ export class CampaignsService {
         changePct,
       });
     }
-    const res = await this.actions.setBudget(e, next, { source: 'USER', actorUserId: userId });
+    const res = await this.actions.setBudget(e, next, { source: 'USER', actorUserId: userId }, { fresh: true });
     return { field: res.field, before: minorToMajor(res.before, e.currency), after: minorToMajor(res.after, e.currency), currency: e.currency };
   }
 }

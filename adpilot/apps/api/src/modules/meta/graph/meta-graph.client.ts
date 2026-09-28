@@ -11,7 +11,7 @@ import { MetaApiError, MetaNetworkError, classifyGraphError, GraphErrorBody } fr
 import { MetaRateLimitService, RateScope } from './rate-limit.service';
 import { parseUsageHeaders, ParsedUsage } from './usage-headers';
 import { MetaApiLogService } from './meta-api-log.service';
-import { ProxyConfig, agentFor } from './proxy-agents';
+import { ProxyConfig, agentOptions } from './proxy-agents';
 
 /** Everything needed to call the Graph API on behalf of one Meta profile. Never logged. */
 export interface MetaConnection {
@@ -148,7 +148,7 @@ export class MetaGraphClient {
       method: req.method,
       url,
       timeout: req.timeoutMs ?? this.config.meta.timeoutMs,
-      httpsAgent: agentFor(conn.proxy),
+      ...agentOptions(conn.proxy),
       proxy: false,
       maxBodyLength: Infinity,
       maxContentLength: 100 * 1024 * 1024,

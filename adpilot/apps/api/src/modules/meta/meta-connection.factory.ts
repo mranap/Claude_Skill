@@ -4,6 +4,7 @@ import type { ProxyInput } from '@adpilot/shared';
 import { Aad, EncryptionService } from '../../infra/crypto/encryption.service';
 import { SettingsService } from '../settings/settings.service';
 import { AppError } from '../../common/errors/app-error';
+import { NonPublicAddressError, assertPublicHost } from '../../common/net/public-address';
 import type { MetaConnection } from './graph/meta-graph.client';
 import type { ProxyConfig } from './graph/proxy-agents';
 import type { MetaProfile, Proxy } from '../../generated/prisma/client';
@@ -21,8 +22,41 @@ export class MetaConnectionFactory {
     private readonly settings: SettingsService,
   ) {}
 
+  /** Host → time of the last successful public-address check (DNS is re-checked every minute). */
+  private readonly proxyChecks = new Map<string, number>();
+
+  /**
+   * Returns a user-facing reason when the proxy host is not allowed (it resolves to a private/reserved
+   * address and the administrator did not allow private proxies), or null.
+   */
+  async proxyPolicyViolation(host: string): Promise<string | null> {
+    const { allowPrivateProxyAddresses } = await this.settings.get('meta');
+    if (allowPrivateProxyAddresses) return null;
+    const checkedAt = this.proxyChecks.get(host);
+    if (checkedAt && Date.now() - checkedAt < 60_000) return null;
+    try {
+      await assertPublicHost(host);
+    } catch (err) {
+      if (err instanceof NonPublicAddressError) {
+        return `The proxy ${host} points to a private or reserved network address (${err.address}). Use a public proxy address, or ask the administrator to allow private proxy addresses.`;
+      }
+      return `The proxy host ${host} could not be resolved (${(err as Error).message}).`;
+    }
+    if (this.proxyChecks.size > 5000) this.proxyChecks.clear();
+    this.proxyChecks.set(host, Date.now());
+    return null;
+  }
+
+  async assertProxyAllowed(host: string): Promise<void> {
+    const reason = await this.proxyPolicyViolation(host);
+    // Invalid input (not an upstream failure), hence 400 instead of the default 502 of PROXY_ERROR.
+    if (reason) throw new AppError('PROXY_ERROR', reason, undefined, { status: 400 });
+  }
+
   async forProfile(profile: ProfileWithProxy): Promise<MetaConnection> {
     if (!profile.tokenEnc) throw new AppError('META_AUTH_ERROR', 'This Meta profile has no access token');
+    // Re-checked at connection time as well: DNS of a stored proxy host may change after it was saved.
+    if (profile.proxy) await this.assertProxyAllowed(profile.proxy.host);
     const accessToken = this.encryption.decrypt(profile.tokenEnc, Aad.metaToken(profile.id));
     return {
       userId: profile.userId,
@@ -35,7 +69,8 @@ export class MetaConnectionFactory {
   }
 
   /** Connection for "test before save" calls; nothing is persisted. */
-  forTest(userId: string, input: { accessToken: string; proxy?: ProxyInput | null; appId?: string | null; appSecret?: string | null }): MetaConnection {
+  async forTest(userId: string, input: { accessToken: string; proxy?: ProxyInput | null; appId?: string | null; appSecret?: string | null }): Promise<MetaConnection> {
+    if (input.proxy) await this.assertProxyAllowed(input.proxy.host);
     return {
       userId,
       profileId: `test-${createHash('sha256').update(input.accessToken).digest('hex').slice(0, 16)}`,

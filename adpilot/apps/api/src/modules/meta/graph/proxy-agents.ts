@@ -25,6 +25,15 @@ export function proxyUrl(p: ProxyConfig, redactPassword = false): string {
 }
 
 /**
+ * Axios agent options for a connection: with a proxy, the tunnelling agent is used for both https:// (Graph
+ * API) and http:// targets, so traffic can never bypass the configured proxy.
+ */
+export function agentOptions(proxy?: ProxyConfig | null): { httpsAgent: HttpsAgent; httpAgent?: HttpsAgent } {
+  const agent = agentFor(proxy);
+  return proxy ? { httpsAgent: agent, httpAgent: agent } : { httpsAgent: agent };
+}
+
+/**
  * Returns an HTTPS agent that tunnels through the profile's proxy (HTTP CONNECT, HTTPS CONNECT or SOCKS5
  * with remote DNS). Agents are cached per proxy configuration so keep-alive connections are reused.
  */

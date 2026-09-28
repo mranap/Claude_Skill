@@ -9,7 +9,7 @@ import {
 import { AppConfig } from '../../config/app-config';
 import { MetaConnection, MetaGraphClient } from './graph/meta-graph.client';
 import { MetaApiError } from './graph/meta-errors';
-import { agentFor, ProxyConfig } from './graph/proxy-agents';
+import { agentOptions, ProxyConfig } from './graph/proxy-agents';
 
 interface DebugTokenData {
   app_id?: string;
@@ -96,7 +96,7 @@ export class TokenInspectorService {
     const started = Date.now();
     try {
       const res = await axios.get(`${this.config.meta.baseUrl}/${this.config.meta.version}/me`, {
-        httpsAgent: agentFor(proxy),
+        ...agentOptions(proxy),
         proxy: false,
         timeout: 15_000,
         validateStatus: () => true,

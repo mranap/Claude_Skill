@@ -53,6 +53,18 @@ describe('Meta profiles, discovery and tenant isolation', () => {
     expect((await alice.client.post('/api/meta-profiles', { name: 'Dup', accessToken: world.token })).status).toBe(409);
   });
 
+  it('refuses proxies on private/loopback addresses unless the administrator allows them (SSRF protection)', async () => {
+    for (const host of ['127.0.0.1', '169.254.169.254', 'localhost', '10.0.0.5']) {
+      const res = await alice.client.post('/api/meta-profiles', { name: 'Internal', accessToken: `${world.token}x`, proxy: { type: 'HTTP', host, port: 8080 } });
+      expect(res.status, host).toBe(400);
+      expect(res.body.error.code).toBe('PROXY_ERROR');
+      const test = expectStatus(await alice.client.post('/api/meta-profiles/test', { proxy: { type: 'SOCKS5', host, port: 1080 } }), 200).body;
+      expect(test.proxy.ok, host).toBe(false);
+      expect(test.proxy.message).toMatch(/private or reserved/);
+    }
+    expect(await stack.prisma.metaProfile.count({ where: { name: 'Internal' } })).toBe(0);
+  });
+
   it('never exposes the token in API logs', async () => {
     // Log rows are buffered and written in batches; the unsaved "test token" calls must be logged too.
     const logs = await stack.waitFor(async () => {

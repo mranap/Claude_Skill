@@ -80,7 +80,56 @@ export class EntityActionsService {
     return { conn: await this.connections.forProfile(account.profile), profileId: account.profileId };
   }
 
-  async setStatus(e: EntityRef, status: 'ACTIVE' | 'PAUSED', src: ActionSource): Promise<{ changed: boolean; before: string | null; after: string }> {
+  /**
+   * Re-reads status and budgets from Meta and updates the local mirror. The mirror can be stale (objects are
+   * also edited in Ads Manager), and relative changes ("+20 %", "pause if active") must start from the real
+   * current value.
+   */
+  async refresh(e: EntityRef): Promise<EntityRef> {
+    const { conn, profileId } = await this.connFor(e);
+    let data: { name?: string; status?: string; effective_status?: string; daily_budget?: string; lifetime_budget?: string };
+    try {
+      data = await this.graph.get(
+        conn,
+        `/${e.metaId}`,
+        { fields: e.level === 'AD' ? 'name,status,effective_status' : 'name,status,effective_status,daily_budget,lifetime_budget' },
+        `${e.level.toLowerCase()}.read`,
+        { metaAccountId: e.metaAccountId },
+      );
+    } catch (err) {
+      if (err instanceof MetaApiError) {
+        await this.profileStatus.onApiError(profileId, err);
+        if (err.category === 'NOT_FOUND') {
+          await this.markDeleted(e);
+          throw AppError.notFound(this.levelLabel(e.level));
+        }
+      }
+      throw this.toAppError(err);
+    }
+    const minor = (v?: string) => (v !== undefined && /^\d+$/.test(v) ? BigInt(v) : null);
+    const fresh: EntityRef = {
+      ...e,
+      name: data.name ?? e.name,
+      status: data.status ?? e.status,
+      effectiveStatus: data.effective_status ?? e.effectiveStatus,
+      ...(e.level === 'AD' ? {} : { dailyBudget: minor(data.daily_budget), lifetimeBudget: minor(data.lifetime_budget) }),
+    };
+    const mirror = { name: fresh.name, status: fresh.status, effectiveStatus: fresh.effectiveStatus };
+    if (e.level === 'CAMPAIGN') await this.prisma.campaign.update({ where: { id: e.id }, data: { ...mirror, dailyBudget: fresh.dailyBudget, lifetimeBudget: fresh.lifetimeBudget } });
+    else if (e.level === 'ADSET') await this.prisma.adSet.update({ where: { id: e.id }, data: { ...mirror, dailyBudget: fresh.dailyBudget, lifetimeBudget: fresh.lifetimeBudget } });
+    else await this.prisma.ad.update({ where: { id: e.id }, data: mirror });
+    return fresh;
+  }
+
+  private async markDeleted(e: EntityRef): Promise<void> {
+    if (e.level === 'CAMPAIGN') await this.prisma.campaign.update({ where: { id: e.id }, data: { isDeleted: true } });
+    else if (e.level === 'ADSET') await this.prisma.adSet.update({ where: { id: e.id }, data: { isDeleted: true } });
+    else await this.prisma.ad.update({ where: { id: e.id }, data: { isDeleted: true } });
+  }
+
+  /** `opts.fresh`: the caller already refreshed the entity from Meta (otherwise it is refreshed here). */
+  async setStatus(e0: EntityRef, status: 'ACTIVE' | 'PAUSED', src: ActionSource, opts: { fresh?: boolean } = {}): Promise<{ changed: boolean; before: string | null; after: string }> {
+    const e = opts.fresh ? e0 : await this.refresh(e0);
     if (e.status === status) return { changed: false, before: e.status, after: status };
     const { conn, profileId } = await this.connFor(e);
     try {
@@ -120,8 +169,9 @@ export class EntityActionsService {
   }
 
   /** Sets a new daily/lifetime budget (minor units) on a campaign (CBO) or ad set (ABO). */
-  async setBudget(e: EntityRef, newMinor: bigint, src: ActionSource): Promise<{ field: 'daily_budget' | 'lifetime_budget'; before: bigint; after: bigint }> {
-    if (e.level === 'AD') throw AppError.validation('Ads have no budget');
+  async setBudget(e0: EntityRef, newMinor: bigint, src: ActionSource, opts: { fresh?: boolean } = {}): Promise<{ field: 'daily_budget' | 'lifetime_budget'; before: bigint; after: bigint }> {
+    if (e0.level === 'AD') throw AppError.validation('Ads have no budget');
+    const e = opts.fresh ? e0 : await this.refresh(e0);
     const field = e.dailyBudget !== null && e.dailyBudget > 0n ? 'daily_budget' : e.lifetimeBudget !== null && e.lifetimeBudget > 0n ? 'lifetime_budget' : null;
     if (!field) {
       throw AppError.validation(

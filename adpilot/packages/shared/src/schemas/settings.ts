@@ -66,6 +66,11 @@ export const metaSettingsSchema = z.object({
   tokenCheckIntervalHours: z.number().int().min(1).max(168).default(12),
   assetSyncIntervalHours: z.number().int().min(1).max(168).default(24),
   entitySyncIntervalMinutes: z.number().int().min(15).max(1440).default(60),
+  /**
+   * Allow Meta profile proxies on private/loopback/link-local addresses. Off by default: user-supplied
+   * network destinations inside the server's network would allow probing internal services (SSRF).
+   */
+  allowPrivateProxyAddresses: z.boolean().default(false),
 });
 
 export const SMTP_ENCRYPTIONS = ['NONE', 'SSL', 'STARTTLS'] as const;

@@ -92,7 +92,8 @@ export interface InsightOverride {
 
 const PAGE_SIZE_DEFAULT = 25;
 let seq = 100_000_000_000_000;
-const nextId = () => String(seq++ + randomInt(1000));
+// Strictly increasing with random gaps: ids look like Meta's and can never collide.
+const nextId = () => String((seq += 1 + randomInt(1000)));
 const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, '+0000');
 
 export class MetaEmulator {
@@ -110,7 +111,7 @@ export class MetaEmulator {
   readonly videos = new Map<string, Video>();
   readonly insightOverrides = new Map<string, InsightOverride>(); // key `${objectId}|${date}`
   readonly faults: Fault[] = [];
-  readonly requests: { method: string; path: string; params: Record<string, unknown> }[] = [];
+  readonly requests: { method: string; path: string; params: Record<string, unknown>; remotePort?: number; at: number }[] = [];
   usageHeaders: Record<string, string> = {};
   /** When true, every response carries a high usage header (to test pacing). */
   videoPollsUntilReady = 2;
@@ -225,7 +226,7 @@ export class MetaEmulator {
       const method = req.method ?? 'GET';
       const files: Record<string, Buffer> = {};
       if (method === 'POST') Object.assign(params, await this.readBody(req, files));
-      this.requests.push({ method, path, params: { ...params, access_token: undefined } });
+      this.requests.push({ method, path, params: { ...params, access_token: undefined }, remotePort: req.socket.remotePort, at: Date.now() });
 
       const fault = this.takeFault(`${method} ${path}`);
       if (fault?.kind === 'delay') await new Promise((r) => setTimeout(r, fault.delayMs ?? 1000));

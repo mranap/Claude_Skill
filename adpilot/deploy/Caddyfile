@@ -1,0 +1,48 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt). /api → API container, everything else → web app.
+{
+	email {$ACME_EMAIL}
+	servers {
+		# Needed for correct client IPs in the API (rate limiting, audit log) behind Cloudflare etc.:
+		# add `trusted_proxies static <ranges>` here when another proxy sits in front of Caddy.
+		protocols h1 h2 h3
+	}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	@api path /api/*
+	handle @api {
+		# Creative uploads: videos up to 4 GB (Meta's limit) + multipart overhead.
+		request_body {
+			max_size 4200MB
+		}
+		reverse_proxy api:4000 {
+			# Long uploads and slow Meta calls must not be cut by the proxy.
+			transport http {
+				read_timeout 2h
+				write_timeout 2h
+				dial_timeout 10s
+			}
+			health_uri /api/health
+			health_interval 15s
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

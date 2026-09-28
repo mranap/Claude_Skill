@@ -91,6 +91,7 @@ export class MetaProfilesService {
   // ───────────── mutations ─────────────
 
   async create(userId: string, input: CreateInput) {
+    if (input.proxy) await this.connections.assertProxyAllowed(input.proxy.host);
     const fingerprint = this.hashing.fingerprint(input.accessToken);
     const duplicate = await this.prisma.metaProfile.findFirst({ where: { userId, tokenFingerprint: fingerprint, deletedAt: null }, select: { name: true } });
     if (duplicate) throw AppError.conflict(`This token is already connected in the profile "${duplicate.name}"`);
@@ -132,6 +133,7 @@ export class MetaProfilesService {
   }
 
   async update(userId: string, id: string, input: UpdateInput) {
+    if (input.proxy) await this.connections.assertProxyAllowed(input.proxy.host);
     const current = await this.findOwned(userId, id);
     const data: Prisma.MetaProfileUpdateInput = {};
     const audited: string[] = [];
@@ -229,6 +231,8 @@ export class MetaProfilesService {
   async testUnsaved(userId: string, input: TestInput): Promise<{ token?: TokenInspection; proxy?: ProxyTestResult }> {
     const out: { token?: TokenInspection; proxy?: ProxyTestResult } = {};
     if (input.proxy) {
+      const blocked = await this.connections.proxyPolicyViolation(input.proxy.host);
+      if (blocked) return { proxy: { ok: false, message: blocked } };
       out.proxy = await this.inspector.testProxy({
         type: input.proxy.type,
         host: input.proxy.host,
@@ -239,7 +243,7 @@ export class MetaProfilesService {
       if (!out.proxy.ok) return out;
     }
     if (input.accessToken) {
-      out.token = await this.inspector.inspect(this.connections.forTest(userId, { ...input, accessToken: input.accessToken }));
+      out.token = await this.inspector.inspect(await this.connections.forTest(userId, { ...input, accessToken: input.accessToken }));
     }
     return out;
   }
@@ -247,7 +251,8 @@ export class MetaProfilesService {
   async testProxy(userId: string, id: string): Promise<ProxyTestResult> {
     const profile = await this.findOwned(userId, id);
     if (!profile.proxy) return { ok: true, message: 'No proxy configured: direct connection is used.' };
-    const result = await this.inspector.testProxy(this.connections.proxyConfig(profile.proxy));
+    const blocked = await this.connections.proxyPolicyViolation(profile.proxy.host);
+    const result = blocked ? { ok: false, message: blocked } : await this.inspector.testProxy(this.connections.proxyConfig(profile.proxy));
     await this.prisma.proxy.update({
       where: { id: profile.proxy.id },
       data: { lastTestAt: new Date(), lastTestOk: result.ok, lastTestError: result.ok ? null : result.message, lastTestLatencyMs: result.latencyMs ?? null },

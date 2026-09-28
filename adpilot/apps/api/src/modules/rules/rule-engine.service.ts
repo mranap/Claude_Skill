@@ -20,6 +20,7 @@ import { AppLogger } from '../../infra/logger/logger';
 import { MetaConnectionFactory } from '../meta/meta-connection.factory';
 import { MetaGraphClient } from '../meta/graph/meta-graph.client';
 import { MetaApiError } from '../meta/graph/meta-errors';
+import { AppError } from '../../common/errors/app-error';
 import { EntityActionsService, EntityRef } from '../campaigns/entity-actions.service';
 import { MetricValues, RuleMetricsService } from './rule-metrics.service';
 import { Prisma, type AutoRule } from '../../generated/prisma/client';
@@ -155,7 +156,22 @@ export class RuleEngineService {
             metrics: v,
             conditions: results.map((r) => ({ text: describeCondition(r.cond, account.currency), actual: r.actual })),
           };
-          const outcome = await this.act(rule, runId, account.id, account.currency, account.minDailyBudget, c, conditionData);
+          let outcome: Awaited<ReturnType<RuleEngineService['act']>>;
+          try {
+            outcome = await this.act(rule, runId, account.id, account.currency, account.minDailyBudget, c, conditionData);
+          } catch (err) {
+            // One object must not stop the whole run: a throttled call defers the rest of the run, a deleted
+            // object is skipped, anything else is counted as failed for this object.
+            const meta = (err as { meta?: { category?: string; retryAfterMs?: number } }).meta;
+            if (meta?.category === 'RATE_LIMIT' || (err instanceof MetaApiError && err.category === 'RATE_LIMIT')) {
+              summary.deferredMs = meta?.retryAfterMs ?? (err instanceof MetaApiError ? err.details.retryAfterMs : undefined) ?? 60_000;
+              break;
+            }
+            this.logger.warn('Rule action failed', { ruleId, entity: c.metaId, err: String(err) });
+            if (err instanceof AppError && err.code === 'NOT_FOUND') summary.skipped++;
+            else summary.failed++;
+            continue;
+          }
           if (outcome.result === 'SUCCESS' || outcome.result === 'NOTIFIED') {
             summary.acted++;
             actionsTaken.push(outcome.text);
@@ -263,17 +279,20 @@ export class RuleEngineService {
       });
 
     // ── Safeguards shared by all actions ──
+    // Interrupted earlier actions are verified against Meta first (whatever their age), so the history and the
+    // limits below are based on what really happened.
+    const stale = await this.prisma.autoRuleExecution.findMany({ where: { ruleId: rule.id, entityMetaId: c.metaId, result: 'PENDING' }, select: { id: true } });
+    for (const p of stale) await this.resolvePending(p.id);
     const since = new Date(Date.now() - rule.cooldownMinutes * 60_000);
     const recent = await this.prisma.autoRuleExecution.findFirst({
       where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: ['SUCCESS', 'PENDING', 'NOTIFIED'] }, executedAt: { gte: since } },
       orderBy: { executedAt: 'desc' },
     });
     if (recent) {
-      if (recent.result === 'PENDING') await this.resolvePending(recent.id);
       return this.skip(rule, c, `Cooldown: last action ${Math.round((Date.now() - recent.executedAt.getTime()) / 60000)} min ago (cooldown ${rule.cooldownMinutes} min)`, record);
     }
     const today = await this.prisma.autoRuleExecution.count({
-      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: ['SUCCESS', 'NOTIFIED'] }, executedAt: { gte: new Date(Date.now() - 86400_000) } },
+      where: { ruleId: rule.id, entityMetaId: c.metaId, result: { in: ['SUCCESS', 'NOTIFIED', 'PENDING'] }, executedAt: { gte: new Date(Date.now() - 86400_000) } },
     });
     if (today >= rule.maxActionsPerDay) return this.skip(rule, c, `Limit of ${rule.maxActionsPerDay} action(s) per 24 h reached`, record);
 
@@ -285,7 +304,8 @@ export class RuleEngineService {
     const lock = await this.locks.acquire(`entity-action:${c.metaId}`, 120_000);
     if (!lock) return this.skip(rule, c, 'Another action on this object is in progress', record);
     try {
-      const entity = await this.actions.resolve(rule.userId, rule.targetLevel as 'CAMPAIGN' | 'ADSET' | 'AD', c.id);
+      // Decisions (already paused? current budget?) are made on the live state in Meta, not the local mirror.
+      const entity = await this.actions.refresh(await this.actions.resolve(rule.userId, rule.targetLevel as 'CAMPAIGN' | 'ADSET' | 'AD', c.id));
       if (rule.action === 'PAUSE' || rule.action === 'START') {
         const target = rule.action === 'PAUSE' ? 'PAUSED' : 'ACTIVE';
         if (entity.status === target) return this.skip(rule, c, `Already ${target.toLowerCase()}`, record);
@@ -295,7 +315,7 @@ export class RuleEngineService {
           return { result: 'DRY_RUN', text };
         }
         const pending = await record({ result: 'PENDING', oldValue: entity.status, newValue: target });
-        return this.finishAction(pending.id, text, () => this.actions.setStatus(entity, target, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }).then(() => undefined));
+        return this.finishAction(pending.id, text, () => this.actions.setStatus(entity, target, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }, { fresh: true }).then(() => undefined));
       }
       return this.budgetAction(rule, entity, currency, accountMinDaily, c, record);
     } finally {
@@ -351,7 +371,7 @@ export class RuleEngineService {
     }
     const pending = await record({ result: 'PENDING', oldValue: current.toString(), newValue: next.toString(), reason: notes.join(', ') || null });
     return this.finishAction(pending.id, text, () =>
-      this.actions.setBudget(e, next, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }).then(() => undefined),
+      this.actions.setBudget(e, next, { source: 'RULE', ruleId: rule.id, ruleName: rule.name }, { fresh: true }).then(() => undefined),
     );
   }
 
