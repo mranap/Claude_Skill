@@ -164,7 +164,8 @@ The rate-limit manager (Redis, shared by all workers) reads `X-App-Usage`, `X-Ad
 `debug_token` reports type, app, expiry, data-access expiry and scopes. Required: `ads_management`, `ads_read`;
 recommended: `business_management`, `pages_show_list`, `pages_read_engagement`; optional: `pages_manage_ads`,
 `leads_retrieval`, `instagram_basic` (see README for what breaks without each). Tokens are re-checked on a
-schedule; expiring tokens trigger a warning 7 days before expiry.
+schedule; a warning goes out once, 7 days before the token expires or before its data access ends
+(`data_access_expires_at` of user tokens), whichever comes first.
 
 ## 9. Limitations and supported alternatives
 

@@ -50,16 +50,20 @@ notified by e-mail and Telegram — with a Super Admin panel to run the platform
   previews and thumbnails, per-user storage quota; videos are uploaded to Meta with resumable uploads.
 - **Templates** with Basic and Advanced settings (objective → conversion location → optimisation goal, budget
   CBO/ABO, bidding, schedule, targeting, Advantage+ audience, placements, pixel event, identity, DSA fields,
-  attribution, creative enhancements, naming).
+  attribution, creative enhancements, naming). Interests and languages are searched live in Meta's Targeting
+  Search; Instant Forms are listed from the selected Page.
 - **Launch wizard** (9 steps): profile/account, template, campaign, ad sets, language/geo variants, creatives
-  and texts, naming, **review with validation and dry run** (exact API payloads), launch.
+  and texts, naming, **review with validation and dry run** (exact API payloads, Meta's budget minimums for
+  daily/lifetime budgets, billing events, bid caps and campaign budgets checked before anything is created),
+  launch.
 - **Launch engine**: idempotent (double click, retries, worker restarts and lost responses never create
   duplicates), media first, campaign created paused and activated only when everything exists, verification,
   retry of failed parts, live progress.
 - **Campaigns** table with filters, statuses, budgets, metrics; pause/start and budget changes; **bulk actions**
   with confirmation and safeguards; activity timeline per campaign / ad account.
-- **Statistics**: background Insights sync (minimum interval 35 min, Super Admin configurable), manual refresh
-  with a backend cooldown, per ad account time zone, exact money (no floating point), dashboard.
+- **Statistics**: background Insights sync (minimum interval 35 min, Super Admin configurable; recent days are
+  re-read and, once a week, 28 days so late conversions are counted), manual refresh with a backend cooldown,
+  per ad account time zone, exact money (no floating point), dashboard.
 - **Automated rules** with safeguards: max change per execution, min/max budget, cooldown, max actions per
   day, no repeated action, dry run, execution history, crash-safe (intent recorded before calling Meta).
 

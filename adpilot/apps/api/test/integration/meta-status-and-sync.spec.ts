@@ -588,5 +588,24 @@ describe('Meta profile status, discovery sync, throttling and entity sync', () =
       expect((await profile()).expiryWarnedAt).not.toBeNull();
       for (const t of stack.meta.tokens.values()) t.expiresAt = 0;
     });
+
+    it('warns when the data access of a user token ends before the token itself', async () => {
+      for (const t of stack.meta.tokens.values())
+        t.dataAccessExpiresAt = Math.floor(Date.now() / 1000) + 2 * 86400;
+      await stack.prisma.metaProfile.update({
+        where: { id: profileId },
+        data: { expiryWarnedAt: null, nextTokenCheckAt: new Date(Date.now() - 1000) },
+      });
+      await stack.runTask(TokenCheckTask);
+      const warning = await stack.waitFor(
+        () =>
+          stack.prisma.notification.findFirst({
+            where: { userId: user.id, type: 'TOKEN_EXPIRING_SOON', title: { contains: 'data access' } },
+          }),
+        { message: 'no data-access warning' },
+      );
+      expect(warning.body).toMatch(/uses the app again/);
+      for (const t of stack.meta.tokens.values()) t.dataAccessExpiresAt = 0;
+    });
   });
 });

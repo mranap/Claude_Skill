@@ -145,10 +145,20 @@ export class MetaSyncProcessor implements QueueProcessor {
     }
     await this.profileStatus.applyInspection(profileId, inspection, profile.tokenFingerprint);
 
-    // "Expiring soon" warning, once per token (expiryWarnedAt is reset when the token is replaced). The claim
-    // commits together with the notification, so a failure in between cannot use the warning up.
-    const expiresAt = inspection.expiresAt ? new Date(inspection.expiresAt) : null;
-    if (inspection.valid && expiresAt && expiresAt.getTime() - Date.now() < 7 * DAY) {
+    // "Expiring soon" warning, once per token (expiryWarnedAt is reset when the token is replaced), for whichever
+    // ends first: the token itself, or its data access (user tokens lose data access some time after the person
+    // last used the app; debug_token reports when). The claim commits together with the notification, so a
+    // failure in between cannot use the warning up.
+    const deadline = [
+      inspection.expiresAt ? { at: new Date(inspection.expiresAt), dataAccess: false } : null,
+      inspection.dataAccessExpiresAt
+        ? { at: new Date(inspection.dataAccessExpiresAt), dataAccess: true }
+        : null,
+    ]
+      .filter((d): d is { at: Date; dataAccess: boolean } => d !== null)
+      .sort((a, b) => a.at.getTime() - b.at.getTime())[0];
+    if (inspection.valid && deadline && deadline.at.getTime() - Date.now() < 7 * DAY) {
+      const when = deadline.at.toISOString().slice(0, 16).replace('T', ' ');
       const pending = await this.prisma.$transaction(async (tx) => {
         const claimed = await tx.metaProfile.updateMany({
           where: { ...inspected, expiryWarnedAt: null },
@@ -159,10 +169,14 @@ export class MetaSyncProcessor implements QueueProcessor {
           userId: profile.userId,
           type: 'TOKEN_EXPIRING_SOON',
           severity: 'WARNING',
-          title: `Meta token of "${profile.name}" expires soon`,
-          body: `The access token expires on ${expiresAt.toISOString().slice(0, 16).replace('T', ' ')} UTC. Replace it to avoid interruptions.`,
+          title: deadline.dataAccess
+            ? `Meta data access of "${profile.name}" ends soon`
+            : `Meta token of "${profile.name}" expires soon`,
+          body: deadline.dataAccess
+            ? `Meta ends this token's data access on ${when} UTC unless the person who created it uses the app again. Renew the token, or use a System User token, to avoid interruptions.`
+            : `The access token expires on ${when} UTC. Replace it to avoid interruptions.`,
           link: `/meta-profiles/${profileId}`,
-          dedupeKey: `token-expiring:${profileId}:${expiresAt.getTime()}`,
+          dedupeKey: `token-expiring:${profileId}:${deadline.at.getTime()}`,
         });
       });
       if (pending) await this.notifications.dispatch(pending);

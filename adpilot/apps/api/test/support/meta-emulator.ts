@@ -21,6 +21,8 @@ export interface EmuToken {
   type: 'USER' | 'SYSTEM_USER';
   scopes: string[];
   expiresAt: number; // unix seconds, 0 = never
+  /** Unix seconds when the token's data access ends (user tokens), 0 = never. */
+  dataAccessExpiresAt?: number;
   valid: boolean;
   invalidSubcode?: number;
   businesses: string[];
@@ -558,7 +560,7 @@ export class MetaEmulator {
           type: tok.type,
           application: 'Test App',
           expires_at: tok.expiresAt,
-          data_access_expires_at: 0,
+          data_access_expires_at: tok.dataAccessExpiresAt ?? 0,
           is_valid: true,
           scopes: tok.scopes,
           user_id: tok.userId,
