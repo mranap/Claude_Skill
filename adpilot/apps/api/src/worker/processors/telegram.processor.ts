@@ -38,16 +38,15 @@ export class TelegramProcessor implements QueueProcessor {
       return { skipped: 'not linked' };
     }
     const n = d.notification;
-    const link = this.deliveries.absoluteLink(n.link);
-    const text =
-      `${SEVERITY_ICON[n.severity] ?? ''} <b>${tgEscape(n.title)}</b>\n\n${tgEscape(n.body)}` +
-      (link ? `\n\n<a href="${tgEscape(link)}">Open in AdPilot</a>` : '');
     try {
+      const link = this.deliveries.absoluteLink(n.link);
+      const text =
+        `${SEVERITY_ICON[n.severity] ?? ''} <b>${tgEscape(n.title)}</b>\n\n${tgEscape(n.body)}` +
+        (link ? `\n\n<a href="${tgEscape(link)}">Open in AdPilot</a>` : '');
       await this.bot.sendMessage(conn.chatId, text);
-      await this.deliveries.markSent(deliveryId);
-      return { sent: true };
     } catch (err) {
-      const e = err as TelegramSendError;
+      // Only a Bot API error can mean "maybe sent"; anything else failed before the message left.
+      const e = err instanceof TelegramSendError ? err : new TelegramSendError('TEMPORARY', (err as Error).message);
       if (e.kind === 'RATE_LIMITED') {
         // Definitely not delivered: release and retry after Telegram's retry_after.
         await this.deliveries.release(deliveryId, e.message);
@@ -56,7 +55,7 @@ export class TelegramProcessor implements QueueProcessor {
       const lastAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (e.kind === 'TEMPORARY' && !lastAttempt) {
         await this.deliveries.release(deliveryId, e.message);
-        throw err;
+        throw e;
       }
       if (e.kind === 'CHAT_UNAVAILABLE') {
         await this.prisma.telegramConnection.update({ where: { userId: user.id }, data: { isActive: false, lastError: e.message } });
@@ -67,5 +66,8 @@ export class TelegramProcessor implements QueueProcessor {
       if (status === 'FAILED' && e.kind === 'PERMANENT') throw new UnrecoverableError(e.message);
       return { status };
     }
+    // Outside the try: the message is out, so a failure to record it must never be treated as a send failure.
+    await this.deliveries.markSent(deliveryId);
+    return { sent: true };
   }
 }

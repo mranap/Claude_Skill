@@ -94,10 +94,11 @@ export class NotificationsService {
 
   async enqueueDelivery(deliveryId: string, channel: 'EMAIL' | 'TELEGRAM'): Promise<void> {
     try {
+      // A PENDING delivery whose job already failed (e.g. the claim failed on every attempt) must run again.
       if (channel === 'EMAIL') {
-        await this.queue.add(QUEUES.EMAIL, JOBS.EMAIL_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
+        await this.queue.addReplacingFinished(QUEUES.EMAIL, JOBS.EMAIL_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
       } else {
-        await this.queue.add(QUEUES.TELEGRAM, JOBS.TELEGRAM_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
+        await this.queue.addReplacingFinished(QUEUES.TELEGRAM, JOBS.TELEGRAM_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
       }
     } catch (err) {
       // The outbox sweep (scheduler) retries PENDING deliveries whose job could not be queued.

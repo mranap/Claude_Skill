@@ -621,6 +621,8 @@ model AdAccount {
   statsSyncStatus            SyncStatus         @default(IDLE)
   statsSyncError             String?
   statsBackfilledAt          DateTime?
+  /// Last sync that re-read the whole window in which Meta still revises Insights (28 days).
+  statsFullRefreshAt         DateTime?
   lastManualRefreshAt        DateTime?
   entitiesSyncedAt           DateTime?
   lastSyncAt                 DateTime?
@@ -1252,6 +1254,8 @@ model Backup {
   error         String?
   triggeredById String?      @db.Uuid
   startedAt     DateTime     @default(now())
+  /// Renewed by the worker while the backup runs; a RUNNING row without a recent heartbeat is abandoned.
+  heartbeatAt   DateTime?
   finishedAt    DateTime?
 
   @@index([startedAt])

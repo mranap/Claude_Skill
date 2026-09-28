@@ -134,13 +134,16 @@ export function resultTypeFromIndicator(indicator: string): string {
   return known[type] ?? type.replace(/^offsite_conversion\.fb_pixel_/, '').replace(/^onsite_conversion\./, '').slice(0, 60);
 }
 
-/** Parses Meta's `results` field; null when absent or not understood (then the local mapping is used). */
-export function metaResults(row: InsightRow): { value: string; type: string } | null {
+/**
+ * Parses Meta's `results` field; null when absent or not understood (then the local mapping is used). Results of
+ * different types (a campaign whose ad sets optimise for different goals) cannot be added up: like Ads Manager,
+ * such a row has no "Results" (value and type null).
+ */
+export function metaResults(row: InsightRow): { value: string | null; type: string | null } | null {
   const list = row.results;
   if (!Array.isArray(list) || !list.length) return null;
   let total = new Decimal(0);
-  let indicator: string | undefined;
-  let found = false;
+  const types = new Set<string>();
   for (const r of list) {
     const values = Array.isArray(r?.values) ? r.values : [];
     // One value per attribution window setting: take the default one only (never sum windows).
@@ -148,11 +151,11 @@ export function metaResults(row: InsightRow): { value: string; type: string } | 
     const raw = v?.value;
     if (raw === undefined || !/^\d+(\.\d+)?$/.test(String(raw))) continue;
     total = total.plus(String(raw));
-    indicator ??= r.indicator;
-    found = true;
+    types.add(r.indicator ? resultTypeFromIndicator(r.indicator) : 'results');
   }
-  if (!found) return null;
-  return { value: total.toString(), type: indicator ? resultTypeFromIndicator(indicator) : 'results' };
+  if (!types.size) return null;
+  if (types.size > 1) return { value: null, type: null };
+  return { value: total.toString(), type: [...types][0] };
 }
 
 /**
@@ -203,10 +206,42 @@ export function isTooMuchData(err: unknown): boolean {
   return /reduce the amount of data|too many rows/i.test(err.details.message ?? '');
 }
 
+/** Meta: Insights "do not change after 28 days of being reported" (Insights API, Limits and Best Practices). */
+export const INSIGHTS_SETTLED_AFTER_DAYS = 28;
+/** How often a sync re-reads the whole unsettled window instead of the configured look-back. */
+export const FULL_REFRESH_EVERY_MS = 7 * 86400_000;
+/** Rows per Insights page; one page at a time is held in memory while syncing. */
+const PAGE_LIMIT = 500;
+/** Guard against a pagination that never ends (the range is split instead of being cut silently). */
+const MAX_PAGES = 1000;
+
+interface InsightsPage {
+  data?: InsightRow[];
+  paging?: { cursors?: { after?: string }; next?: string };
+}
+
+/**
+ * Days fetched by one sync: the backfill on the first sync, otherwise the configured look-back, and once a week
+ * the whole window in which Meta still revises data (late conversions and attribution), so no day keeps stale
+ * figures. `full`: the sync covers that window.
+ */
+export function insightsWindow(
+  account: Pick<AdAccount, 'statsBackfilledAt' | 'statsFullRefreshAt'>,
+  cfg: { lookbackDays: number; backfillDays: number },
+  backfill: boolean,
+  now = Date.now(),
+): { days: number; full: boolean } {
+  if (!account.statsBackfilledAt || backfill) return { days: cfg.backfillDays, full: true };
+  const due = !account.statsFullRefreshAt || now - account.statsFullRefreshAt.getTime() >= FULL_REFRESH_EVERY_MS;
+  return due ? { days: Math.max(cfg.lookbackDays, INSIGHTS_SETTLED_AFTER_DAYS), full: true } : { days: cfg.lookbackDays, full: false };
+}
+
 /**
  * Statistics synchronisation for one ad account. Daily rows (time_increment=1) are fetched per level for a
  * rolling window in the ad account's time zone; the window is re-fetched on every sync because Meta keeps
- * updating recent days (delayed conversions/attribution). Large requests are split into smaller date ranges.
+ * updating recent days (delayed conversions/attribution). The weekly longer refresh is part of a regular sync
+ * (same rate-limited client, no additional sync). Rows are stored page by page; large requests are split into
+ * smaller date ranges.
  */
 @Injectable()
 export class InsightsSyncService {
@@ -219,45 +254,51 @@ export class InsightsSyncService {
   async syncAccount(account: AdAccount, conn: MetaConnection, opts: { backfill?: boolean } = {}): Promise<{ rows: number; since: string; until: string }> {
     const cfg = await this.settings.get('statistics');
     const today = DateTime.now().setZone(account.timezoneName);
-    const days = !account.statsBackfilledAt || opts.backfill ? cfg.backfillDays : cfg.lookbackDays;
+    const { days, full } = insightsWindow(account, cfg, opts.backfill ?? false);
     const since = today.minus({ days: days - 1 }).toFormat('yyyy-MM-dd');
     const until = today.toFormat('yyyy-MM-dd');
     let total = 0;
     for (const { level, api } of LEVELS) {
-      const rows = await this.fetchRange(account, conn, api, since, until);
-      total += await this.store(account, level, rows);
+      total += await this.syncRange(account, conn, level, api, since, until);
     }
+    if (full) await this.prisma.adAccount.update({ where: { id: account.id }, data: { statsFullRefreshAt: new Date() } });
     return { rows: total, since, until };
   }
 
-  private async fetchRange(account: AdAccount, conn: MetaConnection, level: string, since: string, until: string): Promise<InsightRow[]> {
+  /** Fetches one level for a date range and stores each page as it arrives. Returns the number of stored rows. */
+  private async syncRange(account: AdAccount, conn: MetaConnection, level: EntityLevel, api: string, since: string, until: string): Promise<number> {
+    let stored = 0;
+    let after: string | undefined;
     try {
-      return await this.graph.paginate<InsightRow>(
-        conn,
-        `/${actId(account.metaAccountId)}/insights`,
-        {
-          level,
-          fields: insightFields(level),
-          time_range: { since, until },
-          time_increment: 1,
-          limit: 500,
-        },
-        `insights.${level}`,
-        { metaAccountId: account.metaAccountId, timeoutMs: 120_000 },
-        200_000,
-      );
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const res = await this.graph.get<InsightsPage>(
+          conn,
+          `/${actId(account.metaAccountId)}/insights`,
+          { level: api, fields: insightFields(api), time_range: { since, until }, time_increment: 1, limit: PAGE_LIMIT, ...(after ? { after } : {}) },
+          `insights.${api}`,
+          { metaAccountId: account.metaAccountId, timeoutMs: 120_000 },
+        );
+        stored += await this.store(account, level, res.data ?? []);
+        after = res.paging?.cursors?.after;
+        if (!res.paging?.next || !after) return stored;
+      }
     } catch (err) {
       // Too many rows / request timed out (Insights error codes 100/1487534, 100/1504018, 2/1504038, or the
-      // generic "reduce the amount of data" message) → split the date range and try again.
+      // generic "reduce the amount of data" message) → split the date range and try again. Rows stored before
+      // the error are simply upserted again.
       if (!(isTooMuchData(err) && since !== until)) throw err;
-      const s = DateTime.fromISO(since, { zone: 'UTC' });
-      const u = DateTime.fromISO(until, { zone: 'UTC' });
-      const mid = s.plus({ days: Math.floor(u.diff(s, 'days').days / 2) });
-      return [
-        ...(await this.fetchRange(account, conn, level, since, mid.toFormat('yyyy-MM-dd'))),
-        ...(await this.fetchRange(account, conn, level, mid.plus({ days: 1 }).toFormat('yyyy-MM-dd'), until)),
-      ];
+      return this.syncHalves(account, conn, level, api, since, until);
     }
+    if (since !== until) return this.syncHalves(account, conn, level, api, since, until);
+    throw new Error(`Insights (${api}, ${since}) did not fit into ${MAX_PAGES} pages`);
+  }
+
+  private async syncHalves(account: AdAccount, conn: MetaConnection, level: EntityLevel, api: string, since: string, until: string): Promise<number> {
+    const s = DateTime.fromISO(since, { zone: 'UTC' });
+    const u = DateTime.fromISO(until, { zone: 'UTC' });
+    const mid = s.plus({ days: Math.floor(u.diff(s, 'days').days / 2) });
+    const first = await this.syncRange(account, conn, level, api, since, mid.toFormat('yyyy-MM-dd'));
+    return first + (await this.syncRange(account, conn, level, api, mid.plus({ days: 1 }).toFormat('yyyy-MM-dd'), until));
   }
 
   /** Bulk upsert (INSERT … ON CONFLICT) in chunks. */
