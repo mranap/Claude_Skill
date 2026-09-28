@@ -2,8 +2,7 @@
  * TEST DOUBLE — minimal SMTP server (RFC 5321 subset: EHLO/HELO, AUTH PLAIN/LOGIN, MAIL, RCPT, DATA, RSET,
  * NOOP, QUIT) that captures messages in memory. Used only by the automated tests; never shipped.
  */
-import net from 'node:net';
-import type { AddressInfo } from 'node:net';
+import net, { type AddressInfo } from 'node:net';
 
 export interface CapturedMail {
   from: string;
@@ -23,9 +22,16 @@ export class FakeSmtp {
   private rejectNext: { times: number; reply: string } | null = null;
   private readonly waiters: { predicate: (m: CapturedMail) => boolean; resolve: (m: CapturedMail) => void }[] = [];
 
+  /** Called for every captured message (used by the standalone development mode). */
+  onMessage: ((m: CapturedMail) => void) | null = null;
+
   async start(): Promise<void> {
+    await this.startOn(0);
+  }
+
+  async startOn(port: number): Promise<void> {
     this.server = net.createServer((socket) => this.session(socket));
-    await new Promise<void>((r) => this.server.listen(0, '127.0.0.1', () => r()));
+    await new Promise<void>((r) => this.server.listen(port, '127.0.0.1', () => r()));
     this.port = (this.server.address() as AddressInfo).port;
   }
 
@@ -167,6 +173,7 @@ export class FakeSmtp {
       .replace(/=([0-9A-F]{2})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
     const mail: CapturedMail = { from, to, raw, subject, text, auth };
     this.messages.push(mail);
+    this.onMessage?.(mail);
     for (const w of [...this.waiters]) {
       if (w.predicate(mail)) {
         this.waiters.splice(this.waiters.indexOf(w), 1);
@@ -190,4 +197,17 @@ export function linkFrom(mail: CapturedMail, fragment: string): string {
   const url = urls.find((u) => u.includes(fragment));
   if (!url) throw new Error(`No link containing "${fragment}" in e-mail "${mail.subject}"`);
   return url.replace(/&amp;/g, '&');
+}
+
+// DEVELOPMENT ONLY: `node --experimental-strip-types test/support/fake-smtp.ts [port]` runs a local mail catcher.
+// Configure Super Admin → SMTP with host 127.0.0.1, this port and encryption "None"; every message is printed
+// with its links (invitations, password resets).
+if (process.argv[1]?.endsWith('fake-smtp.ts')) {
+  const smtp = new FakeSmtp();
+  const port = Number(process.argv[2] ?? 2525);
+  void smtp.startOn(port).then(() => console.log(`Mail catcher listening on 127.0.0.1:${port}`));
+  smtp.onMessage = (m) => {
+    const links = m.text.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
+    console.log(JSON.stringify({ to: m.to, subject: m.subject, links: [...new Set(links.map((l) => l.replace(/&amp;/g, '&')))] }, null, 2));
+  };
 }

@@ -92,4 +92,5 @@ export const Aad = {
   totpSecret: (userId: string) => `user:${userId}:totp`,
   totpPendingSecret: (userId: string) => `user:${userId}:totp_pending`,
   setting: (key: string) => `setting:${key}`,
+  mailJob: () => 'mail:system-job',
 };

@@ -86,12 +86,15 @@ export interface AutoRuleJob {
 }
 
 /**
- * EMAIL_SEND: either a notification delivery (by id) or a system e-mail. System e-mails may contain a
- * one-time link (password reset / invitation); such jobs are removed from Redis immediately after completion.
+ * EMAIL_SEND: either a notification delivery (by id) or a system e-mail. System e-mails with a one-time link
+ * (password reset, invitation, e-mail change) are `sealed`: the message is encrypted with the platform key
+ * while it waits in Redis, and the job is removed as soon as it completes.
  */
+export type SystemEmail = { to: string; subject: string; html: string; text: string };
 export type EmailJob =
   | { kind: 'delivery'; deliveryId: string }
-  | { kind: 'system'; to: string; subject: string; html: string; text: string; tag: string; userId?: string };
+  | ({ kind: 'system'; tag: string; userId?: string } & SystemEmail)
+  | { kind: 'sealed'; sealed: string; tag: string; userId?: string };
 
 export type TelegramJob =
   | { kind: 'delivery'; deliveryId: string }

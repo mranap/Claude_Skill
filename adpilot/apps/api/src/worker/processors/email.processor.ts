@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Job } from 'bullmq';
-import { EmailJob, QUEUES } from '../../infra/queue/queues';
+import { EmailJob, QUEUES, type SystemEmail } from '../../infra/queue/queues';
+import { Aad, EncryptionService } from '../../infra/crypto/encryption.service';
 import { SmtpSendError, SmtpService } from '../../modules/mail/smtp.service';
 import { MailTemplates } from '../../modules/mail/mail-templates';
 import { DeliveryService } from '../../modules/notifications/delivery.service';
@@ -19,11 +20,16 @@ export class EmailProcessor implements QueueProcessor {
     private readonly deliveries: DeliveryService,
     private readonly settings: SettingsService,
     private readonly systemLog: SystemLogService,
+    private readonly encryption: EncryptionService,
   ) {}
 
   async process(job: Job<EmailJob>): Promise<unknown> {
     const data = job.data;
     if (data.kind === 'system') return this.sendSystem(job, data);
+    if (data.kind === 'sealed') {
+      const message = JSON.parse(this.encryption.decrypt(data.sealed, Aad.mailJob())) as SystemEmail;
+      return this.sendSystem(job, { kind: 'system', ...message, tag: data.tag, userId: data.userId });
+    }
     return this.sendDelivery(job, data.deliveryId);
   }
 

@@ -3,6 +3,7 @@ import { QueueService } from '../../infra/queue/queue.service';
 import { EmailJob, JOBS, QUEUES } from '../../infra/queue/queues';
 import { SettingsService } from '../settings/settings.service';
 import { AppConfig } from '../../config/app-config';
+import { Aad, EncryptionService } from '../../infra/crypto/encryption.service';
 import { MailTemplates, RenderedEmail } from './mail-templates';
 
 /**
@@ -15,6 +16,7 @@ export class MailService {
     private readonly queue: QueueService,
     private readonly settings: SettingsService,
     private readonly config: AppConfig,
+    private readonly encryption: EncryptionService,
   ) {}
 
   async platformName(): Promise<string> {
@@ -26,7 +28,11 @@ export class MailService {
   }
 
   async enqueue(to: string, email: RenderedEmail, tag: string, opts: { sensitive?: boolean; userId?: string } = {}) {
-    const data: EmailJob = { kind: 'system', to, subject: email.subject, html: email.html, text: email.text, tag, userId: opts.userId };
+    const message = { to, subject: email.subject, html: email.html, text: email.text };
+    // One-time links must not sit in Redis in clear text: sensitive messages are sealed with the platform key.
+    const data: EmailJob = opts.sensitive
+      ? { kind: 'sealed', sealed: this.encryption.encrypt(JSON.stringify(message), Aad.mailJob()), tag, userId: opts.userId }
+      : { kind: 'system', ...message, tag, userId: opts.userId };
     await this.queue.add(QUEUES.EMAIL, JOBS.EMAIL_SEND, data, {
       attempts: 5,
       removeOnComplete: opts.sensitive ? true : { age: 24 * 3600 },
