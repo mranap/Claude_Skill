@@ -20,7 +20,16 @@ import type { PlanRef } from './launch.types';
 
 export const ref = (key: string, field: PlanRef['field'] = 'metaId'): PlanRef => ({ $ref: key, field });
 
-/** Creative enhancement features opted out when the user chooses "no automatic enhancements". */
+/**
+ * Instant-form ads lead to no website: the Lead Ads guide sends this placeholder as `link_data.link` and in
+ * the video call to action (the form opens on the ad instead).
+ */
+export const LEAD_FORM_LINK = 'http://fb.me/';
+
+/**
+ * Creative enhancement features opted out when the user chooses "no automatic enhancements". Every key is a
+ * field of AdCreativeFeaturesSpec (SDK v26.0.2).
+ */
 export const ENHANCEMENT_OPT_OUT_FEATURES: Record<'IMAGE' | 'VIDEO' | 'CAROUSEL', string[]> = {
   IMAGE: [
     'image_touchups',
@@ -28,16 +37,41 @@ export const ENHANCEMENT_OPT_OUT_FEATURES: Record<'IMAGE' | 'VIDEO' | 'CAROUSEL'
     'image_templates',
     'image_uncrop',
     'image_animation',
+    'image_background_gen',
     'text_optimizations',
+    'text_translation',
     'enhance_cta',
+    'creative_stickers',
     'adapt_to_placement',
     'description_automation',
     'add_text_overlay',
+    'reveal_details_over_time',
     'site_extensions',
     'inline_comment',
   ],
-  VIDEO: ['video_auto_crop', 'text_optimizations', 'enhance_cta', 'adapt_to_placement', 'description_automation', 'site_extensions', 'inline_comment'],
-  CAROUSEL: ['text_optimizations', 'enhance_cta', 'adapt_to_placement', 'description_automation', 'site_extensions', 'inline_comment'],
+  VIDEO: [
+    'video_auto_crop',
+    'text_optimizations',
+    'text_translation',
+    'enhance_cta',
+    'creative_stickers',
+    'adapt_to_placement',
+    'description_automation',
+    'reveal_details_over_time',
+    'site_extensions',
+    'inline_comment',
+  ],
+  CAROUSEL: [
+    'text_optimizations',
+    'text_translation',
+    'enhance_cta',
+    'creative_stickers',
+    'adapt_to_placement',
+    'description_automation',
+    'reveal_details_over_time',
+    'site_extensions',
+    'inline_comment',
+  ],
 };
 
 export function renderName(pattern: string, vars: Record<string, string | number>): string {
@@ -157,11 +191,15 @@ export function buildAdSetPayload(
   return payload;
 }
 
-function callToAction(s: TemplateSettings, ad: AdVariant, link: string | undefined): Record<string, unknown> | undefined {
+function callToAction(s: TemplateSettings, ad: AdVariant, link: string | undefined, video = false): Record<string, unknown> | undefined {
   const type = ad.callToAction ?? s.creative.callToAction;
   if (type === 'NO_BUTTON') return { type };
   const leadFormId = ad.leadFormId ?? s.creative.leadFormId;
-  if (s.destination === 'ON_AD' && leadFormId) return { type, value: { lead_gen_form_id: leadFormId } };
+  if (s.destination === 'ON_AD' && leadFormId) {
+    // Lead Ads guide: link_data carries the placeholder link itself; video_data has no link field, so the
+    // video call to action carries it next to the form.
+    return { type, value: video ? { link: LEAD_FORM_LINK, lead_gen_form_id: leadFormId } : { lead_gen_form_id: leadFormId } };
+  }
   return link ? { type, value: { link } } : { type };
 }
 
@@ -173,7 +211,8 @@ export interface CreativeRefs {
 
 export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVariant, name: string, refs: CreativeRefs): Record<string, unknown> {
   const s = config.settings;
-  const link = ad.link;
+  const leadForm = s.destination === 'ON_AD';
+  const link = leadForm ? LEAD_FORM_LINK : ad.link;
   const storySpec: Record<string, unknown> = { page_id: s.identity.pageId };
   if (s.identity.instagramUserId) storySpec.instagram_user_id = s.identity.instagramUserId;
   const displayLink = ad.displayLink ?? s.creative.displayLink;
@@ -186,7 +225,7 @@ export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVar
       message: ad.primaryText,
       ...(ad.headline ? { title: ad.headline } : {}),
       ...(ad.description ? { link_description: ad.description } : {}),
-      call_to_action: callToAction(s, ad, link),
+      call_to_action: callToAction(s, ad, link, true),
     };
   } else if (s.creative.format === 'SINGLE_IMAGE' && ad.creativeFileId) {
     storySpec.link_data = {
@@ -208,7 +247,7 @@ export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVar
       multi_share_end_card: false,
       child_attachments: ad.cards.map((c) => {
         const key = refs.mediaKey(c.creativeFileId);
-        const cardLink = c.link ?? link;
+        const cardLink = leadForm ? LEAD_FORM_LINK : c.link ?? link;
         const media =
           refs.typeOf(c.creativeFileId) === 'VIDEO'
             ? { video_id: ref(key, 'videoId'), picture: ref(key, 'thumbnailUrl') }

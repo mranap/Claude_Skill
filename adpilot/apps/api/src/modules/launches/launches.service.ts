@@ -208,6 +208,8 @@ export class LaunchesService {
     });
     if (moved.count !== 1) throw AppError.conflict('The launch is already being retried');
     await this.prisma.launchJobItem.updateMany({ where: { launchJobId: id, status: { in: ['FAILED', 'SKIPPED'] } }, data: { status: 'PENDING', lastError: Prisma.DbNull, errorCategory: null } });
+    // Every wait for Meta starts over (items still IN_FLIGHT keep their state and are verified first).
+    await this.prisma.launchJobItem.updateMany({ where: { launchJobId: id, deferredSince: { not: null } }, data: { deferredSince: null } });
     await this.enqueue(id, userId, job.attempt + 1);
     await this.audit.log({ action: 'campaign.launch_retried', actorUserId: userId, subjectUserId: userId, targetType: 'launch_job', targetId: id });
     return this.get(userId, id);

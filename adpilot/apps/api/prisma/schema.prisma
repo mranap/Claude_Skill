@@ -605,6 +605,8 @@ model AdAccount {
   balance                    BigInt?
   spendCap                   BigInt?
   minDailyBudget             BigInt?
+  /// Meta `min_campaign_group_spend_cap` (minor units): the lowest campaign spend cap Meta accepts.
+  minCampaignGroupSpendCap   BigInt?
   isPrepayAccount            Boolean?
   fundingSourceDetails       Json?
   defaultDsaPayor            String?
@@ -893,6 +895,8 @@ model LaunchJobItem {
   response      Json?
   attemptCount  Int              @default(0)
   inFlightSince DateTime?
+  /// Start of the current wait for Meta (video processing, thumbnail, verifying an interrupted request); bounds it.
+  deferredSince DateTime?
   lastError     Json?
   errorCategory String?
   createdAt     DateTime         @default(now())

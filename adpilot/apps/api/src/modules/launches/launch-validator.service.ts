@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   AD_ACCOUNT_STATUS_DISPLAY,
+  destinationNeedsLink,
   goalRule,
   launchConfigSchema,
   majorToMinor,
@@ -11,6 +12,7 @@ import {
   type Variant,
 } from '@adpilot/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { adSetDailyMinimum, lifetimeMinimum } from './budget-rules';
 import type { LaunchContext, ValidationIssue, ValidationResult } from './launch.types';
 
 const LEAD_FORM_CTAS = new Set(['LEARN_MORE', 'SIGN_UP', 'APPLY_NOW', 'GET_QUOTE', 'SUBSCRIBE', 'DOWNLOAD', 'BOOK_NOW', 'CONTACT_US', 'GET_OFFER']);
@@ -21,9 +23,9 @@ const MAX_ADS = 250;
 /**
  * Local validation before anything is sent to Meta (the plan builder only runs on a valid context).
  * Everything that Meta would reject for configuration reasons is checked here with a clear message:
- * objective/destination/goal/billing compatibility, promoted object, lead form, budgets vs the account
- * minimum, bid strategy inputs, lifetime schedule, targeting rules, special ad categories, EU DSA fields,
- * creative ownership/readiness/format, links and text lengths.
+ * objective/destination/goal/billing compatibility, promoted object, lead form, budgets vs Meta's minimums
+ * (budget-rules.ts) and the campaign spend cap minimum, bid strategy inputs, lifetime schedule, targeting
+ * rules, special ad categories, EU DSA fields, creative ownership/readiness/format, links and text lengths.
  */
 @Injectable()
 export class LaunchValidatorService {
@@ -108,14 +110,29 @@ export class LaunchValidatorService {
         return null;
       }
     };
-    const minDaily = adAccount?.minDailyBudget ?? null;
-    const checkMinimum = (value: bigint | null, path: string) => {
-      if (value !== null && budget.type === 'DAILY' && minDaily && value < minDaily) {
-        err(path, `The daily budget is below the minimum for this ad account (${minorToMajor(minDaily, currency)} ${currency})`);
-      }
+    const money = (v: bigint) => `${minorToMajor(v, currency)} ${currency}`;
+    if ((budget.bidStrategy === 'COST_CAP' || budget.bidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !budget.bidAmount) {
+      err('settings.budget.bidAmount', 'Enter the cost per result goal / bid cap');
+    }
+    const bidAmount = budget.bidAmount ? toMinor(budget.bidAmount, 'settings.budget.bidAmount') : null;
+    // Meta's minimum per ad set (see budget-rules.ts); a lifetime budget covers it for the scheduled period.
+    const adSetMin = adSetDailyMinimum({ accountMinDaily: adAccount?.minDailyBudget ?? null, billingEvent: s.billingEvent, bidStrategy: budget.bidStrategy, bidAmount });
+    const start = s.schedule.startTime ? new Date(s.schedule.startTime) : new Date();
+    const end = s.schedule.endTime ? new Date(s.schedule.endTime) : null;
+    /** A budget funding `adSets` ad sets must cover the minimum of each of them. */
+    const checkMinimum = (value: bigint | null, path: string, adSets: number) => {
+      if (value === null || !adSetMin) return;
+      const daily = adSetMin.daily * BigInt(adSets);
+      const lifetime = budget.type === 'LIFETIME';
+      const minimum = !lifetime ? daily : end ? lifetimeMinimum(daily, Math.max(start.getTime(), Date.now()), end.getTime()) : null;
+      if (minimum === null || value >= minimum) return;
+      const scope = `${adSets === 1 ? '' : ` to cover the minimum of all ${adSets} ad sets`}${lifetime ? ' over the schedule' : ''}`;
+      const unit = [adSets === 1 ? '' : 'ad set', lifetime ? 'day' : ''].filter(Boolean).join(' and ');
+      const detail = unit ? `${money(adSetMin.daily)} per ${unit}: ${adSetMin.basis}` : adSetMin.basis;
+      err(path, `The ${lifetime ? 'lifetime' : 'daily'} budget must be at least ${money(minimum)}${scope} (${detail})`);
     };
     if (budget.level === 'CAMPAIGN') {
-      checkMinimum(toMinor(budget.amount, 'settings.budget.amount'), 'settings.budget.amount');
+      checkMinimum(toMinor(budget.amount, 'settings.budget.amount'), 'settings.budget.amount', config.variants.length);
       if (budget.budgetSharing) warn('settings.budget.budgetSharing', 'Budget sharing only applies to ad set budgets and will be ignored');
       config.variants.forEach((v, i) => {
         if (v.budgetAmount) warn(`variants.${i}.budgetAmount`, 'With a campaign budget, per-group budgets are ignored');
@@ -123,27 +140,26 @@ export class LaunchValidatorService {
     } else {
       config.variants.forEach((v, i) => {
         const path = v.budgetAmount ? `variants.${i}.budgetAmount` : 'settings.budget.amount';
-        checkMinimum(toMinor(v.budgetAmount ?? budget.amount, path), path);
+        checkMinimum(toMinor(v.budgetAmount ?? budget.amount, path), path, 1);
       });
     }
-    if ((budget.bidStrategy === 'COST_CAP' || budget.bidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !budget.bidAmount) {
-      err('settings.budget.bidAmount', 'Enter the cost per result goal / bid cap');
-    }
-    if (budget.bidAmount) toMinor(budget.bidAmount, 'settings.budget.bidAmount');
     if (budget.bidStrategy === 'LOWEST_COST_WITH_MIN_ROAS') {
       if (!budget.roasFloor) err('settings.budget.roasFloor', 'Enter the minimum ROAS');
       if (s.optimizationGoal !== 'VALUE') err('settings.budget.bidStrategy', 'A ROAS goal requires the "Maximise value of conversions" optimisation');
     }
-    if (budget.spendCap) toMinor(budget.spendCap, 'settings.budget.spendCap');
+    if (budget.spendCap) {
+      const spendCap = toMinor(budget.spendCap, 'settings.budget.spendCap');
+      // Meta rejects a campaign spend cap below the account's min_campaign_group_spend_cap (error 2446307).
+      const minSpendCap = adAccount?.minCampaignGroupSpendCap ?? null;
+      if (spendCap !== null && minSpendCap !== null && spendCap < minSpendCap) {
+        err('settings.budget.spendCap', `The campaign spending limit must be at least ${money(minSpendCap)} for this ad account`);
+      }
+    }
 
     // ── Schedule ──
-    const start = s.schedule.startTime ? new Date(s.schedule.startTime) : new Date();
     if (s.schedule.startTime && start.getTime() < Date.now() - 5 * 60_000) warn('settings.schedule.startTime', 'The start time is in the past; delivery starts immediately');
-    if (budget.type === 'LIFETIME' && !s.schedule.endTime) err('settings.schedule.endTime', 'A lifetime budget requires an end date');
-    if (s.schedule.endTime) {
-      const end = new Date(s.schedule.endTime);
-      if (end.getTime() <= Math.max(start.getTime(), Date.now()) + 3600_000) err('settings.schedule.endTime', 'The end must be at least 1 hour after the start');
-    }
+    if (budget.type === 'LIFETIME' && !end) err('settings.schedule.endTime', 'A lifetime budget requires an end date');
+    if (end && end.getTime() <= Math.max(start.getTime(), Date.now()) + 3600_000) err('settings.schedule.endTime', 'The end must be at least 1 hour after the start');
 
     // ── Targeting ──
     const t = s.targeting;
@@ -262,7 +278,8 @@ export class LaunchValidatorService {
   private validateAds(v: Variant, i: number, config: LaunchConfig, errors: ValidationIssue[], warnings: ValidationIssue[]) {
     const s = config.settings;
     const keys = new Set<string>();
-    const needsLink = s.destination === 'WEBSITE';
+    // Ads that lead to a URL need one; Instant-form ads get Meta's placeholder link (see meta-payloads.ts).
+    const needsLink = destinationNeedsLink(s.destination);
     v.ads.forEach((ad, j) => {
       const path = `variants.${i}.ads.${j}`;
       if (keys.has(ad.key)) errors.push({ path: `${path}.key`, message: 'Duplicate ad key' });

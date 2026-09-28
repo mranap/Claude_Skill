@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { LockService } from '../../infra/locks/lock.service';
 import { StorageService } from '../storage/storage.service';
 import { MetaConnection, MetaGraphClient } from '../meta/graph/meta-graph.client';
 import { MetaApiError } from '../meta/graph/meta-errors';
@@ -16,6 +17,11 @@ export type MediaStepResult =
   | { state: 'READY' }
   | { state: 'PROCESSING'; recheckInMs: number }
   | { state: 'FAILED'; error: string };
+
+/** How long a creative may wait for Meta (video processing, thumbnail) before it is reported as failed. */
+export const MAX_PROCESSING_WAIT_MS = 2 * 3600_000;
+/** TTL of the per-asset lock; it is renewed while held, so it only bounds how long a crashed holder blocks. */
+const ASSET_LOCK_TTL_MS = 5 * 60_000;
 
 interface VideoStatus {
   video_status?: string;
@@ -42,15 +48,28 @@ export class MetaMediaService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly graph: MetaGraphClient,
+    private readonly locks: LockService,
   ) {}
 
+  /**
+   * Runs `fn` while holding the lock of one asset (one file in one ad account), renewed for as long as `fn`
+   * runs. Every caller of `process()` — the library pre-upload job and every launch — goes through it, so
+   * the same file is never uploaded to the same ad account twice in parallel. `fn` must read the asset
+   * row itself: a row read before the lock may be stale.
+   */
+  withAssetLock<T>(assetId: string, fn: () => Promise<T>): Promise<{ acquired: true; result: T } | { acquired: false }> {
+    return this.locks.withLock(`creative-asset:${assetId}`, ASSET_LOCK_TTL_MS, fn);
+  }
+
+  /** One upload/processing step. Must run inside `withAssetLock` with a freshly read asset row. */
   async process(conn: MetaConnection, asset: CreativeMetaAsset, file: CreativeFile, metaAccountId: string): Promise<MediaStepResult> {
     if (asset.status === 'READY') return { state: 'READY' };
     if (file.type === 'IMAGE') return this.uploadImage(conn, asset, file, metaAccountId);
     if (asset.metaVideoId) {
       const checked = await this.checkVideo(conn, asset);
       if (checked.state !== 'INCOMPLETE') return checked;
-      // The previous upload never completed (worker stopped mid-transfer): start a fresh upload.
+      // The previous upload never completed (its worker stopped mid-transfer — nobody else can be uploading
+      // it while we hold the asset lock): start a fresh upload.
       await this.prisma.creativeMetaAsset.update({ where: { id: asset.id }, data: { metaVideoId: null, uploadSessionId: null } });
     }
     return this.uploadVideo(conn, asset, file, metaAccountId);
@@ -180,8 +199,11 @@ export class MetaMediaService {
     }
   }
 
-  /** Polls Meta's asynchronous processing. */
-  async checkVideo(conn: MetaConnection, asset: CreativeMetaAsset): Promise<MediaStepResult | { state: 'INCOMPLETE' }> {
+  /**
+   * Polls Meta's asynchronous processing. An upload Meta still reports as in progress counts as INCOMPLETE
+   * (abandoned) only because this runs under the asset lock: a live upload would still hold that lock.
+   */
+  private async checkVideo(conn: MetaConnection, asset: CreativeMetaAsset): Promise<MediaStepResult | { state: 'INCOMPLETE' }> {
     if (!asset.metaVideoId) return { state: 'INCOMPLETE' };
     let status: VideoStatus | undefined;
     try {
@@ -215,13 +237,17 @@ export class MetaMediaService {
     return { state: 'PROCESSING', recheckInMs: progress > 70 ? 10_000 : 20_000 };
   }
 
-  /** Thumbnail URL for video ad creatives (video_data.image_url). */
+  /**
+   * Thumbnail URL for video ad creatives (video_data.image_url); null while Meta has none. Throttling and
+   * token errors are thrown, so that callers back off or fail instead of polling again every few seconds.
+   */
   async preferredThumbnail(conn: MetaConnection, videoId: string): Promise<string | null> {
     try {
       const res = await this.graph.get<{ data: { uri: string; is_preferred?: boolean }[] }>(conn, `/${videoId}/thumbnails`, {}, 'media.video_thumbnails');
       const list = res.data ?? [];
       return (list.find((t) => t.is_preferred) ?? list[0])?.uri ?? null;
-    } catch {
+    } catch (err) {
+      if (err instanceof MetaApiError && (err.category === 'RATE_LIMIT' || err.category === 'AUTH')) throw err;
       return null;
     }
   }
