@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Globe, ScrollText, Server } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Badge, StatusBadge, type BadgeVariant } from '@/components/ui/badge';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { MetaApiLogDto, SystemLogDto } from '@/lib/api/types';
 import { cn } from '@/lib/utils/cn';
+import { replaceQuery } from '@/lib/utils/url';
 import { formatDateTime, formatDurationMs, formatTime } from '@/lib/utils/format';
 import { shortId } from '@/lib/utils/strings';
 import { adminLogsApi } from './api';
@@ -321,7 +322,6 @@ function MetaLogsTab() {
 }
 
 export function LogsPage() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tab = searchParams.get('tab') === 'meta' ? 'meta' : 'system';
@@ -331,7 +331,7 @@ export function LogsPage() {
       <PageHeader title="Logs" description="Technical logs for troubleshooting. Sensitive values (tokens, secrets) are redacted before storage." />
       <Tabs
         value={tab}
-        onValueChange={(value) => router.replace(value === 'meta' ? `${pathname}?tab=meta` : pathname, { scroll: false })}
+        onValueChange={(value) => replaceQuery(pathname, value === 'meta' ? 'tab=meta' : '')}
       >
         <TabsList className="mb-4">
           <TabsTrigger value="system">

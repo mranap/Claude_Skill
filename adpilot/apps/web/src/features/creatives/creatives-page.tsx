@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, Eye, Film, ImageIcon, Images, LayoutGrid, List, Upload } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useLocalPreference } from '@/lib/hooks/use-local-preference';
 import { cn } from '@/lib/utils/cn';
+import { replaceQuery } from '@/lib/utils/url';
 import { formatBytes, pluralize } from '@/lib/utils/format';
 import { creativesApi, useCreativeUsage, useCreatives } from './api';
 import { CreativePreviewDialog } from './creative-preview-dialog';
@@ -54,7 +55,6 @@ const SORTS = [
 export function CreativesPage() {
   const { can } = useAuth();
   const canManage = can('app.creatives.manage');
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -79,8 +79,7 @@ export function CreativesPage() {
     const next = new URLSearchParams(searchParams.toString());
     if (id) next.set('open', id);
     else next.delete('open');
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    replaceQuery(pathname, next);
   };
 
   const addFiles = (files: File[]) => {

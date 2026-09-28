@@ -4,7 +4,7 @@ import type { PermissionKey } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Archive, Cpu, DatabaseBackup, Eraser, Gauge, HardDrive, ListTree, Pause, Play, RotateCcw, Server, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type * as React from 'react';
 import { toast } from 'sonner';
@@ -30,6 +30,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { getErrorMessage, getErrorTitle } from '@/lib/api/errors';
 import { useNow } from '@/lib/hooks/use-now';
 import { cn } from '@/lib/utils/cn';
+import { replaceQuery } from '@/lib/utils/url';
 import { formatBytes, formatCountdown, formatDateTime, formatDurationMs, formatNumber } from '@/lib/utils/format';
 import {
   adminOpsApi,
@@ -89,7 +90,6 @@ export function MonitoringPage() {
 function QueuesTab() {
   const { can } = useAuth();
   const canManage = can('admin.workers.manage');
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queues = useQueues();
@@ -101,7 +101,7 @@ function QueuesTab() {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'queues');
     next.set('queue', name);
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    replaceQuery(pathname, next);
   };
 
   const pauseResume = useMutation({

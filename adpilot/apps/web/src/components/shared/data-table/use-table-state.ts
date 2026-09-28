@@ -1,7 +1,8 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { replaceQuery } from '@/lib/utils/url';
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -72,7 +73,6 @@ function buildController(
  */
 export function useUrlTableState(options: TableStateOptions = {}): TableController {
   const { filterKeys = [], defaultPageSize = 25, defaultSort } = options;
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // Callers often pass inline arrays; key the memoisation on the joined names instead of the array identity.
@@ -101,18 +101,16 @@ export function useUrlTableState(options: TableStateOptions = {}): TableControll
       if (next.get('page') === '1') next.delete('page');
       if (next.get('pageSize') === String(defaultPageSize)) next.delete('pageSize');
       if (defaultSort && next.get('sort') === defaultSort) next.delete('sort');
-      const qs = next.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      replaceQuery(pathname, next);
     },
-    [searchParams, router, pathname, defaultPageSize, defaultSort],
+    [searchParams, pathname, defaultPageSize, defaultSort],
   );
 
   const resetAll = useCallback(() => {
     const next = new URLSearchParams(searchParams.toString());
     for (const key of ['page', 'q', ...(filterKeysKey ? filterKeysKey.split('|') : [])]) next.delete(key);
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname, filterKeysKey]);
+    replaceQuery(pathname, next);
+  }, [searchParams, pathname, filterKeysKey]);
 
   return useMemo(() => buildController(state, apply, resetAll), [state, apply, resetAll]);
 }

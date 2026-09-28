@@ -4,7 +4,7 @@ import { roleCreateSchema, SYSTEM_ROLES } from '@adpilot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Lock, Plus, ShieldAlert, ShieldCheck, Trash, Users } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -28,6 +28,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { PermissionDto, RoleDto } from '@/lib/api/types';
 import { cn } from '@/lib/utils/cn';
+import { replaceQuery } from '@/lib/utils/url';
 import { pluralize } from '@/lib/utils/format';
 import { rolesApi } from './api';
 import { isPrivilegedRole, usePermissionCatalog, useRoles } from './hooks';
@@ -43,7 +44,6 @@ function groupPermissions(catalog: PermissionDto[]): [string, PermissionDto[]][]
 }
 
 export function RolesPage() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { can } = useAuth();
@@ -54,7 +54,7 @@ export function RolesPage() {
 
   const selectedId = searchParams.get('role') ?? roles.data?.[0]?.id;
   const selected = roles.data?.find((r) => r.id === selectedId) ?? roles.data?.[0];
-  const select = (id: string) => router.replace(`${pathname}?role=${id}`, { scroll: false });
+  const select = (id: string) => replaceQuery(pathname, `role=${encodeURIComponent(id)}`);
 
   return (
     <>
@@ -136,7 +136,6 @@ const isAdminPermission = (key: string) => key.startsWith('admin.');
 
 function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: PermissionDto[]; canManage: boolean }) {
   const queryClient = useQueryClient();
-  const router = useRouter();
   const pathname = usePathname();
   const { user: me, isSuperAdmin } = useAuth();
   const superAdmin = role.key === SYSTEM_ROLES.SUPER_ADMIN;
@@ -358,7 +357,7 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
         onConfirm={async () => {
           await rolesApi.remove(role.id);
           toast.success('Role deleted');
-          router.replace(pathname, { scroll: false });
+          replaceQuery(pathname, '');
           await queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
         }}
       />
