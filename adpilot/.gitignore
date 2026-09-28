@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+apps/api/src/generated/
+apps/web/next-env.d.ts
+.DS_Store
+*.tsbuildinfo
+tmp/
+backups/
+test-results/
+playwright-report/
