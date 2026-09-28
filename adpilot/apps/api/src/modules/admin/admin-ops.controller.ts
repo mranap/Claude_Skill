@@ -94,7 +94,7 @@ export class AdminOpsController {
       items: jobs.filter(Boolean).map((j) => ({
         id: j.id,
         name: j.name,
-        data: sanitize(j.data),
+        data: jobDataForAdmin(j.data),
         attemptsMade: j.attemptsMade,
         maxAttempts: j.opts.attempts,
         failedReason: j.failedReason,
@@ -225,4 +225,17 @@ export class AdminOpsController {
       })),
     );
   }
+}
+
+/**
+ * Job payload shown in the admin queue viewer: message contents (e-mail bodies, Telegram texts, sealed
+ * one-time links) are replaced by their size, everything else is passed through the secret sanitizer.
+ */
+function jobDataForAdmin(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return sanitize(data);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    out[key] = ['html', 'text', 'sealed'].includes(key) && typeof value === 'string' ? `[${value.length} characters]` : value;
+  }
+  return sanitize(out);
 }

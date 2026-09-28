@@ -39,23 +39,82 @@ describe('authentication & sessions', () => {
     expect(res.body.requestId).toBeTruthy();
   });
 
-  it('uses one generic message for unknown e-mail and wrong password, then locks the account', async () => {
+  it('answers unknown e-mails like real ones, locks a guessing source first and the account after many sources', async () => {
     const user = await stack.createUser(admin);
-    const c = await stack.client().init();
-    const unknown = await c.post('/api/auth/login', { email: 'nobody@adpilot.test', password: 'whatever123' });
-    const wrong = await c.post('/api/auth/login', { email: user.email, password: 'wrong-password-1' });
+    const attacker = await stack.client().init();
+    attacker.forwardedFor = '203.0.113.10';
+    const ghost = `nobody.${Date.now()}@adpilot.test`;
+    const unknown = await attacker.post('/api/auth/login', { email: ghost, password: 'whatever123' });
+    const wrong = await attacker.post('/api/auth/login', { email: user.email, password: 'wrong-password-1' });
     expect(unknown.status).toBe(401);
     expect(wrong.status).toBe(401);
     expect(unknown.body.error.message).toBe(wrong.body.error.message);
 
-    for (let i = 0; i < 4; i++) await c.post('/api/auth/login', { email: user.email, password: `wrong-password-${i + 2}` });
-    const locked = await c.post('/api/auth/login', { email: user.email, password: user.password });
+    // Five wrong passwords lock this source, for a real account and an unknown address alike (no enumeration).
+    for (let i = 0; i < 4; i++) {
+      await attacker.post('/api/auth/login', { email: user.email, password: `wrong-password-${i + 2}` });
+      await attacker.post('/api/auth/login', { email: ghost, password: `whatever-${i}` });
+    }
+    const locked = await attacker.post('/api/auth/login', { email: user.email, password: user.password });
+    const lockedGhost = await attacker.post('/api/auth/login', { email: ghost, password: 'whatever123' });
     expect(locked.status).toBe(423);
     expect(locked.body.error.code).toBe('ACCOUNT_LOCKED');
+    expect(lockedGhost.status).toBe(423);
+    expect(lockedGhost.body.error.message).toBe(locked.body.error.message);
+
+    // One guessing source cannot lock the owner out.
+    const owner = stack.client();
+    owner.forwardedFor = '198.51.100.20';
+    expectStatus(await owner.login(user.email, user.password), 200);
+
+    // Guessing from many sources locks the account itself, and the owner is alerted.
+    for (let s = 0; s < 5; s++) {
+      const bot = await stack.client().init();
+      bot.forwardedFor = `203.0.113.${50 + s}`;
+      for (let i = 0; i < 5; i++) await bot.post('/api/auth/login', { email: user.email, password: `guess-${s}-${i}` });
+    }
     const row = await stack.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(row.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
-    const audit = await stack.prisma.auditLog.findFirst({ where: { action: 'auth.account.locked', subjectUserId: user.id } });
-    expect(audit).not.toBeNull();
+    const again = stack.client();
+    again.forwardedFor = '198.51.100.20';
+    expect((await again.login(user.email, user.password)).status).toBe(423);
+    expect(await stack.prisma.auditLog.findFirst({ where: { action: 'auth.account.locked', subjectUserId: user.id } })).not.toBeNull();
+    expect(await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' } })).not.toBeNull();
+
+    // A password reset (proof of mailbox control) lifts the lock at once.
+    expectStatus(await stack.client().init().then((c) => c.post('/api/auth/password/forgot', { email: user.email })), 202);
+    const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
+    expectStatus(await (await stack.client().init()).post('/api/auth/password/reset', { token: tokenFrom(linkFrom(mail, '/reset-password')), password: 'Unlocked-Passw0rd' }), 200);
+    const fresh = stack.client();
+    fresh.forwardedFor = '203.0.113.10';
+    expectStatus(await fresh.login(user.email, 'Unlocked-Passw0rd'), 200);
+  });
+
+  it('locks sign-in after too many wrong two-factor codes, even across fresh tickets', async () => {
+    const user = await stack.createUser(admin);
+    const setup = expectStatus(await user.client.post('/api/account/2fa/setup'), 200).body;
+    expectStatus(await user.client.post('/api/account/2fa/enable', { code: totpNow(setup.secret) }), 200);
+    const c = stack.client();
+    // A password holder gets a new ticket every time, but wrong codes are counted per user.
+    for (let i = 0; i < 10; i++) {
+      const ticket = expectStatus(await c.login(user.email, user.password), 200).body.ticket as string;
+      expect((await c.post('/api/auth/login/2fa', { ticket, code: String(100_000 + i) })).status).toBe(401);
+    }
+    expect((await c.login(user.email, user.password)).status).toBe(423);
+    // The second factor stays locked on the settings endpoints too, even with a correct code.
+    expect((await user.client.post('/api/account/2fa/recovery-codes', { code: totpNow(setup.secret) })).status).toBe(423);
+    expect(await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' } })).not.toBeNull();
+  });
+
+  it('a password change cancels pending e-mail-change and reset links', async () => {
+    const user = await stack.createUser(admin);
+    const newEmail = `moved.${Date.now()}@adpilot.test`;
+    expectStatus(await user.client.post('/api/account/email', { newEmail, password: user.password }), 202);
+    const mail = await stack.smtp.waitFor((m) => m.to.includes(newEmail));
+    expectStatus(await user.client.post('/api/account/password', { currentPassword: user.password, newPassword: 'Changed-Passw0rd-2' }), 200);
+    const anon = await stack.client().init();
+    expect((await anon.post('/api/auth/email/confirm', { token: tokenFrom(linkFrom(mail, '/confirm-email')) })).status).toBe(400);
+    expect((await stack.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).email).toBe(user.email);
   });
 
   it('blocking a user revokes the sessions and prevents login', async () => {

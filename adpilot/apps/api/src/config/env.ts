@@ -16,7 +16,9 @@ const envSchema = z.object({
   APP_URL: z.url().default('http://localhost:3000'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   API_HOST: z.string().default('0.0.0.0'),
-  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
+  // Number of reverse proxies in front of the API whose X-Forwarded-For is trusted. 0 unless a proxy (Caddy in
+  // docker-compose) always overwrites the header; otherwise clients could fake their IP and evade rate limits.
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
   CORS_ORIGINS: z.string().default(''),
 
   DATABASE_URL: z.string().min(1),
@@ -43,8 +45,6 @@ const envSchema = z.object({
   META_GRAPH_API_VERSION: z.string().regex(/^v\d{2,3}\.\d$/).default('v26.0'),
   META_GRAPH_BASE_URL: z.url().default('https://graph.facebook.com'),
   META_GRAPH_VIDEO_BASE_URL: z.url().default('https://graph-video.facebook.com'),
-  META_APP_ID: z.string().optional(),
-  META_APP_SECRET: z.string().optional(),
   META_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(600000).default(60000),
 
   TELEGRAM_API_BASE_URL: z.url().default('https://api.telegram.org'),

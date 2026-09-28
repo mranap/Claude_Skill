@@ -13,6 +13,8 @@ import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { SessionService } from '../auth/session.service';
 import { AuthCacheService } from '../auth/auth-cache.service';
+import { invalidateCredentialTokens } from '../auth/auth.service';
+import { LoginGuardService } from '../auth/login-guard.service';
 import { AppError } from '../../common/errors/app-error';
 import { isUniqueViolation } from '../../infra/prisma/prisma-errors';
 import type { AuthUser } from '../auth/auth.types';
@@ -37,6 +39,7 @@ export class AdminUsersService {
     private readonly mail: MailService,
     private readonly sessions: SessionService,
     private readonly cache: AuthCacheService,
+    private readonly guard: LoginGuardService,
   ) {}
 
   async list(q: ListQuery) {
@@ -218,34 +221,36 @@ export class AdminUsersService {
       where: { id },
       data: { status: 'ACTIVE', blockedAt: null, blockedReason: null, failedLoginCount: 0, lockedUntil: null },
     });
+    await this.guard.clearAddress(target.email);
     await this.cache.invalidateUser(id);
     await this.audit.log({ action: 'admin.user.unblocked', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id });
   }
 
   async resetPassword(actor: AuthUser, id: string, input: z.infer<typeof adminResetPasswordSchema>) {
     const target = await this.assertManageable(actor, id);
+    assertNotSelf(actor, target.id, 'Change your own password in your account settings (it asks for the current one)');
     if (target.status === 'DELETED') throw AppError.conflict('User is deleted');
-    if (input.mode === 'password') {
-      await this.prisma.user.update({
-        where: { id },
-        data: {
-          passwordHash: await this.hashing.hashPassword(input.password!),
-          mustChangePassword: true,
-          passwordChangedAt: new Date(),
-          failedLoginCount: 0,
-          lockedUntil: null,
-        },
-      });
-    } else {
-      await this.issueSetPasswordLink(id, target.email, 'RESET');
-    }
+    const passwordHash = input.mode === 'password' ? await this.hashing.hashPassword(input.password!) : null;
+    await this.prisma.$transaction(async (tx) => {
+      await invalidateCredentialTokens(tx, id);
+      if (passwordHash) {
+        await tx.user.update({
+          where: { id },
+          data: { passwordHash, mustChangePassword: true, passwordChangedAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+        });
+      }
+    });
+    if (!passwordHash) await this.issueSetPasswordLink(id, target.email, 'RESET');
+    await this.guard.clearAddress(target.email);
     await this.sessions.revokeAllForUser(id, 'password_reset_by_admin');
     await this.cache.invalidateUser(id);
     await this.audit.log({ action: 'admin.user.password_reset', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id, metadata: { mode: input.mode } });
   }
 
   async resetTwoFactor(actor: AuthUser, id: string) {
-    await this.assertManageable(actor, id);
+    const target = await this.assertManageable(actor, id);
+    assertNotSelf(actor, target.id, 'Manage your own two-factor authentication in your account settings');
+    await this.guard.clearSecondFactor(id);
     await this.prisma.user.update({
       where: { id },
       data: { twoFactorEnabled: false, twoFactorSecretEnc: null, twoFactorPendingSecretEnc: null, twoFactorRecoveryHashes: [] },
@@ -373,4 +378,12 @@ export class AdminUsersService {
     });
     if (others === 0) throw AppError.forbidden('The last active Super Admin cannot be removed, blocked or demoted');
   }
+}
+
+/**
+ * Administrative credential resets are for other people: on one's own account they would let a stolen admin
+ * session replace the password or remove 2FA without the checks of the self-service endpoints.
+ */
+function assertNotSelf(actor: AuthUser, targetId: string, message: string): void {
+  if (actor.id === targetId) throw AppError.forbidden(message);
 }

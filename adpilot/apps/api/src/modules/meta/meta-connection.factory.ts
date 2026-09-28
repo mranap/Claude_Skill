@@ -22,28 +22,26 @@ export class MetaConnectionFactory {
     private readonly settings: SettingsService,
   ) {}
 
-  /** Host → time of the last successful public-address check (DNS is re-checked every minute). */
-  private readonly proxyChecks = new Map<string, number>();
+  private async privateProxiesAllowed(): Promise<boolean> {
+    return (await this.settings.get('meta')).allowPrivateProxyAddresses;
+  }
 
   /**
    * Returns a user-facing reason when the proxy host is not allowed (it resolves to a private/reserved
-   * address and the administrator did not allow private proxies), or null.
+   * address and the administrator did not allow private proxies), or null. This early check gives a clear
+   * message; the binding check runs again on every connection (`publicOnlyLookup` in the proxy agents).
+   * Messages never contain resolved addresses, so the check cannot be used to map internal DNS.
    */
   async proxyPolicyViolation(host: string): Promise<string | null> {
-    const { allowPrivateProxyAddresses } = await this.settings.get('meta');
-    if (allowPrivateProxyAddresses) return null;
-    const checkedAt = this.proxyChecks.get(host);
-    if (checkedAt && Date.now() - checkedAt < 60_000) return null;
+    if (await this.privateProxiesAllowed()) return null;
     try {
       await assertPublicHost(host);
     } catch (err) {
       if (err instanceof NonPublicAddressError) {
-        return `The proxy ${host} points to a private or reserved network address (${err.address}). Use a public proxy address, or ask the administrator to allow private proxy addresses.`;
+        return `The proxy ${host} points to a private or reserved network address. Use a public proxy address, or ask the administrator to allow private proxy addresses.`;
       }
-      return `The proxy host ${host} could not be resolved (${(err as Error).message}).`;
+      return `The proxy host ${host} could not be resolved.`;
     }
-    if (this.proxyChecks.size > 5000) this.proxyChecks.clear();
-    this.proxyChecks.set(host, Date.now());
     return null;
   }
 
@@ -64,7 +62,7 @@ export class MetaConnectionFactory {
       accessToken,
       appId: profile.tokenAppId ?? profile.appId,
       appSecret: await this.appSecretFor(profile),
-      proxy: profile.proxy ? this.proxyConfig(profile.proxy) : null,
+      proxy: profile.proxy ? await this.proxyConfigFor(profile.proxy) : null,
     };
   }
 
@@ -77,19 +75,31 @@ export class MetaConnectionFactory {
       accessToken: input.accessToken,
       appId: input.appId ?? null,
       appSecret: input.appSecret ?? null,
-      proxy: input.proxy
-        ? { type: input.proxy.type, host: input.proxy.host, port: input.proxy.port, username: input.proxy.username ?? null, password: input.proxy.password ?? null }
-        : null,
+      proxy: input.proxy ? await this.proxyConfigFromInput(input.proxy) : null,
     };
   }
 
-  proxyConfig(p: Proxy): ProxyConfig {
+  /** Connection settings of a saved proxy, with the connect-time address policy applied. */
+  async proxyConfigFor(p: Proxy): Promise<ProxyConfig> {
     return {
       type: p.type,
       host: p.host,
       port: p.port,
       username: p.username,
       password: this.encryption.decryptNullable(p.passwordEnc, Aad.proxyPassword(p.id)),
+      allowPrivateAddress: await this.privateProxiesAllowed(),
+    };
+  }
+
+  /** Connection settings of a proxy that is being tested before it is saved. */
+  async proxyConfigFromInput(p: ProxyInput): Promise<ProxyConfig> {
+    return {
+      type: p.type,
+      host: p.host,
+      port: p.port,
+      username: p.username ?? null,
+      password: p.password ?? null,
+      allowPrivateAddress: await this.privateProxiesAllowed(),
     };
   }
 

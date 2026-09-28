@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { CurrentUser, RateLimit, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { CurrentUser, RateLimit, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { CreativesService, creativeListQuerySchema, creativeUpdateSchema } from './creatives.service';
 import { CreativeUploadService } from './creative-upload.service';
@@ -9,6 +10,7 @@ import type { AuthUser } from '../auth/auth.types';
 
 const uuid = new ParseUUIDPipe();
 
+@RequireAnyPermission(...READ_ACCESS.creatives)
 @Controller('creatives')
 export class CreativesController {
   constructor(

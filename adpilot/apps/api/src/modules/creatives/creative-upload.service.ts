@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import busboy from 'busboy';
 import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { Transform, TransformCallback } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { META_MEDIA_LIMITS } from '@adpilot/shared';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { SettingsService } from '../settings/settings.service';
 import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../audit/audit.service';
@@ -23,19 +24,36 @@ const IMAGE_EXT = new Set<string>(META_MEDIA_LIMITS.image.extensions);
 const VIDEO_EXT = new Set<string>(META_MEDIA_LIMITS.video.extensions);
 const IMAGE_MIME = new Set<string>([...META_MEDIA_LIMITS.image.mimeTypes, 'image/jpg', 'image/pjpeg']);
 const VIDEO_MIME = new Set<string>([...META_MEDIA_LIMITS.video.mimeTypes, 'application/octet-stream']);
+/** Uploads a user may stream at the same time (each can be several GB on disk until it is processed). */
+const MAX_CONCURRENT_UPLOADS = 3;
+/** Temporary upload files older than this belong to requests that can no longer be running. */
+const STALE_TMP_MS = 6 * 3600_000;
 
-class SizeLimitError extends Error {}
-
-/** Counts bytes, computes SHA-256 and aborts the stream as soon as the size limit is exceeded. */
+/**
+ * Counts bytes and computes SHA-256. When the file exceeds the per-file size limit or the request's share of
+ * the remaining storage quota (`budget`, shared by all files of one request), nothing more is written and the
+ * rest of the file is read and discarded. (Failing the stream instead would destroy busboy's file stream, and
+ * busboy then waits forever for it to be read: the whole request would hang.)
+ */
 class HashingLimiter extends Transform {
   readonly hash = createHash('sha256');
   bytes = 0;
-  constructor(private readonly limit: number) {
+  exceeded: 'size' | 'quota' | null = null;
+  constructor(
+    private readonly limit: number,
+    private readonly budget: { left: number },
+  ) {
     super();
   }
   override _transform(chunk: Buffer, _enc: BufferEncoding, cb: TransformCallback): void {
+    if (this.exceeded) return cb();
     this.bytes += chunk.length;
-    if (this.bytes > this.limit) return cb(new SizeLimitError());
+    this.budget.left -= chunk.length;
+    this.exceeded = this.bytes > this.limit ? 'size' : this.budget.left < 0 ? 'quota' : null;
+    if (this.exceeded) {
+      this.budget.left += this.bytes; // a rejected file uses no quota
+      return cb();
+    }
     this.hash.update(chunk);
     cb(null, chunk);
   }
@@ -61,12 +79,14 @@ export interface UploadItemResult {
 }
 
 @Injectable()
-export class CreativeUploadService {
+export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new AppLogger('CreativeUpload');
+  private sweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly config: AppConfig,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
     private readonly settings: SettingsService,
     private readonly storage: StorageService,
     private readonly probe: MediaProbeService,
@@ -74,23 +94,73 @@ export class CreativeUploadService {
     private readonly creatives: CreativesService,
   ) {}
 
+  private get tmpDir(): string {
+    return join(this.config.env.TMP_DIR, 'uploads');
+  }
+
+  onModuleInit(): void {
+    // Files of uploads interrupted by a crash or restart are never finished; remove them now and hourly.
+    void this.sweepTmp();
+    this.sweepTimer = setInterval(() => void this.sweepTmp(), 3600_000);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
+  private async sweepTmp(): Promise<void> {
+    try {
+      const names = await readdir(this.tmpDir).catch(() => [] as string[]);
+      for (const name of names) {
+        const path = join(this.tmpDir, name);
+        const info = await stat(path).catch(() => null);
+        if (info && Date.now() - info.mtimeMs > STALE_TMP_MS) await rm(path, { force: true, recursive: true });
+      }
+    } catch (err) {
+      this.logger.warn('Temporary upload sweep failed', { err: String(err) });
+    }
+  }
+
   async handle(req: Request, userId: string): Promise<{ results: UploadItemResult[] }> {
     const contentType = req.headers['content-type'] ?? '';
     if (!contentType.startsWith('multipart/form-data')) throw new AppError('UNSUPPORTED_MEDIA_TYPE', 'Use multipart/form-data');
     const limits = await this.settings.get('files');
     const maxImage = Math.min(limits.maxImageSizeMb, limits.maxUploadSizeMb) * MB;
     const maxVideo = Math.min(limits.maxVideoSizeMb, limits.maxUploadSizeMb) * MB;
-    const tmpDir = join(this.config.env.TMP_DIR, 'uploads');
-    await mkdir(tmpDir, { recursive: true });
+    // Nothing is written to disk beyond the remaining quota: checked up front from Content-Length and again
+    // while streaming (the atomic reservation in finalize() stays authoritative).
+    const remaining = await this.remainingQuota(userId);
+    const declared = Number(req.headers['content-length'] ?? 0);
+    if (remaining <= 0 || (declared > 0 && declared > remaining + MB)) {
+      throw new AppError('QUOTA_EXCEEDED', 'This upload does not fit into your remaining storage. Delete unused creatives or ask the administrator for more space.');
+    }
+    const active = this.redis.key('creative-uploads', userId);
+    const running = await this.redis.client.incr(active);
+    await this.redis.client.pexpire(active, 3 * 3600_000);
+    try {
+      if (running > MAX_CONCURRENT_UPLOADS) {
+        throw AppError.rateLimited(30, `At most ${MAX_CONCURRENT_UPLOADS} uploads can run at the same time. Wait for the others to finish.`);
+      }
+      await mkdir(this.tmpDir, { recursive: true });
+      return await this.receiveAndProcess(req, userId, { maxImage, maxVideo, maxFiles: limits.maxFilesPerUpload, budget: { left: remaining } });
+    } finally {
+      if ((await this.redis.client.decr(active)) <= 0) await this.redis.client.del(active);
+    }
+  }
 
+  private async receiveAndProcess(
+    req: Request,
+    userId: string,
+    opts: { maxImage: number; maxVideo: number; maxFiles: number; budget: { left: number } },
+  ): Promise<{ results: UploadItemResult[] }> {
     const received: ReceivedFile[] = [];
     const rejected: UploadItemResult[] = [];
     const pending: Promise<void>[] = [];
-
-    await new Promise<void>((resolve, reject) => {
+    try {
       const bb = busboy({
         headers: req.headers,
-        limits: { files: limits.maxFilesPerUpload, fields: 5, parts: limits.maxFilesPerUpload + 5, fileSize: Math.max(maxImage, maxVideo) + 1 },
+        limits: { files: opts.maxFiles, fields: 5, parts: opts.maxFiles + 5, fileSize: Math.max(opts.maxImage, opts.maxVideo) + 1 },
       });
       bb.on('file', (_field, stream, info) => {
         const originalName = (info.filename || 'file').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 200);
@@ -106,31 +176,44 @@ export class CreativeUploadService {
           });
           return;
         }
-        const limit = kind === 'IMAGE' ? maxImage : maxVideo;
-        const tmpPath = join(tmpDir, `${randomUUID()}.${ext}`);
-        const limiter = new HashingLimiter(limit);
+        const limit = kind === 'IMAGE' ? opts.maxImage : opts.maxVideo;
+        const tmpPath = join(this.tmpDir, `${randomUUID()}.${ext}`);
+        const limiter = new HashingLimiter(limit, opts.budget);
         pending.push(
           pipeline(stream, limiter, createWriteStream(tmpPath))
-            .then(() => {
-              received.push({ originalName, declaredMime: info.mimeType, ext, kind, tmpPath, size: limiter.bytes, sha256: limiter.hash.digest('hex') });
-            })
-            .catch(async (err) => {
-              stream.resume();
+            .then(async () => {
+              if (!limiter.exceeded) {
+                received.push({ originalName, declaredMime: info.mimeType, ext, kind, tmpPath, size: limiter.bytes, sha256: limiter.hash.digest('hex') });
+                return;
+              }
               await rm(tmpPath, { force: true });
               rejected.push({
                 originalName,
                 ok: false,
-                error: err instanceof SizeLimitError ? `File is larger than the ${Math.round(limit / MB)} MB limit for ${kind === 'IMAGE' ? 'images' : 'videos'}.` : 'Upload interrupted.',
+                error:
+                  limiter.exceeded === 'size'
+                    ? `File is larger than the ${Math.round(limit / MB)} MB limit for ${kind === 'IMAGE' ? 'images' : 'videos'}.`
+                    : 'This file does not fit into your remaining storage.',
               });
+            })
+            .catch(async (err: unknown) => {
+              // The file stream is gone (client disconnected, disk error): the request cannot complete.
+              bb.destroy(err instanceof Error ? err : new Error('Upload interrupted'));
+              await rm(tmpPath, { force: true });
             }),
         );
       });
-      bb.on('filesLimit', () => rejected.push({ originalName: '…', ok: false, error: `At most ${limits.maxFilesPerUpload} files per upload.` }));
-      bb.on('error', reject);
-      bb.on('close', () => resolve());
-      req.pipe(bb);
-    });
-    await Promise.all(pending);
+      bb.on('filesLimit', () => rejected.push({ originalName: '…', ok: false, error: `At most ${opts.maxFiles} files per upload.` }));
+      // pipeline() (unlike req.pipe) destroys the parser when the client disconnects, which ends every open
+      // file stream with an error, so their temporary files are removed and the request settles.
+      await pipeline(req, bb);
+      await Promise.all(pending);
+    } catch (err) {
+      await Promise.allSettled(pending);
+      await Promise.all(received.map((f) => rm(f.tmpPath, { force: true })));
+      if (err instanceof AppError) throw err;
+      throw new AppError('BAD_REQUEST', 'The upload was interrupted. Please try again.');
+    }
 
     const results: UploadItemResult[] = [...rejected];
     for (const file of received) {
@@ -204,6 +287,13 @@ export class CreativeUploadService {
       await this.storage.delete(storageKey).catch(() => undefined);
       throw err;
     }
+  }
+
+  private async remainingQuota(userId: string): Promise<number> {
+    const { maxUserStorageMb } = await this.settings.get('files');
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { storageUsedBytes: true, storageQuotaBytes: true } });
+    const quota = user.storageQuotaBytes ?? BigInt(maxUserStorageMb) * BigInt(MB);
+    return Number(quota - user.storageUsedBytes);
   }
 
   /** Atomically reserves storage (per-user override or the global limit). */

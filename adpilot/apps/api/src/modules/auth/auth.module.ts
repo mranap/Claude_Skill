@@ -5,12 +5,13 @@ import { AuthService } from './auth.service';
 import { AuthCacheService } from './auth-cache.service';
 import { CsrfService } from './csrf.service';
 import { SessionService } from './session.service';
+import { LoginGuardService } from './login-guard.service';
 import { TwoFactorService } from './two-factor.service';
 
 @Global()
 @Module({
   controllers: [AuthController, AccountController],
-  providers: [AuthService, AuthCacheService, CsrfService, SessionService, TwoFactorService],
-  exports: [AuthService, AuthCacheService, CsrfService, SessionService],
+  providers: [AuthService, AuthCacheService, CsrfService, SessionService, TwoFactorService, LoginGuardService],
+  exports: [AuthService, AuthCacheService, CsrfService, SessionService, LoginGuardService],
 })
 export class AuthModule {}

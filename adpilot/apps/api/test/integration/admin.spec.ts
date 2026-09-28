@@ -34,6 +34,11 @@ describe('Super Admin operations', () => {
     expectStatus(await admin.put('/api/admin/settings/smtp', { values: { fromName: 'AdPilot Ops' }, secrets: { password: '' } }), 200);
     expect(expectStatus(await admin.get('/api/admin/settings/smtp'), 200).body.passwordSet).toBe(true);
 
+    // Pointing SMTP at another server requires the password again (SMTP AUTH would send it there).
+    const moved = await admin.put('/api/admin/settings/smtp', { values: { host: 'smtp.elsewhere.test' }, secrets: {} });
+    expect(moved.status).toBe(400);
+    expect(expectStatus(await admin.get('/api/admin/settings/smtp'), 200).body.host).toBe('127.0.0.1');
+
     stack.smtp.failNext(1, '550 5.7.1 Relaying denied');
     const failed = await admin.post('/api/admin/settings/smtp/test', { to: 'ops@adpilot.test' });
     expect(failed.status).toBe(400);
@@ -83,7 +88,10 @@ describe('Super Admin operations', () => {
     expectStatus(await anon.post('/api/auth/email/confirm', { token }), 200);
     expect((await anon.post('/api/auth/email/confirm', { token })).status).toBe(400);
     await stack.smtp.waitFor((m) => m.to.includes(user.email) && m.to.length === 1 && !m.to.includes(newEmail) && /e-mail/i.test(m.subject + m.text));
-    expectStatus(await stack.client().login(newEmail, user.password), 200);
+    // The sign-in identity changed: every session ends and the user signs in with the new address.
+    expect((await user.client.get('/api/auth/me')).status).toBe(401);
+    user.client = stack.client();
+    expectStatus(await user.client.login(newEmail, user.password), 200);
     user.email = newEmail;
   });
 
@@ -98,6 +106,30 @@ describe('Super Admin operations', () => {
     user.client = stack.client();
     expectStatus(await user.client.login(user.email, 'AdminReset-2026'), 200);
     user.password = 'AdminReset-2026';
+  });
+
+  it('administrators cannot reset their own credentials through the admin API', async () => {
+    const self = await stack.prisma.user.findUniqueOrThrow({ where: { email: stack.superAdmin.email } });
+    expect((await admin.post(`/api/admin/users/${self.id}/reset-password`, { mode: 'password', password: 'Another-Passw0rd-9' })).status).toBe(403);
+    expect((await admin.post(`/api/admin/users/${self.id}/reset-2fa`)).status).toBe(403);
+  });
+
+  it('role management cannot grant administrative power beyond a Super Admin decision', async () => {
+    const managerRole = expectStatus(
+      await admin.post('/api/admin/roles', { key: 'ROLE_MANAGER', name: 'Role manager', permissions: ['admin.roles.manage', 'admin.users.view', 'app.statistics.view'] }),
+      201,
+    ).body as { id: string };
+    const manager = await stack.createUser(admin, { role: 'ROLE_MANAGER' });
+    const roles = expectStatus(await manager.client.get('/api/admin/roles'), 200).body as { id: string; key: string }[];
+    const roleOf = (key: string) => roles.find((r) => r.key === key)!.id;
+
+    // No administrative permission can be granted, on a new role, the ADMIN role or the manager's own role.
+    expect((await manager.client.post('/api/admin/roles', { key: 'SNEAKY', name: 'Sneaky', permissions: ['admin.smtp.manage'] })).status).toBe(403);
+    expect((await manager.client.patch(`/api/admin/roles/${roleOf('ADMIN')}`, { name: 'Admins' })).status).toBe(403);
+    expect((await manager.client.patch(`/api/admin/roles/${managerRole.id}`, { permissions: ['admin.roles.manage', 'admin.smtp.manage'] })).status).toBe(403);
+    expect((await manager.client.patch(`/api/admin/roles/${roleOf('USER')}`, { permissions: ['app.statistics.view', 'admin.backups.manage'] })).status).toBe(403);
+    // Product roles stay manageable.
+    expectStatus(await manager.client.post('/api/admin/roles', { key: 'ANALYST', name: 'Analyst', permissions: ['app.statistics.view'] }), 201);
   });
 
   it('keeps an append-only audit trail', async () => {

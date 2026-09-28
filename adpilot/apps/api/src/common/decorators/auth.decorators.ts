@@ -4,6 +4,7 @@ import type { AuthUser } from '../../modules/auth/auth.types';
 
 export const IS_PUBLIC = 'auth:isPublic';
 export const PERMISSIONS_KEY = 'auth:permissions';
+export const ANY_PERMISSION_KEY = 'auth:anyPermission';
 export const ALLOW_PENDING_PASSWORD_CHANGE = 'auth:allowPendingPasswordChange';
 export const SKIP_CSRF = 'auth:skipCsrf';
 export const RATE_LIMIT = 'http:rateLimit';
@@ -13,6 +14,9 @@ export const Public = () => SetMetadata(IS_PUBLIC, true);
 
 /** Route requires all listed permissions (SUPER_ADMIN always passes). */
 export const RequirePermissions = (...permissions: PermissionKey[]) => SetMetadata(PERMISSIONS_KEY, permissions);
+
+/** Route requires at least one of the listed permissions (read access shared by several features). */
+export const RequireAnyPermission = (...permissions: readonly PermissionKey[]) => SetMetadata(ANY_PERMISSION_KEY, permissions);
 
 /** Route stays reachable while the user must change the password set by an administrator. */
 export const AllowPendingPasswordChange = () => SetMetadata(ALLOW_PENDING_PASSWORD_CHANGE, true);

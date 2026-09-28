@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { AppError } from '../../common/errors/app-error';
+import { redactAddresses } from '../../common/net/public-address';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { SmtpService } from '../mail/smtp.service';
@@ -96,7 +97,9 @@ export class AdminSettingsController {
   @HttpCode(200)
   @RequirePermissions('admin.smtp.manage')
   async verifySmtp() {
-    await this.smtp.verify();
+    await this.smtp.verify().catch((err: unknown) => {
+      throw err instanceof AppError ? new AppError(err.code, redactAddresses(err.message)) : err;
+    });
     return { ok: true };
   }
 
@@ -112,7 +115,7 @@ export class AdminSettingsController {
       await this.audit.log({ action: 'admin.smtp.test_sent', actorUserId: user.id, metadata: { to } });
       return { ok: true, messageId: res.messageId };
     } catch (err) {
-      throw new AppError('BAD_REQUEST', `Sending failed: ${(err as Error).message}`);
+      throw new AppError('BAD_REQUEST', `Sending failed: ${redactAddresses((err as Error).message)}`);
     }
   }
 

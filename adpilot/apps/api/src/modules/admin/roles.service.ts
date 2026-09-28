@@ -42,6 +42,7 @@ export class RolesService {
   }
 
   async create(actor: AuthUser, input: z.infer<typeof roleCreateSchema>) {
+    assertGrantable(actor, input.permissions);
     const permissionIds = await this.resolvePermissions(input.permissions);
     try {
       const role = await this.prisma.role.create({
@@ -62,9 +63,16 @@ export class RolesService {
   }
 
   async update(actor: AuthUser, id: string, input: z.infer<typeof roleUpdateSchema>) {
-    const role = await this.prisma.role.findUnique({ where: { id } });
+    const role = await this.prisma.role.findUnique({ where: { id }, include: { permissions: { include: { permission: { select: { key: true } } } } } });
     if (!role) throw AppError.notFound('Role');
     if (role.key === SYSTEM_ROLES.SUPER_ADMIN) throw AppError.forbidden('The Super Admin role always has every permission');
+    if (actor.roleKey !== SYSTEM_ROLES.SUPER_ADMIN) {
+      if (role.id === actor.roleId) throw AppError.forbidden('You cannot change your own role');
+      if (role.permissions.some((p) => isAdminPermission(p.permission.key))) {
+        throw AppError.forbidden('Only a Super Admin can change administrative roles');
+      }
+      if (input.permissions) assertGrantable(actor, input.permissions);
+    }
     await this.prisma.$transaction(async (tx) => {
       await tx.role.update({
         where: { id },
@@ -90,6 +98,10 @@ export class RolesService {
     const role = await this.prisma.role.findUnique({ where: { id }, include: { _count: { select: { users: true } } } });
     if (!role) throw AppError.notFound('Role');
     if (role.isSystem) throw AppError.forbidden('System roles cannot be deleted');
+    if (actor.roleKey !== SYSTEM_ROLES.SUPER_ADMIN) {
+      const admin = await this.prisma.rolePermission.count({ where: { roleId: id, permission: { key: { startsWith: 'admin.' } } } });
+      if (admin > 0) throw AppError.forbidden('Only a Super Admin can delete administrative roles');
+    }
     if (role._count.users > 0) throw AppError.conflict('Move the users of this role to another role first');
     await this.prisma.role.delete({ where: { id } });
     await this.cache.invalidateRole(id);
@@ -102,4 +114,16 @@ export class RolesService {
     const rows = await this.prisma.permission.findMany({ where: { key: { in: keys } }, select: { id: true } });
     return rows.map((r) => r.id);
   }
+}
+
+const isAdminPermission = (key: string) => key.startsWith('admin.');
+
+/**
+ * Role management must not be a path to more privileges: only a Super Admin grants administrative (`admin.*`)
+ * permissions or edits a role that has them (other administrators can only shape `app.*` roles, not their own).
+ */
+function assertGrantable(actor: AuthUser, permissions: string[]): void {
+  if (actor.roleKey === SYSTEM_ROLES.SUPER_ADMIN) return;
+  const admin = permissions.filter(isAdminPermission);
+  if (admin.length) throw AppError.forbidden(`Only a Super Admin can grant administrative permissions (${admin.join(', ')})`);
 }

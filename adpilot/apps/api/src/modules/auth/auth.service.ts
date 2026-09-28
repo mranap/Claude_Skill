@@ -10,7 +10,10 @@ import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppError } from '../../common/errors/app-error';
+import { AppLogger } from '../../infra/logger/logger';
+import { Prisma } from '../../generated/prisma/client';
 import { AuthCacheService } from './auth-cache.service';
+import { ACCOUNT_LOCK_FACTOR, LoginGuardService } from './login-guard.service';
 import { IssuedSession, SessionService } from './session.service';
 import { verifyTotp } from './totp';
 import type { AuthUser, ClientInfo } from './auth.types';
@@ -20,6 +23,8 @@ const INVALID_RESET_LINK = 'This link is invalid or has expired. Please request 
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new AppLogger('Auth');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashing: HashingService,
@@ -32,6 +37,7 @@ export class AuthService {
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
     private readonly cache: AuthCacheService,
+    private readonly guard: LoginGuardService,
   ) {}
 
   // ───────────────────────────── Login ─────────────────────────────
@@ -42,40 +48,45 @@ export class AuthService {
     client: ClientInfo,
   ): Promise<{ response: LoginResponse; session?: IssuedSession }> {
     const security = await this.settings.get('security');
-    await this.enforceRateLimit('login-ip', client.ip ?? 'unknown', security.loginRateLimitPerMinute, 60);
-    await this.enforceRateLimit('login-email', email, 10, 15 * 60);
+    const ip = client.ip ?? 'unknown';
+    const lockMs = security.lockoutMinutes * 60_000;
+    await this.enforceRateLimit('login-ip', ip, security.loginRateLimitPerMinute, 60);
+    const sourceLock = await this.guard.sourceLockMs(email, ip);
+    if (sourceLock > 0) {
+      await this.recordLogin(null, email, false, 'locked_source', client);
+      throw lockedError(sourceLock);
+    }
 
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || user.status === 'DELETED') {
+      // Unknown addresses behave exactly like real accounts, including the lock, so answers reveal nothing.
+      const addressLock = await this.guard.unknownAddressLockMs(email);
+      if (addressLock > 0) {
+        await this.recordLogin(null, email, false, 'locked', client);
+        throw lockedError(addressLock);
+      }
       await this.hashing.verifyDummy(password);
+      await this.guard.passwordFailed(email, ip, security.maxFailedLogins, lockMs);
+      await this.guard.unknownAddressFailed(email, security.maxFailedLogins * ACCOUNT_LOCK_FACTOR, lockMs);
       await this.recordLogin(null, email, false, 'unknown_email', client);
       throw new AppError('UNAUTHORIZED', INVALID_CREDENTIALS);
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await this.recordLogin(user.id, email, false, 'locked', client);
-      const retry = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-      throw new AppError(
-        'ACCOUNT_LOCKED',
-        `Too many failed sign-in attempts. Try again in ${Math.ceil(retry / 60)} minute(s).`,
-        undefined,
-        { retryAfterSeconds: retry },
-      );
+      throw lockedError(user.lockedUntil.getTime() - Date.now());
     }
 
     const valid = await this.hashing.verifyPassword(user.passwordHash, password);
     if (!valid) {
+      await this.guard.passwordFailed(email, ip, security.maxFailedLogins, lockMs);
       const failed = await this.prisma.user.update({
         where: { id: user.id },
         data: { failedLoginCount: { increment: 1 } },
         select: { failedLoginCount: true },
       });
-      if (failed.failedLoginCount >= security.maxFailedLogins) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { lockedUntil: new Date(Date.now() + security.lockoutMinutes * 60_000), failedLoginCount: 0 },
-        });
-        await this.audit.log({ action: 'auth.account.locked', subjectUserId: user.id, actorEmail: email, ip: client.ip });
+      if (failed.failedLoginCount >= security.maxFailedLogins * ACCOUNT_LOCK_FACTOR) {
+        await this.lockAccount(user.id, email, lockMs, 'password', client);
       }
       await this.recordLogin(user.id, email, false, 'bad_password', client);
       await this.audit.log({
@@ -94,16 +105,12 @@ export class AuthService {
       throw new AppError('ACCOUNT_BLOCKED', 'Your account has been blocked. Please contact the administrator.');
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        failedLoginCount: 0,
-        lockedUntil: null,
-        ...(this.hashing.needsRehash(user.passwordHash) ? { passwordHash: await this.hashing.hashPassword(password) } : {}),
-      },
-    });
-    await this.rateLimiter.reset('login-email', email);
+    if (this.hashing.needsRehash(user.passwordHash)) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: await this.hashing.hashPassword(password) } });
+    }
 
+    // Failure counters are only cleared once sign-in is complete: a correct password alone (second factor still
+    // pending) must not give a password-holding attacker fresh attempts.
     if (user.twoFactorEnabled) {
       const { ticket } = this.sessions.signMfaTicket(user.id);
       await this.recordLogin(user.id, email, true, 'password_ok_mfa_pending', client);
@@ -122,6 +129,7 @@ export class AuthService {
     if (!user || user.status !== 'ACTIVE' || !user.twoFactorEnabled || !user.twoFactorSecretEnc) {
       throw new AppError('MFA_INVALID', 'The verification step expired. Please sign in again.');
     }
+    if (user.lockedUntil && user.lockedUntil > new Date()) throw lockedError(user.lockedUntil.getTime() - Date.now());
     const ok = await this.checkSecondFactor(user.id, user.twoFactorSecretEnc, user.twoFactorRecoveryHashes, code);
     if (!ok) {
       await this.recordLogin(user.id, user.email, false, 'bad_totp', client);
@@ -135,8 +143,28 @@ export class AuthService {
     return { user: await this.me(user.id), session };
   }
 
-  /** Verifies a TOTP code (with replay protection) or consumes a recovery code. */
+  /**
+   * Verifies a TOTP code (with replay protection) or consumes a recovery code. Wrong codes are counted per user
+   * across sign-in and the 2FA settings endpoints; too many lock the second factor and the account.
+   */
   async checkSecondFactor(userId: string, secretEnc: string, recoveryHashes: string[], code: string): Promise<boolean> {
+    const lockedMs = await this.guard.secondFactorLockMs(userId);
+    if (lockedMs > 0) throw lockedError(lockedMs, 'Too many invalid verification codes.');
+    const ok = await this.verifySecondFactor(userId, secretEnc, recoveryHashes, code);
+    if (ok) {
+      await this.guard.secondFactorPassed(userId);
+      return true;
+    }
+    const security = await this.settings.get('security');
+    const lockMs = security.lockoutMinutes * 60_000;
+    if (await this.guard.secondFactorFailed(userId, lockMs)) {
+      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+      await this.lockAccount(userId, user.email, lockMs, 'second_factor');
+    }
+    return false;
+  }
+
+  private async verifySecondFactor(userId: string, secretEnc: string, recoveryHashes: string[], code: string): Promise<boolean> {
     const trimmed = code.trim();
     if (/^\d{6}$/.test(trimmed)) {
       const secret = this.encryption.decrypt(secretEnc, Aad.totpSecret(userId));
@@ -162,8 +190,9 @@ export class AuthService {
     const session = await this.sessions.create(userId, client);
     await this.prisma.user.update({
       where: { id: userId },
-      data: { lastLoginAt: new Date(), lastLoginIp: client.ip ?? null },
+      data: { lastLoginAt: new Date(), lastLoginIp: client.ip ?? null, failedLoginCount: 0, lockedUntil: null },
     });
+    await this.guard.signedIn(email, client.ip ?? 'unknown');
     await this.recordLogin(userId, email, true, method, client);
     await this.audit.log({
       action: 'auth.login.success',
@@ -220,8 +249,16 @@ export class AuthService {
 
   // ───────────────────────────── Passwords ─────────────────────────────
 
+  /**
+   * Answers immediately and identically for every address; the lookup and the e-mail happen afterwards, so the
+   * response time does not reveal whether an account exists.
+   */
   async forgotPassword(email: string, client: ClientInfo): Promise<void> {
     await this.enforceRateLimit('forgot-ip', client.ip ?? 'unknown', 10, 15 * 60);
+    this.sendResetLink(email, client).catch((err: unknown) => this.logger.error('Password reset request failed', { err }));
+  }
+
+  private async sendResetLink(email: string, client: ClientInfo): Promise<void> {
     const perEmail = await this.rateLimiter.hit('forgot-email', email, 3, 3600_000);
     if (!perEmail.allowed) return; // silently ignore to avoid enumeration
 
@@ -261,7 +298,7 @@ export class AuthService {
     const tokenHash = this.hashing.sha256(token);
     const passwordHash = await this.hashing.hashPassword(newPassword);
 
-    const userId = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const consumed = await tx.passwordResetToken.updateMany({
         where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
         data: { usedAt: new Date() },
@@ -280,9 +317,14 @@ export class AuthService {
           lockedUntil: null,
         },
       });
-      return user.id;
+      await invalidateCredentialTokens(tx, user.id);
+      return { id: user.id, email: user.email };
     });
-    if (!userId) throw new AppError('BAD_REQUEST', INVALID_RESET_LINK);
+    if (!result) throw new AppError('BAD_REQUEST', INVALID_RESET_LINK);
+    const userId = result.id;
+    // Proof of mailbox control lifts every sign-in lock of the account.
+    await this.guard.clearAddress(result.email);
+    await this.guard.clearSecondFactor(userId);
 
     await this.sessions.revokeAllForUser(userId, 'password_reset');
     await this.cache.invalidateUser(userId);
@@ -305,13 +347,14 @@ export class AuthService {
     if (await this.hashing.verifyPassword(row.passwordHash, newPassword)) {
       throw AppError.validation('The new password must be different', [{ path: 'newPassword', message: 'Choose a new password' }]);
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: await this.hashing.hashPassword(newPassword),
-        passwordChangedAt: new Date(),
-        mustChangePassword: false,
-      },
+    const passwordHash = await this.hashing.hashPassword(newPassword);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash, passwordChangedAt: new Date(), mustChangePassword: false },
+      });
+      // Links requested before the change (possibly by someone who knew the old password) stop working.
+      await invalidateCredentialTokens(tx, user.id);
     });
     await this.sessions.revokeAllForUser(user.id, 'password_changed', user.sessionId);
     await this.cache.invalidateUser(user.id);
@@ -366,9 +409,13 @@ export class AuthService {
       const taken = await tx.user.findUnique({ where: { email: row.newEmail }, select: { id: true } });
       if (taken || user.status !== 'ACTIVE') return null;
       await tx.user.update({ where: { id: user.id }, data: { email: row.newEmail } });
+      // Reset links sent to the old address must not work any more.
+      await invalidateCredentialTokens(tx, user.id);
       return { userId: user.id, oldEmail: user.email, newEmail: row.newEmail };
     });
     if (!result) throw new AppError('BAD_REQUEST', INVALID_RESET_LINK);
+    // The sign-in identity changed: every session signs in again with the new address.
+    await this.sessions.revokeAllForUser(result.userId, 'email_changed');
     await this.cache.invalidateUser(result.userId);
     await this.audit.log({
       action: 'auth.email.changed',
@@ -385,6 +432,26 @@ export class AuthService {
   }
 
   // ───────────────────────────── Helpers ─────────────────────────────
+
+  /** Locks sign-in for the whole account (distributed password guessing, or too many wrong 2FA codes). */
+  private async lockAccount(userId: string, email: string, lockMs: number, cause: 'password' | 'second_factor', client?: ClientInfo) {
+    const lockedUntil = new Date(Date.now() + lockMs);
+    await this.prisma.user.update({ where: { id: userId }, data: { lockedUntil, failedLoginCount: 0 } });
+    await this.cache.invalidateUser(userId);
+    await this.audit.log({ action: 'auth.account.locked', subjectUserId: userId, actorEmail: email, ip: client?.ip, metadata: { cause } });
+    const minutes = Math.ceil(lockMs / 60_000);
+    await this.notifications.notify({
+      userId,
+      type: 'SECURITY_ALERT',
+      severity: 'ERROR',
+      title: 'Sign-in to your account was locked',
+      body:
+        cause === 'second_factor'
+          ? `Several wrong two-factor codes were entered after your correct password. Sign-in is locked for ${minutes} minute(s). If this was not you, change your password now.`
+          : `There were many failed sign-in attempts. Sign-in is locked for ${minutes} minute(s). If this was not you, reset your password: that also lifts the lock.`,
+      dedupeKey: `account-locked:${userId}:${lockedUntil.getTime()}`,
+    });
+  }
 
   private async enforceRateLimit(bucket: string, id: string, limit: number, windowSeconds: number): Promise<void> {
     const res = await this.rateLimiter.hit(bucket, id, limit, windowSeconds * 1000);
@@ -403,4 +470,18 @@ export class AuthService {
       },
     });
   }
+}
+
+function lockedError(remainingMs: number, reason = 'Too many failed sign-in attempts.'): AppError {
+  const retryAfterSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
+  return new AppError('ACCOUNT_LOCKED', `${reason} Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`, undefined, {
+    retryAfterSeconds,
+  });
+}
+
+/** Marks every outstanding password-reset, invitation and e-mail-change link of the user as used. */
+export async function invalidateCredentialTokens(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  const usedAt = new Date();
+  await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt } });
+  await tx.emailChangeToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt } });
 }

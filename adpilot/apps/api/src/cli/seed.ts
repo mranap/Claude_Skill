@@ -23,7 +23,7 @@ async function main(): Promise<void> {
         const result = await ensureSuperAdmin(prisma, {
           email: env.SUPER_ADMIN_EMAIL,
           password: env.SUPER_ADMIN_PASSWORD,
-          name: env.SUPER_ADMIN_NAME,
+          name: env.SUPER_ADMIN_NAME || undefined,
         });
         console.log(`Super Admin ${env.SUPER_ADMIN_EMAIL}: ${result}. Remove SUPER_ADMIN_PASSWORD from the environment now.`);
       } else {

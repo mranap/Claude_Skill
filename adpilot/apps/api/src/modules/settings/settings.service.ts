@@ -106,32 +106,38 @@ export class SettingsService implements OnModuleInit, BeforeApplicationShutdown 
     actorId?: string,
   ): Promise<SettingValue<K>> {
     if (!SETTING_KEYS.includes(key)) throw AppError.notFound('Setting');
-    const current = await this.loadRaw(key);
-    const merged = { ...this.withoutSecrets(key, current), ...patch };
-    const parsed = SETTINGS_SCHEMAS[key].safeParse(merged);
-    if (!parsed.success) {
-      throw AppError.validation(
-        'Invalid settings',
-        parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      );
-    }
-    const next: Stored = { ...(parsed.data as Stored) };
-    for (const field of SECRET_SETTING_FIELDS[key] ?? []) {
-      const incoming = secrets[field];
-      if (incoming === undefined || incoming === '') {
-        // An empty input keeps the stored secret: clearing it must be explicit (null).
-        if (typeof current[field] === 'string') next[field] = current[field];
-      } else if (incoming !== null) {
-        next[field] = this.encryption.encrypt(incoming, Aad.setting(`${key}.${field}`));
+    // Read-merge-write under a row lock on the stored value (never the cache): concurrent edits of the same
+    // group, or a secret rotated on another replica, cannot be reverted by a stale copy.
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`INSERT INTO system_settings (key, value, "updatedAt") VALUES (${key}, '{}'::jsonb, now()) ON CONFLICT (key) DO NOTHING`;
+      const rows = await tx.$queryRaw<{ value: Stored }[]>`SELECT value FROM system_settings WHERE key = ${key} FOR UPDATE`;
+      const current = rows[0]?.value ?? {};
+      const merged = { ...this.withoutSecrets(key, current), ...patch };
+      const parsed = SETTINGS_SCHEMAS[key].safeParse(merged);
+      if (!parsed.success) {
+        throw AppError.validation(
+          'Invalid settings',
+          parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        );
       }
-    }
-    await this.prisma.systemSetting.upsert({
-      where: { key },
-      create: { key, value: next as Prisma.InputJsonValue, updatedById: actorId ?? null },
-      update: { value: next as Prisma.InputJsonValue, updatedById: actorId ?? null },
+      const next: Stored = { ...(parsed.data as Stored) };
+      for (const field of SECRET_SETTING_FIELDS[key] ?? []) {
+        const incoming = secrets[field];
+        if (incoming === undefined || incoming === '') {
+          // An empty input keeps the stored secret: clearing it must be explicit (null).
+          if (typeof current[field] === 'string') {
+            assertSecretStillBound(key, field, current, next);
+            next[field] = current[field];
+          }
+        } else if (incoming !== null) {
+          next[field] = this.encryption.encrypt(incoming, Aad.setting(`${key}.${field}`));
+        }
+      }
+      await tx.systemSetting.update({ where: { key }, data: { value: next as Prisma.InputJsonValue, updatedById: actorId ?? null } });
+      return parsed.data as SettingValue<K>;
     });
     await this.invalidate(key);
-    return parsed.data as SettingValue<K>;
+    return saved;
   }
 
   async invalidate(key: SettingKey | '*'): Promise<void> {
@@ -145,5 +151,22 @@ export class SettingsService implements OnModuleInit, BeforeApplicationShutdown 
     const out: Stored = {};
     for (const [k, v] of Object.entries(raw)) if (!secretFields.includes(k)) out[k] = v;
     return out;
+  }
+}
+
+/**
+ * Secrets that are sent to the configured server itself (SMTP AUTH transmits the password): keeping the stored
+ * secret while pointing the settings at another server would hand it to that server, so it must be re-entered.
+ */
+const SECRET_BINDINGS: Partial<Record<SettingKey, Record<string, readonly string[]>>> = {
+  smtp: { password: ['host', 'port', 'encryption', 'username'] },
+};
+
+function assertSecretStillBound(key: SettingKey, field: string, current: Stored, next: Stored): void {
+  const changed = (SECRET_BINDINGS[key]?.[field] ?? []).filter((f) => f in current && current[f] !== next[f]);
+  if (changed.length) {
+    throw AppError.validation(`Enter the ${field} again: it is only kept while ${changed.join(', ')} stay the same`, [
+      { path: `secrets.${field}`, message: 'Required when the server settings change' },
+    ]);
   }
 }

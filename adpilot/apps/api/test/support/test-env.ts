@@ -53,6 +53,8 @@ export function applyTestEnv(): void {
     S3_SECRET_ACCESS_KEY: secret(24),
     S3_FORCE_PATH_STYLE: 'true',
     TMP_DIR: `/tmp/adpilot-test-${process.pid}`,
+    // Tests act as if behind one reverse proxy, so a client can present its own source IP (X-Forwarded-For).
+    TRUST_PROXY: '1',
     LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? 'error',
     WORKER_QUEUES: '*',
     SUPER_ADMIN_EMAIL: 'root@adpilot.test',

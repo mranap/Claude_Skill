@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { adAccountBulkConnectSchema, adAccountListQuerySchema, adAccountUpdateSchema, paginationQuerySchema } from '@adpilot/shared';
-import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { ActivityService } from '../activity/activity.service';
 import { AdAccountsService } from './ad-accounts.service';
@@ -9,6 +10,7 @@ import type { AuthUser } from '../auth/auth.types';
 
 const uuid = new ParseUUIDPipe();
 
+@RequireAnyPermission(...READ_ACCESS.adAccounts)
 @Controller('ad-accounts')
 export class AdAccountsController {
   constructor(
@@ -40,6 +42,7 @@ export class AdAccountsController {
   }
 
   @Post(':id/check-status')
+  @RequirePermissions('app.meta_profiles.manage')
   @HttpCode(202)
   checkStatus(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     return this.accounts.checkNow(user.id, id);

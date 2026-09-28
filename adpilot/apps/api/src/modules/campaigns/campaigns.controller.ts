@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { DATE_RANGE_KEYS } from '@adpilot/shared';
-import { CurrentUser, RateLimit, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { CurrentUser, RateLimit, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { CampaignsService, budgetChangeSchema, campaignListQuerySchema } from './campaigns.service';
 import { BulkActionsService, bulkStatusSchema } from './bulk-actions.service';
@@ -16,6 +17,7 @@ const detailQuery = z.object({
 });
 const statusSchema = z.object({ level: z.enum(['CAMPAIGN', 'ADSET', 'AD']), id: z.uuid(), status: z.enum(['ACTIVE', 'PAUSED']) });
 
+@RequireAnyPermission(...READ_ACCESS.campaigns)
 @Controller('campaigns')
 export class CampaignsController {
   constructor(

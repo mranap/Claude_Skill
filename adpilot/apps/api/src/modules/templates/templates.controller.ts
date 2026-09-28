@@ -1,13 +1,15 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { templateCreateSchema, templateListQuerySchema, templateUpdateSchema } from '@adpilot/shared';
-import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { TemplatesService } from './templates.service';
 import type { AuthUser } from '../auth/auth.types';
 
 const uuid = new ParseUUIDPipe();
 
+@RequireAnyPermission(...READ_ACCESS.templates)
 @Controller('templates')
 export class TemplatesController {
   constructor(private readonly templates: TemplatesService) {}

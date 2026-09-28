@@ -18,6 +18,8 @@ export class ApiClient {
   private readonly cookies = new Map<string, Cookie>();
   /** Set to false to simulate a request without the CSRF header. */
   sendCsrf = true;
+  /** Source IP this client appears to come from (sent as X-Forwarded-For; tests run with TRUST_PROXY=1). */
+  forwardedFor?: string;
 
   constructor(
     readonly baseUrl: string,
@@ -47,6 +49,12 @@ export class ApiClient {
   restoreCookies(snapshot: Map<string, Cookie>): void {
     this.cookies.clear();
     for (const [k, v] of snapshot) this.cookies.set(k, { ...v });
+  }
+
+  /** Headers a browser would send, for raw requests the fetch-based helpers cannot make (e.g. aborted uploads). */
+  rawHeaders(path: string): Record<string, string> {
+    const csrf = this.cookie('ap_csrf');
+    return { Cookie: this.cookieHeader(path), Origin: this.origin, 'User-Agent': this.userAgent, ...(csrf ? { 'X-CSRF-Token': csrf } : {}) };
   }
 
   private cookieHeader(path: string): string {
@@ -83,7 +91,11 @@ export class ApiClient {
     opts: { headers?: Record<string, string>; form?: FormData; raw?: boolean } = {},
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
-    const headers: Record<string, string> = { 'User-Agent': this.userAgent, ...(opts.headers ?? {}) };
+    const headers: Record<string, string> = {
+      'User-Agent': this.userAgent,
+      ...(this.forwardedFor ? { 'X-Forwarded-For': this.forwardedFor } : {}),
+      ...(opts.headers ?? {}),
+    };
     const cookie = this.cookieHeader(new URL(url).pathname);
     if (cookie) headers.Cookie = cookie;
     if (!['GET', 'HEAD'].includes(method)) {

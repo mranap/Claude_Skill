@@ -1,14 +1,14 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionKey, SYSTEM_ROLES, hasPermission } from '@adpilot/shared';
-import { PERMISSIONS_KEY } from '../decorators/auth.decorators';
+import { ANY_PERMISSION_KEY, PERMISSIONS_KEY } from '../decorators/auth.decorators';
 import { AppError } from '../errors/app-error';
 import { SettingsService } from '../../modules/settings/settings.service';
 import type { AuthUser } from '../../modules/auth/auth.types';
 
 /**
- * Enforces `@RequirePermissions(...)`. Admin permissions additionally require 2FA when the Super Admin
- * enabled "Require 2FA for administrators".
+ * Enforces `@RequirePermissions(...)` (all of) and `@RequireAnyPermission(...)` (at least one of). Admin
+ * permissions additionally require 2FA when the Super Admin enabled "Require 2FA for administrators".
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -18,13 +18,14 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<PermissionKey[] | undefined>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!required?.length) return true;
+    const targets = [context.getHandler(), context.getClass()];
+    const required = this.reflector.getAllAndOverride<PermissionKey[] | undefined>(PERMISSIONS_KEY, targets);
+    const anyOf = this.reflector.getAllAndOverride<PermissionKey[] | undefined>(ANY_PERMISSION_KEY, targets);
+    if (!required?.length && !anyOf?.length) return true;
     const user = context.switchToHttp().getRequest<{ user?: AuthUser }>().user;
     if (!user) throw new AppError('UNAUTHORIZED', 'Please sign in to continue');
+    if (anyOf?.length && !anyOf.some((p) => hasPermission(user.roleKey, user.permissions, p))) throw AppError.forbidden();
+    if (!required?.length) return true;
     if (!hasPermission(user.roleKey, user.permissions, required)) throw AppError.forbidden();
 
     if (required.some((p) => p.startsWith('admin.'))) {

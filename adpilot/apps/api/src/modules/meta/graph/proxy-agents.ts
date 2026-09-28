@@ -2,6 +2,7 @@ import { Agent as HttpsAgent } from 'node:https';
 import { createHash } from 'node:crypto';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { publicOnlyLookup } from '../../../common/net/public-address';
 
 export interface ProxyConfig {
   type: 'HTTP' | 'HTTPS' | 'SOCKS5';
@@ -9,6 +10,8 @@ export interface ProxyConfig {
   port: number;
   username?: string | null;
   password?: string | null;
+  /** Administrator setting: proxies on private networks are allowed (no connect-time address check). */
+  allowPrivateAddress?: boolean;
 }
 
 const MAX_CACHED = 500;
@@ -36,26 +39,40 @@ export function agentOptions(proxy?: ProxyConfig | null): { httpsAgent: HttpsAge
 /**
  * Returns an HTTPS agent that tunnels through the profile's proxy (HTTP CONNECT, HTTPS CONNECT or SOCKS5
  * with remote DNS). Agents are cached per proxy configuration so keep-alive connections are reused.
+ * Unless private proxies are allowed, the proxy host is resolved through `publicOnlyLookup` on every
+ * connection, so it can never be (re)pointed at an internal address.
  */
 export function agentFor(proxy?: ProxyConfig | null): HttpsAgent {
   if (!proxy) return direct;
+  const allowPrivate = proxy.allowPrivateAddress === true;
   const key = createHash('sha256')
-    .update(`${proxy.type}|${proxy.host}|${proxy.port}|${proxy.username ?? ''}|${proxy.password ?? ''}`)
+    .update(`${proxy.type}|${proxy.host}|${proxy.port}|${proxy.username ?? ''}|${proxy.password ?? ''}|${allowPrivate}`)
     .digest('hex');
   let agent = cache.get(key);
   if (agent) return agent;
   const url = proxyUrl(proxy);
+  const lookup = allowPrivate ? undefined : publicOnlyLookup;
   agent =
     proxy.type === 'SOCKS5'
-      ? (new SocksProxyAgent(url, { keepAlive: true }))
-      : (new HttpsProxyAgent(url, { keepAlive: true }));
+      ? new SocksProxyAgent(url, { keepAlive: true, ...(lookup ? { socketOptions: { lookup } } : {}) })
+      : new HttpsProxyAgent(url, { keepAlive: true, ...(lookup ? { lookup } : {}) });
   if (cache.size >= MAX_CACHED) {
     const oldest = cache.keys().next().value;
     if (oldest) {
-      cache.get(oldest)?.destroy();
+      retire(cache.get(oldest));
       cache.delete(oldest);
     }
   }
   cache.set(key, agent);
   return agent;
+}
+
+/**
+ * Drops an evicted agent without breaking requests still running on it: idle keep-alive sockets are closed
+ * now, busy ones when their request finishes.
+ */
+function retire(agent: HttpsAgent | undefined): void {
+  if (!agent) return;
+  agent.keepSocketAlive = () => false;
+  for (const sockets of Object.values(agent.freeSockets)) for (const socket of sockets ?? []) socket.destroy();
 }

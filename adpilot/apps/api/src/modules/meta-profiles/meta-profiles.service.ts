@@ -233,13 +233,7 @@ export class MetaProfilesService {
     if (input.proxy) {
       const blocked = await this.connections.proxyPolicyViolation(input.proxy.host);
       if (blocked) return { proxy: { ok: false, message: blocked } };
-      out.proxy = await this.inspector.testProxy({
-        type: input.proxy.type,
-        host: input.proxy.host,
-        port: input.proxy.port,
-        username: input.proxy.username ?? null,
-        password: input.proxy.password ?? null,
-      });
+      out.proxy = await this.inspector.testProxy(await this.connections.proxyConfigFromInput(input.proxy));
       if (!out.proxy.ok) return out;
     }
     if (input.accessToken) {
@@ -252,7 +246,7 @@ export class MetaProfilesService {
     const profile = await this.findOwned(userId, id);
     if (!profile.proxy) return { ok: true, message: 'No proxy configured: direct connection is used.' };
     const blocked = await this.connections.proxyPolicyViolation(profile.proxy.host);
-    const result = blocked ? { ok: false, message: blocked } : await this.inspector.testProxy(this.connections.proxyConfig(profile.proxy));
+    const result = blocked ? { ok: false, message: blocked } : await this.inspector.testProxy(await this.connections.proxyConfigFor(profile.proxy));
     await this.prisma.proxy.update({
       where: { id: profile.proxy.id },
       data: { lastTestAt: new Date(), lastTestOk: result.ok, lastTestError: result.ok ? null : result.message, lastTestLatencyMs: result.latencyMs ?? null },

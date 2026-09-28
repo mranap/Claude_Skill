@@ -36,13 +36,23 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
+		# No Referer at all: pages must never leak their URL (e.g. an old ?token= link) to the API log or others.
+		Referrer-Policy "no-referrer"
 		-Server
 		-X-Powered-By
 	}
 
 	log {
 		output stdout
-		format json
+		# Access logs never keep one-time tokens (query `token`) or the Referer header, whatever a client sends.
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+				request>headers>Referer delete
+			}
+		}
 	}
 }
