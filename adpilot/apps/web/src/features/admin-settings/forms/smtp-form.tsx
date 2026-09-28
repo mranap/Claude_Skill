@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { MailCheck, PlugZap } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,7 +17,7 @@ import { ErrorAlert } from '@/components/shared/error-alert';
 import { NumberField, TextField } from '@/components/shared/form';
 import { useAuth } from '@/features/auth/auth-context';
 import type { AdminSettingGroup } from '@/lib/api/types';
-import { adminSettingsApi, pickSchemaValues, secretPatch, useSaveSettings } from '../api';
+import { adminSettingsApi, pickSchemaValues, secretErrors, secretPatch, useSaveSettings } from '../api';
 import { managePermission } from '../categories';
 import { SecretField } from '../secret-field';
 import { SelectField, SwitchField } from '../fields';
@@ -40,8 +40,13 @@ export function SmtpSettingsForm({ values, readOnly }: { values: AdminSettingGro
   const form = useForm({ resolver: zodResolver(schema), values: pickSchemaValues(smtpSettingsSchema.shape, values) });
   const [secrets, setSecrets] = useState<Record<string, string | null | undefined>>({});
   const [testOpen, setTestOpen] = useState(false);
+  const [secretError, setSecretError] = useState<Record<string, string>>({});
   const patch = secretPatch(secrets);
   const dirty = form.formState.isDirty || Object.keys(patch).length > 0;
+  // With a stored password, the API asks for it again when the server or the username changes.
+  const [host, port, encryption, username] = useWatch({ control: form.control, name: ['host', 'port', 'encryption', 'username'] });
+  const connectionChanged = host !== values.host || port !== values.port || encryption !== values.encryption || username !== values.username;
+  const needsPassword = !!values.passwordSet && connectionChanged && typeof secrets.password !== 'string';
 
   const verify = useMutation({
     mutationFn: adminSettingsApi.verifySmtp,
@@ -57,9 +62,22 @@ export function SmtpSettingsForm({ values, readOnly }: { values: AdminSettingGro
         readOnly={readOnly}
         permission={managePermission('smtp')}
         extraDirty={Object.keys(patch).length > 0}
-        onDiscard={() => setSecrets({})}
+        onDiscard={() => {
+          setSecrets({});
+          setSecretError({});
+        }}
         onSubmit={async (v) => {
-          await save.mutateAsync({ values: v, secrets: patch });
+          setSecretError({});
+          try {
+            await save.mutateAsync({ values: v, secrets: patch });
+          } catch (error) {
+            const fieldErrors = secretErrors(error);
+            if (!Object.keys(fieldErrors).length) throw error;
+            setSecretError(fieldErrors);
+            // Open the password input so it can be re-entered right away.
+            if (fieldErrors.password && typeof secrets.password !== 'string') setSecrets((s) => ({ ...s, password: '' }));
+            return false;
+          }
           setSecrets({});
         }}
         footerActions={
@@ -105,8 +123,13 @@ export function SmtpSettingsForm({ values, readOnly }: { values: AdminSettingGro
               label="Password"
               isSet={!!values.passwordSet}
               value={secrets.password}
-              onChange={(v) => setSecrets((s) => ({ ...s, password: v }))}
+              onChange={(v) => {
+                setSecrets((s) => ({ ...s, password: v }));
+                setSecretError((e) => ({ ...e, password: '' }));
+              }}
               disabled={readOnly}
+              description={needsPassword ? 'Re-enter the password: it is required again when the host, port, encryption or username changes.' : undefined}
+              error={secretError.password || null}
             />
           </FieldGrid>
         </FieldSection>

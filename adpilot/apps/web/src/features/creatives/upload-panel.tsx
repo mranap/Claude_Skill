@@ -84,6 +84,7 @@ export function UploadDropzone({
 
 const STATUS_TEXT: Record<UploadItem['status'], string> = {
   queued: 'Waiting…',
+  waiting: 'Waiting for other uploads…',
   uploading: 'Uploading',
   processing: 'Checking the file…',
   done: 'Uploaded',
@@ -95,7 +96,7 @@ const STATUS_TEXT: Record<UploadItem['status'], string> = {
 /** Per-file upload progress with cancel / retry / dismiss. */
 export function UploadList({ items, queue, className }: { items: UploadItem[]; queue: UploadQueue; className?: string }) {
   if (!items.length) return null;
-  const running = items.filter((i) => i.status === 'queued' || i.status === 'uploading' || i.status === 'processing').length;
+  const running = items.filter((i) => i.status === 'queued' || i.status === 'waiting' || i.status === 'uploading' || i.status === 'processing').length;
   const finished = items.length - running;
   return (
     <div className={cn('overflow-hidden rounded-lg border bg-card', className)} aria-label="Uploads" role="region">
@@ -120,7 +121,7 @@ export function UploadList({ items, queue, className }: { items: UploadItem[]; q
 
 function UploadRow({ item, queue }: { item: UploadItem; queue: UploadQueue }) {
   const Icon = item.kind === 'VIDEO' ? Film : ImageIcon;
-  const active = item.status === 'uploading' || item.status === 'processing' || item.status === 'queued';
+  const active = item.status === 'uploading' || item.status === 'processing' || item.status === 'queued' || item.status === 'waiting';
   const tone =
     item.status === 'error'
       ? 'text-destructive-fg'
@@ -167,6 +168,7 @@ function UploadRow({ item, queue }: { item: UploadItem; queue: UploadQueue }) {
         <Progress value={item.progress * 100} indeterminate={item.status === 'processing'} className="h-1" aria-label={`Upload progress of ${item.file.name}`} />
       ) : null}
       {item.error ? <p className="text-xs leading-relaxed text-destructive-fg" role="alert">{item.error}</p> : null}
+      {item.note && item.status === 'waiting' ? <p className="text-xs leading-relaxed text-muted-foreground">{item.note}</p> : null}
       {item.warnings?.map((w) => (
         <p key={w} className="text-xs leading-relaxed text-warning-fg">
           {w}

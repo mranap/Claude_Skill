@@ -132,12 +132,26 @@ export function RolesPage() {
   );
 }
 
+const isAdminPermission = (key: string) => key.startsWith('admin.');
+
 function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: PermissionDto[]; canManage: boolean }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
+  const { user: me, isSuperAdmin } = useAuth();
   const superAdmin = role.key === SYSTEM_ROLES.SUPER_ADMIN;
-  const readOnly = !canManage || !role.editable || superAdmin;
+  // Only a Super Admin may grant admin.* permissions, edit roles that hold them, or edit their own role.
+  const ownRole = role.key === me.role;
+  const adminRole = role.permissions.some(isAdminPermission);
+  const restriction = superAdmin || isSuperAdmin || !canManage
+    ? null
+    : ownRole
+      ? 'You cannot change your own role. Ask a Super Admin.'
+      : adminRole
+        ? 'This role has administrative permissions, so only a Super Admin can change it.'
+        : null;
+  const readOnly = !canManage || !role.editable || superAdmin || !!restriction;
+  const lockAdminPermissions = !isSuperAdmin;
   const [permissions, setPermissions] = useState<Set<string>>(() => new Set(role.permissions));
   const [name, setName] = useState(role.name);
   const [description, setDescription] = useState(role.description ?? '');
@@ -175,6 +189,7 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
     setPermissions((prev) => {
       const next = new Set(prev);
       for (const p of items) {
+        if (lockAdminPermissions && isAdminPermission(p.key)) continue;
         if (on) next.add(p.key);
         else next.delete(p.key);
       }
@@ -215,6 +230,14 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
           <Alert icon={<Lock />}>
             <AlertDescription>You can view roles. Changing them requires the “Manage roles and permissions” permission.</AlertDescription>
           </Alert>
+        ) : restriction ? (
+          <Alert icon={<Lock />}>
+            <AlertDescription>{restriction}</AlertDescription>
+          </Alert>
+        ) : !readOnly && lockAdminPermissions ? (
+          <Alert variant="info" icon={<Lock />}>
+            <AlertDescription>Administrative permissions (admin.*) can only be granted by a Super Admin, so they are locked here.</AlertDescription>
+          </Alert>
         ) : null}
 
         {!superAdmin ? (
@@ -250,6 +273,7 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
           {groups.map(([group, items]) => {
             const checked = items.filter((p) => has(p.key)).length;
             const all = checked === items.length;
+            const editable = items.filter((p) => !(lockAdminPermissions && isAdminPermission(p.key)));
             return (
               <section key={group} className="rounded-lg border">
                 <div className="flex items-center justify-between gap-3 border-b bg-surface-subtle px-4 py-2.5">
@@ -257,7 +281,7 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
                     <Checkbox
                       checked={all ? true : checked ? 'indeterminate' : false}
                       onCheckedChange={(v) => toggleGroup(items, v === true)}
-                      disabled={readOnly}
+                      disabled={readOnly || editable.length === 0}
                       aria-label={`Toggle all ${group} permissions`}
                     />
                     {group}
@@ -267,27 +291,26 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
                   </span>
                 </div>
                 <ul className="divide-y">
-                  {items.map((p) => (
-                    <li key={p.key}>
-                      <label
-                        className={cn(
-                          'flex items-start gap-3 px-4 py-2.5 transition-colors',
-                          !readOnly && 'cursor-pointer hover:bg-muted/40',
-                        )}
-                      >
-                        <Checkbox
-                          className="mt-0.5"
-                          checked={has(p.key)}
-                          onCheckedChange={(v) => toggle(p.key, v === true)}
-                          disabled={readOnly}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm">{p.description}</span>
-                          <span className="block font-mono text-xs text-muted-foreground">{p.key}</span>
-                        </span>
-                      </label>
-                    </li>
-                  ))}
+                  {items.map((p) => {
+                    const locked = readOnly || (lockAdminPermissions && isAdminPermission(p.key));
+                    return (
+                      <li key={p.key}>
+                        <label
+                          className={cn('flex items-start gap-3 px-4 py-2.5 transition-colors', !locked && 'cursor-pointer hover:bg-muted/40')}
+                          title={!readOnly && locked ? 'Only a Super Admin can grant administrative permissions' : undefined}
+                        >
+                          <Checkbox className="mt-0.5" checked={has(p.key)} onCheckedChange={(v) => toggle(p.key, v === true)} disabled={locked} />
+                          <span className="min-w-0">
+                            <span className="block text-sm">{p.description}</span>
+                            <span className="block font-mono text-xs text-muted-foreground">
+                              {p.key}
+                              {!readOnly && locked ? ' · Super Admin only' : ''}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             );
@@ -355,6 +378,7 @@ function toRoleKey(name: string): string {
 
 function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClose: () => void; onCreated: (role: RoleDto) => void }) {
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = useAuth();
   const [template, setTemplate] = useState<string>(roles.find((r) => r.key === SYSTEM_ROLES.USER)?.id ?? 'none');
   const [keyTouched, setKeyTouched] = useState(false);
   const form = useForm({
@@ -430,11 +454,14 @@ function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onC
                   <SelectItem value="none">No permissions</SelectItem>
                   {roles
                     .filter((r) => r.key !== SYSTEM_ROLES.SUPER_ADMIN)
-                    .map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name} ({r.permissions.length})
-                      </SelectItem>
-                    ))}
+                    .map((r) => {
+                      const adminPerms = !isSuperAdmin && r.permissions.some(isAdminPermission);
+                      return (
+                        <SelectItem key={r.id} value={r.id} disabled={adminPerms} description={adminPerms ? 'Has admin permissions (Super Admin only)' : undefined}>
+                          {r.name} ({r.permissions.length})
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>

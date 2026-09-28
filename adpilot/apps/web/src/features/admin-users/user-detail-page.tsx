@@ -176,13 +176,28 @@ export function UserDetailPage({ id }: { id: string }) {
       show: allowed('admin.users.block') && !isSelf,
       destructive: user.status !== 'BLOCKED',
     },
-    { key: 'reset-password', label: 'Reset password', icon: KeyRound, onSelect: () => setDialog({ kind: 'reset-password' }), show: allowed('admin.users.reset_password') },
+    // Administrators cannot reset their own password or 2FA here (the API refuses): that goes through
+    // the account's own security settings, which ask for the current password / code.
+    {
+      key: 'reset-password',
+      label: 'Reset password',
+      icon: KeyRound,
+      onSelect: () => setDialog({ kind: 'reset-password' }),
+      show: allowed('admin.users.reset_password') && !isSelf,
+    },
     {
       key: 'reset-2fa',
       label: 'Reset two-factor auth',
       icon: ShieldOff,
       onSelect: () => setDialog({ kind: 'reset-2fa' }),
-      show: allowed('admin.users.reset_password') && user.twoFactorEnabled,
+      show: allowed('admin.users.reset_password') && user.twoFactorEnabled && !isSelf,
+    },
+    {
+      key: 'own-security',
+      label: 'Password & 2FA in your settings',
+      icon: KeyRound,
+      onSelect: () => router.push('/settings/security'),
+      show: isSelf && can('admin.users.reset_password'),
     },
     {
       key: 'revoke-all',

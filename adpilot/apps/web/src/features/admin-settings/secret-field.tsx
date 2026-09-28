@@ -20,6 +20,7 @@ export function SecretField({
   onChange,
   disabled,
   placeholder = 'Enter a new value',
+  error,
 }: {
   label: string;
   description?: React.ReactNode;
@@ -28,8 +29,11 @@ export function SecretField({
   onChange: (value: string | null | undefined) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Server-side validation message for this secret (e.g. "re-enter the password"). */
+  error?: string | null;
 }) {
   const id = useId();
+  const errorId = `${id}-error`;
   const editing = typeof value === 'string';
   const clearing = value === null;
 
@@ -66,6 +70,8 @@ export function SecretField({
               autoComplete="new-password"
               autoFocus
               disabled={disabled}
+              aria-invalid={!!error}
+              aria-describedby={error ? errorId : undefined}
             />
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={() => onChange(undefined)} aria-label="Cancel" disabled={disabled}>
@@ -99,6 +105,11 @@ export function SecretField({
         </div>
       )}
       {description ? <p className="text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
+      {error ? (
+        <p id={errorId} role="alert" className="text-xs font-medium text-destructive-fg">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

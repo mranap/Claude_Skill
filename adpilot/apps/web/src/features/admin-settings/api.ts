@@ -3,6 +3,7 @@
 import type { SettingKey } from '@adpilot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import type {
   AdminSettingGroup,
@@ -46,6 +47,14 @@ export function pickSchemaValues<T extends Record<string, unknown>>(shape: Recor
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(shape)) out[key] = values[key];
   return out as T;
+}
+
+/** `secrets.<name>` field errors of a failed settings save (e.g. SMTP asks to re-enter its password). */
+export function secretErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError)) return {};
+  const out: Record<string, string> = {};
+  for (const fe of error.fieldErrors) if (fe.path.startsWith('secrets.')) out[fe.path.slice('secrets.'.length)] = fe.message;
+  return out;
 }
 
 /** Secret edits: undefined/'' → keep (not sent), string → replace, null → clear. */

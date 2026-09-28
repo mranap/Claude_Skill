@@ -161,6 +161,20 @@ export function getErrorTitle(error: unknown): string {
       return error.meta?.userTitle ?? 'Meta API error';
     case 'CSRF_INVALID':
       return 'Security check failed';
+    case 'ACCOUNT_LOCKED':
+      return 'Temporarily locked';
+    case 'ACCOUNT_BLOCKED':
+      return 'Account blocked';
+    case 'MFA_INVALID':
+      return 'Verification failed';
+    case 'QUOTA_EXCEEDED':
+      return 'Storage limit reached';
+    case 'PAYLOAD_TOO_LARGE':
+      return 'File too large';
+    case 'UNSUPPORTED_MEDIA_TYPE':
+      return 'Unsupported file type';
+    case 'PROXY_ERROR':
+      return 'Proxy error';
     case 'SESSION_EXPIRED':
     case 'UNAUTHORIZED':
       return 'Signed out';

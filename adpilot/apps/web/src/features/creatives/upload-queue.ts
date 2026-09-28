@@ -2,12 +2,12 @@
 
 import { META_MEDIA_LIMITS } from '@adpilot/shared';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { getErrorMessage } from '@/lib/api/errors';
+import { getErrorMessage, isApiError } from '@/lib/api/errors';
 import { formatBytes } from '@/lib/utils/format';
 import { creativesApi } from './api';
 import type { CreativeDto, CreativeUsage } from './types';
 
-export type UploadStatus = 'queued' | 'uploading' | 'processing' | 'done' | 'duplicate' | 'error' | 'cancelled';
+export type UploadStatus = 'queued' | 'waiting' | 'uploading' | 'processing' | 'done' | 'duplicate' | 'error' | 'cancelled';
 
 export interface UploadItem {
   id: string;
@@ -17,9 +17,17 @@ export interface UploadItem {
   /** 0…1 of the request body. */
   progress: number;
   error?: string;
+  /** Shown while a file waits to be retried (e.g. other uploads of the account are still running). */
+  note?: string;
+  /** Automatic retries after short "too many uploads at once" rejections. */
+  autoRetries?: number;
   warnings?: string[];
   result?: CreativeDto;
 }
+
+/** The API allows only a few simultaneous uploads per user; short 429s are retried automatically. */
+const MAX_AUTO_RETRIES = 5;
+const MAX_AUTO_RETRY_WAIT_S = 30;
 
 const MB = 1024 * 1024;
 const IMAGE_EXT = new Set<string>(META_MEDIA_LIMITS.image.extensions);
@@ -83,7 +91,7 @@ export class UploadQueue {
 
   /** Bytes of files that are queued or uploading (reserved against the quota). */
   pendingBytes(): number {
-    return this.items.filter((i) => i.status === 'queued' || i.status === 'uploading' || i.status === 'processing').reduce((n, i) => n + i.file.size, 0);
+    return this.items.filter((i) => i.status === 'queued' || i.status === 'waiting' || i.status === 'uploading' || i.status === 'processing').reduce((n, i) => n + i.file.size, 0);
   }
 
   add(files: File[], usage: CreativeUsage | undefined) {
@@ -110,7 +118,7 @@ export class UploadQueue {
     this.active++;
     const controller = new AbortController();
     this.controllers.set(item.id, controller);
-    this.patch(item.id, { status: 'uploading', progress: 0, error: undefined, warnings: undefined });
+    this.patch(item.id, { status: 'uploading', progress: 0, error: undefined, note: undefined, warnings: undefined });
     let lastPercent = -1;
     try {
       const res = await creativesApi.upload(item.file, {
@@ -129,8 +137,19 @@ export class UploadQueue {
       else if (!result.ok) this.patch(item.id, { status: 'error', error: result.error ?? 'The file was rejected.' });
       else this.patch(item.id, { status: result.duplicate ? 'duplicate' : 'done', result: result.file, warnings: result.warnings?.length ? result.warnings : undefined, progress: 1 });
     } catch (error) {
+      const retries = this.items.find((i) => i.id === item.id)?.autoRetries ?? 0;
+      const wait = isApiError(error, 'RATE_LIMITED') ? (error.retryAfterSeconds ?? 5) : null;
       if (error instanceof DOMException && error.name === 'AbortError') this.patch(item.id, { status: 'cancelled' });
-      else this.patch(item.id, { status: 'error', error: getErrorMessage(error) });
+      else if (wait !== null && wait <= MAX_AUTO_RETRY_WAIT_S && retries < MAX_AUTO_RETRIES) {
+        // Other uploads of this account (e.g. in another tab) are still running: wait and try again.
+        this.patch(item.id, { status: 'waiting', progress: 0, autoRetries: retries + 1, note: 'Waiting for other uploads to finish…' });
+        setTimeout(() => {
+          if (this.items.find((i) => i.id === item.id)?.status === 'waiting') {
+            this.patch(item.id, { status: 'queued' });
+            this.pump();
+          }
+        }, Math.max(1, wait) * 1000);
+      } else this.patch(item.id, { status: 'error', error: getErrorMessage(error), note: undefined });
     } finally {
       this.controllers.delete(item.id);
       this.active--;
@@ -142,14 +161,15 @@ export class UploadQueue {
 
   cancel(id: string) {
     const controller = this.controllers.get(id);
+    const status = this.items.find((i) => i.id === id)?.status;
     if (controller) controller.abort();
-    else if (this.items.find((i) => i.id === id)?.status === 'queued') this.patch(id, { status: 'cancelled' });
+    else if (status === 'queued' || status === 'waiting') this.patch(id, { status: 'cancelled', note: undefined });
   }
 
   retry(id: string) {
     const item = this.items.find((i) => i.id === id);
     if (!item || !item.kind) return;
-    this.patch(id, { status: 'queued', progress: 0, error: undefined });
+    this.patch(id, { status: 'queued', progress: 0, error: undefined, note: undefined, autoRetries: 0 });
     this.pump();
   }
 
@@ -159,7 +179,7 @@ export class UploadQueue {
   }
 
   clearFinished() {
-    this.items = this.items.filter((i) => i.status === 'queued' || i.status === 'uploading' || i.status === 'processing');
+    this.items = this.items.filter((i) => i.status === 'queued' || i.status === 'waiting' || i.status === 'uploading' || i.status === 'processing');
     this.emit();
   }
 }
