@@ -1,35 +1,88 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { QueueService, jobId } from '../../infra/queue/queue.service';
-import { JOBS, QUEUES } from '../../infra/queue/queues';
+import { BulkActionJob, JOBS, QUEUES } from '../../infra/queue/queues';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { SettingsService } from '../../modules/settings/settings.service';
+import { SystemLogService } from '../../modules/system-log/system-log.service';
+import { BULK_JOB_ATTEMPTS, bulkJobId, closeBulkOperation } from '../../modules/campaigns/bulk-actions.service';
+import { failAbandonedBackups, queueBackup } from '../../modules/maintenance/backup.service';
 import { SchedulerTask } from '../scheduler-task';
 
-/** Outbox relay: re-queues deliveries whose job was lost and resolves deliveries stuck in SENDING. */
+const MINUTE = 60_000;
+const SWEEP_BATCH = 500;
+/** Bulk operations younger than this may still be running inline in the API request that created them. */
+const BULK_GRACE_MS = 5 * MINUTE;
+
+/**
+ * Outbox relay: re-queues work whose job was lost or ran out of attempts — notification deliveries and bulk
+ * operations — and resolves deliveries stuck in SENDING.
+ */
 @Injectable()
 export class OutboxSweepTask implements SchedulerTask {
   readonly name = 'notification-outbox-sweep';
-  readonly everyMs = 60_000;
+  readonly everyMs = MINUTE;
+  /** Keyset position in the PENDING backlog: each run continues where the previous one stopped. */
+  private cursor: { createdAt: Date; id: string } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly queue: QueueService,
   ) {}
 
   async run(): Promise<void> {
+    await this.sweepDeliveries();
+    await this.sweepBulkOperations();
+  }
+
+  /**
+   * Walks the stale PENDING deliveries oldest first, one batch per run, so a large legitimate backlog (a
+   * broadcast) cannot hide the deliveries whose job was really lost.
+   */
+  private async sweepDeliveries(): Promise<void> {
+    const c = this.cursor;
     const stale = await this.prisma.notificationDelivery.findMany({
-      where: { status: 'PENDING', updatedAt: { lt: new Date(Date.now() - 2 * 60_000) } },
-      select: { id: true, channel: true },
-      take: 500,
+      where: {
+        status: 'PENDING',
+        updatedAt: { lt: new Date(Date.now() - 2 * MINUTE) },
+        ...(c ? { OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] } : {}),
+      },
+      select: { id: true, channel: true, createdAt: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: SWEEP_BATCH,
     });
+    this.cursor = stale.length === SWEEP_BATCH ? { createdAt: stale[stale.length - 1].createdAt, id: stale[stale.length - 1].id } : null;
     for (const d of stale) await this.notifications.enqueueDelivery(d.id, d.channel);
     // A worker died between claiming and finishing: we cannot know whether the message went out, so we do
     // not resend it (no duplicates) and mark it UNCERTAIN for visibility.
     await this.prisma.notificationDelivery.updateMany({
-      where: { status: 'SENDING', claimedAt: { lt: new Date(Date.now() - 10 * 60_000) } },
+      where: { status: 'SENDING', claimedAt: { lt: new Date(Date.now() - 10 * MINUTE) } },
       data: { status: 'UNCERTAIN', lastError: 'Worker stopped while sending' },
     });
+  }
+
+  /**
+   * Bulk operations left QUEUED/RUNNING without a live job: the job was lost (API stopped during an inline run,
+   * Redis data loss) → it is queued again (processing resumes after the confirmed targets); the job ran out of
+   * attempts → the operation is closed with the remaining targets reported as failed.
+   */
+  private async sweepBulkOperations(): Promise<void> {
+    const ops = await this.prisma.bulkOperation.findMany({
+      where: { status: { in: ['QUEUED', 'RUNNING'] }, createdAt: { lt: new Date(Date.now() - BULK_GRACE_MS) } },
+      orderBy: { createdAt: 'asc' },
+      take: SWEEP_BATCH,
+    });
+    for (const op of ops) {
+      const job = await this.queue.queue(QUEUES.BULK_ACTIONS).getJob(bulkJobId(op.id));
+      const state = job ? await job.getState() : 'missing';
+      if (state === 'failed') {
+        await closeBulkOperation(this.prisma, op);
+      } else if (state === 'missing' || state === 'completed') {
+        const data: BulkActionJob = { bulkOperationId: op.id, userId: op.userId };
+        await this.queue.addReplacingFinished(QUEUES.BULK_ACTIONS, JOBS.BULK_ACTION, data, { jobId: bulkJobId(op.id), attempts: BULK_JOB_ATTEMPTS });
+      }
+    }
   }
 }
 
@@ -49,7 +102,10 @@ export class RetentionTask implements SchedulerTask {
   }
 }
 
-/** Scheduled database backup at the hour configured by the Super Admin. */
+/**
+ * Scheduled database backup at the hour configured by the Super Admin (at most one per day, never next to
+ * another running backup). Also fails backups whose worker died, so they stop blocking manual backups.
+ */
 @Injectable()
 export class BackupTask implements SchedulerTask {
   readonly name = 'database-backup';
@@ -59,16 +115,16 @@ export class BackupTask implements SchedulerTask {
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly queue: QueueService,
+    private readonly systemLog: SystemLogService,
   ) {}
 
   async run(): Promise<void> {
+    const abandoned = await failAbandonedBackups(this.prisma);
+    if (abandoned) await this.systemLog.warn('backup', `${abandoned} abandoned backup(s) marked as failed`);
     const cfg = await this.settings.get('backups');
     const now = new Date();
     if (!cfg.enabled || now.getUTCHours() !== cfg.hourUtc) return;
     const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const existing = await this.prisma.backup.findFirst({ where: { startedAt: { gte: startOfDay }, triggeredById: null } });
-    if (existing) return;
-    const backup = await this.prisma.backup.create({ data: { kind: 'DATABASE', status: 'QUEUED' } });
-    await this.queue.add(QUEUES.MAINTENANCE, JOBS.DATABASE_BACKUP, { kind: 'backup', backupId: backup.id }, { jobId: jobId('backup', backup.id), attempts: 1 });
+    await queueBackup(this.prisma, this.queue, { triggeredById: null, scheduledSince: startOfDay });
   }
 }

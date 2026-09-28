@@ -36,8 +36,12 @@ export const statisticsSettingsSchema = z.object({
   minSyncIntervalMinutes: z.number().int().min(15).max(1440).default(35),
   defaultSyncIntervalMinutes: z.number().int().min(15).max(1440).default(60),
   manualRefreshCooldownMinutes: z.number().int().min(1).max(1440).default(10),
-  /** Days re-fetched on every sync (Meta revises recent days as attribution matures). */
-  lookbackDays: z.number().int().min(1).max(28).default(3),
+  /**
+   * Days re-fetched on every sync (Meta revises recent days as attribution matures). 8 covers the default
+   * 7-day click attribution window and Conversions API events sent up to 7 days late; older days are
+   * re-read by the weekly 28-day refresh.
+   */
+  lookbackDays: z.number().int().min(1).max(28).default(8),
   /** Days fetched on the first sync of an ad account. */
   backfillDays: z.number().int().min(1).max(90).default(30),
 });
@@ -105,7 +109,6 @@ export const queueSettingsSchema = z.object({
   rulesConcurrency: z.number().int().min(1).max(50).default(4),
   notificationConcurrency: z.number().int().min(1).max(50).default(5),
   bulkConcurrency: z.number().int().min(1).max(20).default(2),
-  maxJobAttempts: z.number().int().min(1).max(20).default(6),
 });
 
 export const retentionSettingsSchema = z.object({

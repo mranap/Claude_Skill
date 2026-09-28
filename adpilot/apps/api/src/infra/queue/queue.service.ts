@@ -51,6 +51,19 @@ export class QueueService implements BeforeApplicationShutdown {
     return job.id;
   }
 
+  /**
+   * `add` for work that must run again although an earlier job with the same deterministic id has finished:
+   * BullMQ ignores an id that still exists (failed jobs are kept for 7 days), so a finished job is removed
+   * first. A job that is still waiting, delayed or active is kept and the add is a no-op.
+   */
+  async addReplacingFinished<T extends object>(queue: QueueName, name: JobName, data: T, opts: JobsOptions & { jobId: string }): Promise<string | undefined> {
+    const existing = await this.queue(queue).getJob(opts.jobId);
+    const state = existing ? await existing.getState() : null;
+    // A concurrent caller may have removed it already; the add below is idempotent either way.
+    if (existing && (state === 'completed' || state === 'failed')) await existing.remove().catch(() => undefined);
+    return this.add(queue, name, data, opts);
+  }
+
   /** Shutdown phase 2: running jobs (phase 1) may still enqueue follow-up jobs until they finish. */
   async beforeApplicationShutdown(): Promise<void> {
     await Promise.allSettled([...this.queues.values()].map((q) => q.close()));

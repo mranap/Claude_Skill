@@ -48,9 +48,16 @@ export class TelegramBotService {
   }
 
   private async token(): Promise<string> {
-    const s = await this.settings.get('telegram');
-    const token = await this.settings.getSecret('telegram', 'botToken');
-    if (!s.enabled || !token) throw new TelegramSendError('NOT_CONFIGURED', 'Telegram bot is not configured');
+    let enabled: boolean;
+    let token: string | null;
+    try {
+      enabled = (await this.settings.get('telegram')).enabled;
+      token = await this.settings.getSecret('telegram', 'botToken');
+    } catch (err) {
+      // The settings could not be loaded (e.g. database unavailable): nothing was sent, try again later.
+      throw new TelegramSendError('TEMPORARY', `Telegram settings unavailable: ${(err as Error).message}`);
+    }
+    if (!enabled || !token) throw new TelegramSendError('NOT_CONFIGURED', 'Telegram bot is not configured');
     return token;
   }
 

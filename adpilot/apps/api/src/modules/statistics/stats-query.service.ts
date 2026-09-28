@@ -93,12 +93,20 @@ export class StatsQueryService {
     const currencyOf = new Map(accounts.map((a) => [a.id, a.currency]));
     const byCurrency = new Map<string, BaseCounters>();
     const byDay = new Map<string, Map<string, BaseCounters>>();
+    // Reach counts unique people: it adds up neither across days nor across ad accounts (one person can see ads
+    // of several accounts), so a total that combines several accounts has no reach.
+    const contributors = new Map<string, Set<string>>();
+    const onlyAccount = (key: string, adAccountId: string) => {
+      const ids = contributors.get(key) ?? new Set<string>();
+      contributors.set(key, ids.add(adAccountId));
+      return ids.size === 1;
+    };
     for (const r of rows) {
       const cur = currencyOf.get(r.adAccountId) ?? r.currency;
-      byCurrency.set(cur, addRow(byCurrency.get(cur) ?? emptyCounters(), r, singleDay));
+      byCurrency.set(cur, addRow(byCurrency.get(cur) ?? emptyCounters(), r, singleDay && onlyAccount(cur, r.adAccountId)));
       const day = fromDbDate(r.date);
       const perDay = byDay.get(day) ?? new Map<string, BaseCounters>();
-      perDay.set(cur, addRow(perDay.get(cur) ?? emptyCounters(), r, true));
+      perDay.set(cur, addRow(perDay.get(cur) ?? emptyCounters(), r, onlyAccount(`${day}|${cur}`, r.adAccountId)));
       byDay.set(day, perDay);
     }
     const allDays = new Set<string>();

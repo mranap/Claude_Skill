@@ -50,7 +50,14 @@ export class SmtpService {
   }
 
   async send(mail: OutgoingEmail): Promise<{ messageId: string }> {
-    const { transporter, from } = await this.transport();
+    let prepared: { transporter: Transporter; from: string };
+    try {
+      prepared = await this.transport();
+    } catch (err) {
+      // The settings could not be loaded (e.g. database unavailable): nothing was sent, try again later.
+      throw err instanceof SmtpSendError ? err : new SmtpSendError('TEMPORARY', `SMTP settings unavailable: ${(err as Error).message}`);
+    }
+    const { transporter, from } = prepared;
     try {
       const info = await transporter.sendMail({ from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text });
       return { messageId: String(info.messageId ?? '') };
