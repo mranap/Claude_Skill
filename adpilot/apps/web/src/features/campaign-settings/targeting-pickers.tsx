@@ -377,7 +377,13 @@ export function LeadFormSelect({
           </p>
         ) : null}
         {manual && forms.data?.length ? (
-          <ManualToggle open onToggle={() => setManual(false)} label="" />
+          <button
+            type="button"
+            onClick={() => setManual(false)}
+            className="w-fit text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Choose from this Page’s forms
+          </button>
         ) : null}
       </div>
     );
