@@ -18,6 +18,8 @@ export interface MetaConnection {
   userId: string;
   profileId: string;
   accessToken: string;
+  /** Fingerprint of `accessToken` (profile connections): results for a token that was replaced meanwhile are dropped. */
+  tokenFingerprint?: string;
   /** App secret of the token's app, when known: enables appsecret_proof. */
   appSecret?: string | null;
   /** App id of the token (rate-limit scope); defaults to the profile id. */
@@ -102,11 +104,14 @@ export class MetaGraphClient {
 
   private scope(conn: MetaConnection, req: GraphRequest): RateScope {
     const useCase = req.category.startsWith('insights') ? 'ads_insights' : req.metaAccountId ? 'ads_management' : 'other';
+    // An edit of one object (`POST /<id>`), e.g. an ad set budget change: Meta limits some edits per object.
+    const objectId = req.method === 'POST' ? /^\/(\d+)$/.exec(req.path)?.[1] : undefined;
     return {
       appKey: conn.appId ?? `profile-${conn.profileId}`,
       profileId: conn.profileId,
       metaAccountId: req.metaAccountId,
       businessId: req.businessId,
+      objectKey: objectId ? `${objectId}:${req.category}` : undefined,
       useCase,
     };
   }

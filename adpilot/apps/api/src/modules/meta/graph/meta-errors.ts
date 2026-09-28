@@ -17,6 +17,18 @@ export interface GraphErrorBody {
 export const RATE_LIMIT_CODES = new Set([4, 17, 32, 613, 80000, 80001, 80002, 80003, 80004, 80005, 80006, 80008, 80009, 80014]);
 /** Rate-limit style subcodes returned with code 17 / 4 for ad account level throttling. */
 export const RATE_LIMIT_SUBCODES = new Set([2446079, 1487742, 1504022, 1504039]);
+/**
+ * 613/1487225: ad creation is limited per ad account, based on its daily spending limit. Not a short throttle:
+ * retrying within minutes cannot succeed, and reads, rules and edits of the account are not limited.
+ */
+export const AD_CREATION_LIMIT_SUBCODE = 1487225;
+/** 613/1487632: the budget of an ad set may change 4 times per hour; Meta then blocks budget changes of that ad set for an hour. */
+export const BUDGET_CHANGE_LIMIT_SUBCODE = 1487632;
+
+/** True for the per-object budget-change limit (only that object is throttled, not the ad account). */
+export function isBudgetChangeLimit(e: { code?: number; subcode?: number }): boolean {
+  return e.code === 613 && e.subcode === BUDGET_CHANGE_LIMIT_SUBCODE;
+}
 
 export class MetaApiError extends Error {
   constructor(
@@ -86,6 +98,9 @@ function friendly(err: GraphErrorBody, httpStatus: number | undefined, category:
   }
   if (category === 'RATE_LIMIT') {
     const minutes = retryAfterMs ? Math.max(1, Math.round(retryAfterMs / 60000)) : undefined;
+    if (isBudgetChangeLimit({ code, subcode: sub })) {
+      return `Meta allows at most 4 budget changes per hour for an ad set, so this budget cannot be changed again${minutes ? ` for about ${minutes} min` : ' yet'}.`;
+    }
     return `Meta API rate limit reached for this ${code === 4 ? 'app' : code === 17 ? 'user/ad account' : 'business/ad account'}. ` +
       `The platform slowed down and will retry automatically${minutes ? ` in about ${minutes} min` : ''}.`;
   }
@@ -102,6 +117,12 @@ function friendly(err: GraphErrorBody, httpStatus: number | undefined, category:
   if (category === 'TRANSIENT') return 'The Meta API is temporarily unavailable. The platform will retry automatically.';
   if (category === 'NOT_FOUND') return 'The object does not exist in Meta anymore or this token cannot access it.';
   if (category === 'VALIDATION') {
+    if (code === 613 && sub === AD_CREATION_LIMIT_SUBCODE) {
+      return 'Meta limits how many ads this ad account can create, based on its daily spending limit, and the limit is reached. Try again later or raise the daily spending limit of the ad account.';
+    }
+    if (code === 100 && sub === 33) {
+      return 'The object does not exist in Meta anymore, or the user or system user of this token has no access to it. Check its role on the ad account in Business Settings.';
+    }
     if (/promoted_object/i.test(msg)) {
       return 'The selected optimization goal requires a promoted object (for example a Pixel with a conversion event, or a Facebook Page).';
     }
@@ -123,7 +144,10 @@ export function classifyGraphError(err: GraphErrorBody, httpStatus?: number, ret
   let category: MetaErrorCategory;
   let retryable = false;
 
-  if ((code !== undefined && RATE_LIMIT_CODES.has(code)) || (sub !== undefined && RATE_LIMIT_SUBCODES.has(sub))) {
+  if (code === 613 && sub === AD_CREATION_LIMIT_SUBCODE) {
+    // A cap on the number of ads, not a throttle: fail with a clear message instead of deferring for hours.
+    category = 'VALIDATION';
+  } else if ((code !== undefined && RATE_LIMIT_CODES.has(code)) || (sub !== undefined && RATE_LIMIT_SUBCODES.has(sub))) {
     category = 'RATE_LIMIT';
     retryable = true;
   } else if (code === 190 || code === 102) {
@@ -132,9 +156,19 @@ export function classifyGraphError(err: GraphErrorBody, httpStatus?: number, ret
     category = 'PERMISSION';
   } else if (code === 368) {
     category = 'POLICY';
-  } else if (code === 803 || (code === 100 && sub === 33)) {
+  } else if (code === 803) {
+    // 100/33 ("does not exist, cannot be loaded due to missing permissions, or does not support this operation")
+    // is ambiguous: it stays in the generic code-100 class below, so it never marks an object as deleted.
     category = 'NOT_FOUND';
-  } else if (code === 1 || code === 2 || err.is_transient === true || (httpStatus !== undefined && httpStatus >= 500 && code === undefined)) {
+  } else if (
+    code === 1 ||
+    code === 2 ||
+    // "We're facing some trouble with your account. Please try again later."
+    code === 3910001 ||
+    sub === 3910001 ||
+    err.is_transient === true ||
+    (httpStatus !== undefined && httpStatus >= 500 && code === undefined)
+  ) {
     category = 'TRANSIENT';
     retryable = true;
   } else if (code === 100 || code === 2635 || (httpStatus !== undefined && httpStatus >= 400 && httpStatus < 500)) {
@@ -159,9 +193,12 @@ export function classifyGraphError(err: GraphErrorBody, httpStatus?: number, ret
   };
 }
 
-/** True for token problems that must change the Meta profile status. */
-export function authStatusFromError(e: MetaApiError): 'EXPIRED' | 'INVALID' | 'PERMISSION_REVOKED' | null {
+/**
+ * Token problems that change the Meta profile status directly: only an invalid or expired token (190/102).
+ * Permission errors (10, 2xx, 294) are also returned for single objects (e.g. 200/1870034 "Custom Audience
+ * terms not accepted"), so they do not prove that the token lost its ads permissions: the token check decides.
+ */
+export function authStatusFromError(e: MetaApiError): 'EXPIRED' | 'INVALID' | null {
   if (e.category === 'AUTH') return e.metaSubcode === 463 ? 'EXPIRED' : 'INVALID';
-  if (e.category === 'PERMISSION' && (e.metaCode === 10 || e.metaCode === 200 || e.metaCode === 294)) return 'PERMISSION_REVOKED';
   return null;
 }

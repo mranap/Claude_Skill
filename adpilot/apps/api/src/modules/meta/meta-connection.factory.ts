@@ -60,6 +60,7 @@ export class MetaConnectionFactory {
       userId: profile.userId,
       profileId: profile.id,
       accessToken,
+      tokenFingerprint: profile.tokenFingerprint,
       appId: profile.tokenAppId ?? profile.appId,
       appSecret: await this.appSecretFor(profile),
       proxy: profile.proxy ? await this.proxyConfigFor(profile.proxy) : null,

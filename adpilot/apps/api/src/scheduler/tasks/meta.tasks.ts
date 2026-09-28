@@ -8,7 +8,11 @@ import { SchedulerTask, slot } from '../scheduler-task';
 
 const MINUTE = 60_000;
 
-/** Periodic token validation (expiry, revocation, permissions). */
+/**
+ * Periodic token validation (expiry, revocation, permissions). PERMISSION_REVOKED profiles are re-checked too, so
+ * a profile heals once its permissions are back. A permission error seen by a job pulls the check forward
+ * (MetaProfileStatusService.onApiError).
+ */
 @Injectable()
 export class TokenCheckTask implements SchedulerTask {
   readonly name = 'meta-token-check';
@@ -27,14 +31,15 @@ export class TokenCheckTask implements SchedulerTask {
       WHERE id IN (
         SELECT id FROM meta_profiles
         WHERE "deletedAt" IS NULL AND "isEnabled" AND "tokenEnc" IS NOT NULL
-          AND status IN ('ACTIVE', 'ERROR', 'UNCHECKED')
+          AND status IN ('ACTIVE', 'ERROR', 'UNCHECKED', 'PERMISSION_REVOKED')
           AND ("nextTokenCheckAt" IS NULL OR "nextTokenCheckAt" <= now())
         ORDER BY "nextTokenCheckAt" NULLS FIRST LIMIT 500
         FOR UPDATE SKIP LOCKED)
       RETURNING id, "userId"`;
-    const s = slot(new Date(), 60 * MINUTE);
+    // The UPDATE above claims each profile once, so every claim gets its own job id: a per-hour id would drop a
+    // check pulled forward within the same hour (the finished job of the earlier check keeps that id).
     for (const r of rows) {
-      await this.queue.add(QUEUES.META_SYNC, JOBS.TOKEN_CHECK, { profileId: r.id, userId: r.userId }, { jobId: jobId('token', r.id, s), attempts: 3 });
+      await this.queue.add(QUEUES.META_SYNC, JOBS.TOKEN_CHECK, { profileId: r.id, userId: r.userId }, { jobId: jobId('token', r.id, randomUUID()), attempts: 3 });
     }
   }
 }

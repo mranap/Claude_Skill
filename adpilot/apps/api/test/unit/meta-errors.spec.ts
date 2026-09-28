@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { authStatusFromError, classifyGraphError, MetaApiError } from '../../src/modules/meta/graph/meta-errors';
+import {
+  AD_CREATION_LIMIT_SUBCODE,
+  BUDGET_CHANGE_LIMIT_SUBCODE,
+  authStatusFromError,
+  classifyGraphError,
+  isBudgetChangeLimit,
+  MetaApiError,
+} from '../../src/modules/meta/graph/meta-errors';
 
 describe('Meta error classification', () => {
   it('expired token → AUTH, not retryable, friendly message', () => {
@@ -57,5 +64,50 @@ describe('Meta error classification', () => {
     const d = classifyGraphError({ code: 368, message: 'blocked' }, 400);
     expect(d.category).toBe('POLICY');
     expect(d.retryable).toBe(false);
+  });
+
+  it('only an invalid or expired token changes the profile status; permission errors may concern one object', () => {
+    // 200/1870034 "Custom Audience Terms Not Accepted" is about one audience, not about the token.
+    for (const err of [
+      { code: 200, error_subcode: 1870034, message: 'Custom Audience Terms Not Accepted' },
+      { code: 10, message: '(#10) Application does not have permission for this action' },
+      { code: 294, message: 'Managing advertisements requires the extended permission ads_management' },
+    ]) {
+      const d = classifyGraphError(err, 400);
+      expect(d.category, String(err.code)).toBe('PERMISSION');
+      expect(authStatusFromError(new MetaApiError(d)), String(err.code)).toBeNull();
+    }
+    expect(authStatusFromError(new MetaApiError(classifyGraphError({ code: 102, message: 'Session key invalid' }, 400)))).toBe('INVALID');
+  });
+
+  it('613/1487225 (ad creation limit) fails with a clear message instead of throttling the account', () => {
+    const d = classifyGraphError({ code: 613, error_subcode: AD_CREATION_LIMIT_SUBCODE, message: 'User request limit reached' }, 400);
+    expect(d.category).toBe('VALIDATION');
+    expect(d.retryable).toBe(false);
+    expect(d.friendlyMessage).toMatch(/how many ads this ad account can create.*daily spending limit/);
+  });
+
+  it('613/1487632 (ad set budget changes) is a rate limit of that object only', () => {
+    const d = classifyGraphError({ code: 613, error_subcode: BUDGET_CHANGE_LIMIT_SUBCODE, message: 'You can only change your ad set budget 4 times per hour.' }, 400, 3_600_000);
+    expect(d.category).toBe('RATE_LIMIT');
+    expect(isBudgetChangeLimit(d)).toBe(true);
+    expect(d.friendlyMessage).toMatch(/4 budget changes per hour.*about 60 min/);
+    // Other 613 subcodes stay ad account throttles.
+    expect(isBudgetChangeLimit(classifyGraphError({ code: 613, error_subcode: 1487742 }, 400))).toBe(false);
+  });
+
+  it('100/33 is ambiguous (deleted or no access), so it is not NOT_FOUND', () => {
+    const d = classifyGraphError({ code: 100, error_subcode: 33, message: 'Unsupported post request.' }, 400);
+    expect(d.category).toBe('VALIDATION');
+    expect(d.friendlyMessage).toMatch(/does not exist in Meta anymore, or .* has no access/);
+    expect(classifyGraphError({ code: 803, message: 'Some of the aliases you requested do not exist' }, 404).category).toBe('NOT_FOUND');
+  });
+
+  it('3910001 ("please try again later") is retried', () => {
+    for (const err of [{ code: 3910001 }, { code: 100, error_subcode: 3910001 }]) {
+      const d = classifyGraphError({ ...err, message: "We're facing some trouble with your account. Please try again later." }, 400);
+      expect(d.category).toBe('TRANSIENT');
+      expect(d.retryable).toBe(true);
+    }
   });
 });
