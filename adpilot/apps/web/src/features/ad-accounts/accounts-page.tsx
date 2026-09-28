@@ -155,10 +155,12 @@ export function AccountsPage() {
               <Briefcase />
               Open
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={!a.isConnected} onSelect={() => actions.check.mutate(a)}>
-              <RefreshCw />
-              Check status now
-            </DropdownMenuItem>
+            {canManage ? (
+              <DropdownMenuItem disabled={!a.isConnected} onSelect={() => actions.check.mutate(a)}>
+                <RefreshCw />
+                Check status now
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem asChild>
               <a href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${a.metaAccountId}`} target="_blank" rel="noreferrer noopener">
                 <ExternalLink />

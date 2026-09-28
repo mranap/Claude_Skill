@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { useAuth } from '@/features/auth/auth-context';
 import { adminUserCommandSource } from '@/features/admin-users/command-source';
 import { globalSearchSource } from '@/features/search/command-source';
+import { useSystemStatus } from '@/lib/api/system-status';
 import { READ_ACCESS } from '@/lib/permissions';
 import { CommandMenuProvider, type CommandSource } from './command-menu';
 import { Header } from './header';
@@ -27,6 +28,12 @@ function readCollapsed(): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { can, canAny, maintenanceMessage } = useAuth();
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const status = useSystemStatus();
+  const maintenance = status.data?.maintenance.enabled
+    ? `Maintenance mode is on${status.data.maintenance.message ? `: ${status.data.maintenance.message}` : '.'}`
+    : status.data
+      ? null
+      : maintenanceMessage;
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const sources = useMemo<CommandSource[]>(
@@ -70,10 +77,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sheet>
         <div className="flex min-w-0 flex-1 flex-col">
           <Header onOpenMobileNav={() => setMobileOpen(true)} />
-          {maintenanceMessage ? (
+          {maintenance ? (
             <div role="status" className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground sm:px-6">
               <TriangleAlert className="size-4 shrink-0 text-warning-fg" />
-              <span>{maintenanceMessage}</span>
+              <span>{maintenance}</span>
             </div>
           ) : null}
           <main id="main-content" tabIndex={-1} className="flex-1 px-4 pt-6 pb-12 outline-none sm:px-6 lg:px-8 lg:pt-8">

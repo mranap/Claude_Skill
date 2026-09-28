@@ -7,8 +7,12 @@ export interface ResetTokenValidation {
   purpose?: 'RESET' | 'INVITE';
 }
 
+/** GET /auth/session: a probe that never answers 401. */
+export type SessionProbe = { authenticated: true; user: AuthUserDto } | { authenticated: false; refreshable: boolean };
+
 export const authApi = {
   me: (signal?: AbortSignal) => api.get<AuthUserDto>('/auth/me', undefined, { signal }),
+  session: (signal?: AbortSignal) => api.get<SessionProbe>('/auth/session', undefined, { signal, auth: false }),
   login: (body: { email: string; password: string }) => api.post<LoginResponse>('/auth/login', body),
   verifyMfa: (body: { ticket: string; code: string }) =>
     api.post<{ status: 'OK'; user: AuthUserDto }>('/auth/login/2fa', body),

@@ -27,6 +27,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { countryOptions, describeCountries } from '@/lib/utils/countries';
 import { minorToDecimal } from '@/lib/utils/money';
 import { humanize } from '@/lib/utils/strings';
+import { READ_ACCESS } from '@/lib/permissions';
 import { useConnectedAdAccounts } from '../ad-accounts/api';
 import { useStatistics } from '../statistics/api';
 import { formatMetric, metricColumns } from '../statistics/metrics';
@@ -201,7 +202,8 @@ function CampaignTable({
   if (state.sort) params.sort = state.sort;
   for (const key of FILTER_KEYS) if (state.filters[key]) params[key] = state.filters[key]!;
   const campaigns = useCampaigns(params);
-  const templates = useTemplates({ pageSize: 100, sort: 'name:asc' });
+  const { canAny } = useAuth();
+  const templates = useTemplates({ pageSize: 100, sort: 'name:asc' }, canAny(READ_ACCESS.templates));
 
   const columns: DataTableColumn<CampaignListItem>[] = [
     {

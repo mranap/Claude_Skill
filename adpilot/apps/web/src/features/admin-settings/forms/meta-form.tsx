@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { PlugZap } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ErrorAlert } from '@/components/shared/error-alert';
@@ -14,6 +14,7 @@ import { KeyValueList } from '@/components/shared/key-value';
 import type { AdminSettingGroup, SettingsEnvironment } from '@/lib/api/types';
 import { adminSettingsApi, pickSchemaValues, secretPatch, useSaveSettings } from '../api';
 import { managePermission } from '../categories';
+import { SwitchField } from '../fields';
 import { SecretField } from '../secret-field';
 import { FieldGrid, FieldSection, SettingsFormCard } from '../settings-form-card';
 
@@ -36,6 +37,7 @@ export function MetaSettingsForm({
   const [secrets, setSecrets] = useState<Record<string, string | null | undefined>>({});
   const patch = secretPatch(secrets);
   const test = useMutation({ mutationFn: adminSettingsApi.testMeta });
+  const allowPrivate = useWatch({ control: form.control, name: 'allowPrivateProxyAddresses' });
 
   return (
     <SettingsFormCard
@@ -96,6 +98,26 @@ export function MetaSettingsForm({
           <NumberField control={form.control} name="pauseThresholdPct" label="Pause at" unit="%" min={20} max={100} />
           <NumberField control={form.control} name="maxConcurrentRequestsPerAccount" label="Parallel requests / account" min={1} max={20} />
         </FieldGrid>
+      </FieldSection>
+      <FieldSection
+        title="Proxies"
+        description="Meta profiles can send their Graph API traffic through an HTTP, HTTPS or SOCKS5 proxy entered by the user."
+      >
+        <SwitchField
+          control={form.control}
+          name="allowPrivateProxyAddresses"
+          label="Allow proxies on private network addresses"
+          description="Private, loopback and link-local addresses (10.0.0.0/8, 192.168.0.0/16, 127.0.0.1, 169.254.0.0/16…). Off by default: proxies are rejected with a proxy error."
+        />
+        {allowPrivate ? (
+          <Alert variant="warning">
+            <AlertTitle>Server-side request forgery risk</AlertTitle>
+            <AlertDescription>
+              Users can then make the server connect to hosts inside its own network (databases, metadata endpoints, admin panels) by entering them as a
+              proxy. Only enable this when every user is trusted, for example to use a proxy running next to AdPilot.
+            </AlertDescription>
+          </Alert>
+        ) : null}
       </FieldSection>
       <FieldSection title="Sync intervals">
         <FieldGrid columns={3}>

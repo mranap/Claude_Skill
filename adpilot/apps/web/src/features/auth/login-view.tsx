@@ -9,13 +9,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { Form, FormField, TextField } from '@/components/shared/form';
+import { refreshSession } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
+import { useSystemStatus } from '@/lib/api/system-status';
 import { safeNextPath } from '@/lib/utils/strings';
 import { authApi } from './api';
 import { AuthCard } from './auth-card';
@@ -28,6 +31,17 @@ const LOGIN_ERROR_TITLES: Partial<Record<string, string>> = {
   MFA_INVALID: 'Verification failed',
   MAINTENANCE: 'Maintenance in progress',
 };
+
+function MaintenanceNotice() {
+  const status = useSystemStatus();
+  if (!status.data?.maintenance.enabled) return null;
+  return (
+    <Alert variant="warning">
+      <AlertTitle>Maintenance in progress</AlertTitle>
+      <AlertDescription>{status.data.maintenance.message ?? 'AdPilot is being updated. Please try again later.'}</AlertDescription>
+    </Alert>
+  );
+}
 
 function LoginError({ error }: { error: unknown }) {
   if (!error) return null;
@@ -44,15 +58,18 @@ export function LoginView() {
   const [mfaError, setMfaError] = useState<unknown>(null);
 
   // Resume an existing session (valid access or refresh cookie) instead of asking for credentials again.
+  // GET /auth/session answers without a 401, so an anonymous visit produces no failed requests.
   useEffect(() => {
     const controller = new AbortController();
-    authApi
-      .me(controller.signal)
-      .then((user) => {
-        queryClient.setQueryData(queryKeys.me, user);
-        router.replace(next);
-      })
-      .catch(() => undefined);
+    const resume = async () => {
+      const probe = await authApi.session(controller.signal);
+      let user = probe.authenticated ? probe.user : null;
+      if (!probe.authenticated && probe.refreshable && (await refreshSession()) === 'ok') user = await authApi.me(controller.signal);
+      if (!user || controller.signal.aborted) return;
+      queryClient.setQueryData(queryKeys.me, user);
+      router.replace(next);
+    };
+    resume().catch(() => undefined);
     return () => controller.abort();
   }, [next, router, queryClient]);
 
@@ -116,6 +133,7 @@ function CredentialsStep({
   return (
     <AuthCard title="Sign in to AdPilot" description="Manage your Meta ad accounts, campaigns and automations.">
       <Form form={form} onSubmit={onSubmit} className="grid gap-4">
+        <MaintenanceNotice />
         <LoginError error={error} />
         <TextField
           control={form.control}

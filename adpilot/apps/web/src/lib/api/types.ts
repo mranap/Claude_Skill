@@ -116,8 +116,10 @@ export interface AdminUserListItem {
   lastLoginAt: ISODateString | null;
   createdAt: ISODateString;
   twoFactorEnabled: boolean;
+  mustChangePassword: boolean;
+  lockedUntil: ISODateString | null;
   storageUsedBytes: BigIntString;
-  role: RoleRef;
+  role: RoleRef & { permissions: string[] };
   usage: {
     metaProfiles: number;
     adAccounts: number;
@@ -211,6 +213,7 @@ export interface SystemLogDto {
 export interface MetaApiLogDto {
   id: string;
   userId: string | null;
+  userEmail: string | null;
   profileId: string | null;
   metaAccountId: string | null;
   method: string;

@@ -1,6 +1,5 @@
 'use client';
 
-import { SYSTEM_ROLES } from '@adpilot/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Ellipsis, Eye, Mail, ShieldCheck, UserCheck, UserPlus, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -33,10 +32,11 @@ import { useAuth } from '@/features/auth/auth-context';
 import { getErrorMessage } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { AdminUserListItem } from '@/lib/api/types';
-import { formatBytes, formatDate, formatNumber } from '@/lib/utils/format';
+import { useNow } from '@/lib/hooks/use-now';
+import { formatBytes, formatDate, formatDateTime, formatNumber } from '@/lib/utils/format';
 import { adminUsersApi } from './api';
 import { CreateUserDialog } from './create-user-dialog';
-import { useAdminUsers, useRoles } from './hooks';
+import { isPrivilegedRole, useAdminUsers, useRoles } from './hooks';
 
 const FILTERS = ['status', 'roleId'] as const;
 
@@ -50,6 +50,7 @@ export function UsersPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user: me, can } = useAuth();
+  const now = useNow(60_000);
   const table = useUrlTableState({ filterKeys: FILTERS, defaultSort: 'createdAt:desc' });
   const users = useAdminUsers(table.params);
   const roles = useRoles();
@@ -105,12 +106,36 @@ export function UsersPage() {
       id: 'role',
       header: 'Role',
       cell: (u) => (
-        <Badge variant={u.role.key === SYSTEM_ROLES.SUPER_ADMIN || u.role.key === SYSTEM_ROLES.ADMIN ? 'default' : 'secondary'}>
-          {u.role.name}
-        </Badge>
+        <Badge variant={isPrivilegedRole(u.role) ? 'default' : 'secondary'}>{u.role.name}</Badge>
       ),
     },
-    { id: 'status', header: 'Status', sortField: 'status', cell: (u) => <StatusBadge status={u.status} /> },
+    {
+      id: 'status',
+      header: 'Status',
+      sortField: 'status',
+      cell: (u) => {
+        const locked = !!u.lockedUntil && new Date(u.lockedUntil).getTime() > now;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <StatusBadge status={u.status} />
+            {locked ? (
+              <SimpleTooltip content={`Too many failed sign-ins; locked until ${formatDateTime(u.lockedUntil)}`}>
+                <Badge variant="warning" size="sm">
+                  Locked
+                </Badge>
+              </SimpleTooltip>
+            ) : null}
+            {u.mustChangePassword ? (
+              <SimpleTooltip content="Must set a new password at the next sign-in">
+                <Badge variant="info" size="sm">
+                  New password
+                </Badge>
+              </SimpleTooltip>
+            ) : null}
+          </div>
+        );
+      },
+    },
     {
       id: '2fa',
       header: '2FA',

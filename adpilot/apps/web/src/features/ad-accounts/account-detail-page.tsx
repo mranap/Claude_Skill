@@ -100,17 +100,19 @@ function AccountDetail({ account }: { account: AdAccountDetailDto }) {
         }
         actions={
           <>
-            <CooldownButton
-              variant="outline"
-              cooldown={cooldown}
-              onClick={() => actions.check.mutate(account, { onSuccess: () => cooldown.start(120) })}
-              loading={actions.check.isPending}
-              disabled={!account.isConnected}
-              cooldownHint="Manual checks are limited to one every 2 minutes"
-            >
-              <RefreshCw />
-              Check status now
-            </CooldownButton>
+            {canManage ? (
+              <CooldownButton
+                variant="outline"
+                cooldown={cooldown}
+                onClick={() => actions.check.mutate(account, { onSuccess: () => cooldown.start(120) })}
+                loading={actions.check.isPending}
+                disabled={!account.isConnected}
+                cooldownHint="Manual checks are limited to one every 2 minutes"
+              >
+                <RefreshCw />
+                Check status now
+              </CooldownButton>
+            ) : null}
             <Button variant="outline" asChild>
               <a href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${account.metaAccountId}`} target="_blank" rel="noreferrer noopener">
                 <ExternalLink />

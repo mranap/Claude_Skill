@@ -280,7 +280,7 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
             />
           </CardContent>
         </Card>
-        {job.summary ? <PlanSummaryCard summary={job.summary} /> : null}
+        {job.summary ? <PlanSummaryCard summary={job.summary} title="Launch plan" /> : null}
       </div>
       <ConfirmDialog
         open={cancelOpen}

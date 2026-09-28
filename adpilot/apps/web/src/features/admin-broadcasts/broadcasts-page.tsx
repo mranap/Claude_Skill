@@ -3,9 +3,9 @@
 import { broadcastSchema } from '@adpilot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, Mail, Radio, Send, Users, UsersRound } from 'lucide-react';
+import { Bell, Inbox, Mail, Radio, Send, Users, UsersRound } from 'lucide-react';
 import { useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -63,9 +63,11 @@ const columns: DataTableColumn<BroadcastDto>[] = [
     header: 'Channels',
     cell: (b) => (
       <div className="flex flex-wrap gap-1">
-        <Badge variant="outline" size="sm">
-          In-app
-        </Badge>
+        {b.inApp ? (
+          <Badge variant="outline" size="sm">
+            In-app
+          </Badge>
+        ) : null}
         {b.channels.map((c) => (
           <Badge key={c} variant="outline" size="sm">
             {c === 'EMAIL' ? 'E-mail' : 'Telegram'}
@@ -107,12 +109,16 @@ export function BroadcastsPage() {
       form.setError('userIds', { message: 'Select at least one user' });
       return;
     }
+    if (!values.inApp && !values.channels.length) {
+      form.setError('channels', { message: 'Choose at least one way to deliver the message' });
+      return;
+    }
     setConfirm(values);
   };
 
   const send = async () => {
     if (!confirm) return;
-    await api.post<BroadcastDto>('/admin/broadcasts', { ...confirm, inApp: true });
+    await api.post<BroadcastDto>('/admin/broadcasts', confirm);
     toast.success('Broadcast queued', { description: 'Delivery runs in the background; the status updates below.' });
     form.reset();
     setPicked([]);
@@ -120,7 +126,7 @@ export function BroadcastsPage() {
   };
 
   const channelText = (values: BroadcastOutput) =>
-    ['in-app', ...values.channels.map((c) => (c === 'EMAIL' ? 'e-mail' : 'Telegram'))].join(', ');
+    [...(values.inApp ? ['in-app'] : []), ...values.channels.map((c) => (c === 'EMAIL' ? 'e-mail' : 'Telegram'))].join(', ');
 
   return (
     <>
@@ -152,9 +158,23 @@ export function BroadcastsPage() {
                 control={form.control}
                 name="channels"
                 label="Channels"
-                description="Every message also appears in the recipients’ Notification Center."
+                description="In-app messages appear in the recipients’ Notification Center."
                 render={({ field }) => (
                   <div className="grid gap-2">
+                    <Controller
+                      control={form.control}
+                      name="inApp"
+                      render={({ field: inApp }) => (
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-field p-3 hover:bg-accent/40">
+                          <Checkbox className="mt-0.5" checked={inApp.value !== false} onCheckedChange={(v) => inApp.onChange(v === true)} />
+                          <Bell className="mt-0.5 size-4 text-muted-foreground" />
+                          <span>
+                            <span className="block text-sm font-medium">In-app notification</span>
+                            <span className="block text-xs text-muted-foreground">Shown in the bell menu and the Notification Center.</span>
+                          </span>
+                        </label>
+                      )}
+                    />
                     {CHANNELS.map((channel) => {
                       const checked = (field.value ?? []).includes(channel.value);
                       return (

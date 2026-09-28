@@ -31,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { Form, FormField, FormRootError, TextField } from '@/components/shared/form';
+import { getErrorMessage, isApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import { cn } from '@/lib/utils/cn';
 import { metaProfilesApi } from './api';
@@ -183,6 +184,10 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
       return metaProfilesApi.test(body);
     },
     onSuccess: (result, kind) => setTest({ kind, result, signature }),
+    // A rejected proxy (e.g. a private address while the admin setting forbids it) belongs to the proxy fields.
+    onError: (error) => {
+      if (isApiError(error, 'PROXY_ERROR') && values.useProxy) form.setError('proxy.host', { type: 'server', message: getErrorMessage(error) });
+    },
   });
 
   const runTest = async (kind: TestState['kind']) => {
@@ -195,6 +200,18 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
   };
 
   const save = async (v: FormValues) => {
+    try {
+      await persist(v);
+    } catch (error) {
+      if (isApiError(error, 'PROXY_ERROR') && v.useProxy) {
+        form.setError('proxy.host', { type: 'server', message: getErrorMessage(error) }, { shouldFocus: true });
+        return;
+      }
+      throw error;
+    }
+  };
+
+  const persist = async (v: FormValues) => {
     let response: ProfileSaveResponse;
     if (mode === 'create') {
       const body = metaProfileCreateSchema.parse({
@@ -419,7 +436,9 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
               Test connection
             </Button>
           </div>
-          {testMutation.isError ? <ErrorAlert error={testMutation.error} title="The test could not run" /> : null}
+          {testMutation.isError && !(isApiError(testMutation.error, 'PROXY_ERROR') && values.useProxy) ? (
+            <ErrorAlert error={testMutation.error} title="The test could not run" />
+          ) : null}
           {test ? (
             <div className={cn('grid gap-3', stale && 'opacity-60')} aria-live="polite">
               {stale ? (

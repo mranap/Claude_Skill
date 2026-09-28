@@ -140,13 +140,13 @@ export function ReviewStep({
   );
 }
 
-export function PlanSummaryCard({ summary }: { summary: PlanSummary }) {
+export function PlanSummaryCard({ summary, title = 'What will be created' }: { summary: PlanSummary; title?: string }) {
   const goal = goalRule(summary.objective, summary.destination, summary.optimizationGoal);
   const budgetLabel = summary.budget.type === 'LIFETIME' ? 'lifetime' : 'daily';
   return (
     <Card>
       <CardHeader>
-        <CardTitle>What will be created</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>Amounts are in {summary.currency}, the ad account currency.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">

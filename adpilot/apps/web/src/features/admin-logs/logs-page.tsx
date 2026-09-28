@@ -72,7 +72,12 @@ const systemColumns: DataTableColumn<SystemLogDto>[] = [
   },
 ];
 
+function useLogSources() {
+  return useQuery({ queryKey: ['admin', 'logs', 'sources'], queryFn: adminLogsApi.sources, staleTime: 5 * 60_000 });
+}
+
 function SystemLogsTab() {
+  const sources = useLogSources();
   const table = useUrlTableState({ filterKeys: ['level', 'source', 'range'], defaultPageSize: 50 });
   const params = withRange(table.params);
   const logs = useQuery({
@@ -127,7 +132,11 @@ function SystemLogsTab() {
                   { value: 'DEBUG', label: 'Debug' },
                 ]}
               />
-              <TextFilter state={table} filterKey="source" placeholder="Source (exact)" />
+              {sources.data?.systemSources.length ? (
+                <FilterSelect state={table} filterKey="source" allLabel="All sources" options={sources.data.systemSources.map((v) => ({ value: v, label: v }))} />
+              ) : (
+                <TextFilter state={table} filterKey="source" placeholder="Source (exact)" />
+              )}
               <DateRangeFilter state={table} />
             </>
           }
@@ -158,8 +167,12 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
     header: 'User',
     cell: (l) =>
       l.userId ? (
-        <Link href={`/admin/users/${l.userId}`} className="font-mono text-xs hover:text-primary-fg hover:underline" onClick={(e) => e.stopPropagation()}>
-          {shortId(l.userId, 6, 3)}
+        <Link
+          href={`/admin/users/${l.userId}`}
+          className={cn('block max-w-[12rem] truncate text-xs hover:text-primary-fg hover:underline', !l.userEmail && 'font-mono')}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {l.userEmail ?? shortId(l.userId, 6, 3)}
         </Link>
       ) : (
         <span className="text-muted-foreground">—</span>
@@ -237,6 +250,7 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
 ];
 
 function MetaLogsTab() {
+  const sources = useLogSources();
   const table = useUrlTableState({ filterKeys: ['onlyErrors', 'category', 'range'], defaultPageSize: 50 });
   const params = withRange(table.params);
   const logs = useQuery({
@@ -269,6 +283,7 @@ function MetaLogsTab() {
               { label: 'Error type', value: l.errorType, mono: true },
               { label: 'Error message', value: l.errorMessage },
               { label: 'fbtrace_id', value: l.fbtraceId, mono: true, copy: l.fbtraceId },
+              { label: 'User', value: l.userEmail ?? l.userId, copy: l.userEmail ?? l.userId },
               { label: 'Profile ID', value: l.profileId, mono: true, copy: l.profileId },
               { label: 'Job ID', value: l.jobId, mono: true, copy: l.jobId },
             ]}
@@ -282,11 +297,15 @@ function MetaLogsTab() {
       toolbar={
         <DataTableToolbar
           state={table}
-          searchPlaceholder="Account ID, fbtrace_id or path…"
+          searchPlaceholder="Account ID, fbtrace_id, path or error…"
           filters={
             <>
               <ToggleFilter state={table} filterKey="onlyErrors" label="Only errors" />
-              <TextFilter state={table} filterKey="category" placeholder="Category" />
+              {sources.data?.metaCategories.length ? (
+                <FilterSelect state={table} filterKey="category" allLabel="All categories" options={sources.data.metaCategories.map((v) => ({ value: v, label: v }))} />
+              ) : (
+                <TextFilter state={table} filterKey="category" placeholder="Category" />
+              )}
               <DateRangeFilter state={table} />
             </>
           }
