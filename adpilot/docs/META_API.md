@@ -38,7 +38,13 @@ Campaign (`POST /act_{id}/campaigns`) ✔
   `ONLINE_GAMBLING_AND_GAMING`.
 - Campaign budget (Advantage campaign budget): `daily_budget`/`lifetime_budget` + `bid_strategy` on the campaign.
   Ad set budgets: `is_adset_budget_sharing_enabled` must be sent explicitly (since v24).
-- Created with `status=PAUSED`; activated at the end of a successful launch.
+- Created with `status=PAUSED`; activated at the end of a successful launch. If Meta refuses the activation
+  (validation/policy), the launch completes with a warning: every object exists and can be started later.
+- Budget minimums checked before anything is created ("Bid/Budget Validations"): the account's
+  `min_daily_budget`; 5× that for `LINK_CLICKS`/`THRUPLAY` billing without a bid cap; with a bid cap at least the
+  bid (5× the bid when billing on clicks or actions); lifetime budgets need the daily minimum over the scheduled
+  duration; a campaign budget must cover every ad set's minimum (error 2238055); a campaign spend cap must reach
+  the account's `min_campaign_group_spend_cap` (error 2446307).
 
 Ad set (`POST /act_{id}/adsets`) ✔
 - `optimization_goal`, `billing_event`, `destination_type`, `promoted_object` (`pixel_id` + `custom_event_type` for
@@ -68,10 +74,15 @@ Creative (`POST /act_{id}/adcreatives`) ✔
 - `object_story_spec` with `page_id` (+ `instagram_user_id`), and `video_data` (`video_id`, `image_url`
   thumbnail — required by Meta, taken from `/{video}/thumbnails`), `link_data` (`image_hash`) or carousel
   `link_data.child_attachments` (video cards need `picture` or `image_hash`).
-- `call_to_action` with the link, or `lead_gen_form_id` for Instant Forms.
+- `call_to_action` with the link, or `lead_gen_form_id` for Instant Forms; as in Meta's Lead Ads guide, Instant
+  Form creatives send the placeholder link `http://fb.me/` in `link_data`, carousel cards and the video
+  call-to-action value. Destinations that need a website link are validated with `destinationNeedsLink`.
 - `url_tags` for UTM parameters; `contextual_multi_ads.enroll_status` OPT_IN/OPT_OUT.
 - "No automatic enhancements": `degrees_of_freedom_spec.creative_features_spec` with each feature
-  `enroll_status: OPT_OUT` (feature keys verified against `AdCreativeFeaturesSpec` in SDK v26).
+  `enroll_status: OPT_OUT` (feature keys verified against `AdCreativeFeaturesSpec` in SDK v26, including
+  `image_background_gen`, `creative_stickers`, `reveal_details_over_time` and `text_translation`). Features Meta
+  documents as opt-in only (e.g. `text_generation`) are simply not requested; music is avoided by sending no
+  `asset_feed_spec.audios`.
 
 Ad (`POST /act_{id}/ads`): `name`, `adset_id`, `creative.creative_id`, `status`.
 

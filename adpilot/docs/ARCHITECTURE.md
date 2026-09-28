@@ -124,20 +124,26 @@ QUEUED → VALIDATING → UPLOADING_CREATIVES → CREATING_CAMPAIGN → CREATING
 
 Duplicate prevention, from the outside in:
 - one launch per `(user, idempotencyKey)` (unique index) — double clicks, network retries, two tabs;
-- one BullMQ job id per launch round; a database **lease** so only one worker executes a launch;
-- each item is marked `IN_FLIGHT` (committed) *before* the create request and `CREATED` with the Meta id after;
+- one BullMQ job id per launch round; a database **lease** with a per-run token (renewed while running, checked
+  before every step) so only one run executes a launch, even inside one process;
+- each item is claimed (compare-and-set) and marked `IN_FLIGHT` (committed) *before* the create request and
+  `CREATED` with the Meta id after;
 - after a crash/timeout the next attempt **reconciles** an `IN_FLIGHT` item by looking the object up in Meta by
   its unique name (names carry the launch code) under its parent; it is re-created only when it provably does
-  not exist and the original request can no longer be processed (ambiguity window);
+  not exist and the original request can no longer be processed (ambiguity window, derived from the request
+  timeout plus the client's maximum wait before sending);
 - `VERIFYING` re-reads the campaign tree; untracked duplicates with this launch's code are deleted (they never
   delivered: the campaign is still paused);
 - the campaign is created **PAUSED**; ad sets/ads are created active under it; `ACTIVATING` flips the campaign
   only when every object exists and the user asked for activation;
-- rate limits defer the job until the scope recovers; failed items can be retried (`/retry`) without touching
-  created ones.
+- rate limits defer the job until the scope recovers; every wait on one item (video processing, thumbnail, a
+  busy media upload, an unverifiable interrupted request) is bounded to 2 hours; Meta's daily ad-creation cap
+  (613/1487225) fails the remaining items with a clear message instead of retrying all day; failed items can be
+  retried (`/retry`) without touching created ones.
 
 Media: images go to `/act_{id}/adimages`; videos use the resumable upload protocol on `graph-video` (start →
-transfer chunks → finish), then the job defers until `status.video_status = ready` and a thumbnail exists.
+transfer chunks → finish), then the job defers until `status.video_status = ready` and a thumbnail exists. The
+library pre-upload and launches share one renewed per-asset lock, so a video is never uploaded twice.
 
 ## 6. Statistics
 
