@@ -11,7 +11,10 @@ import { accountApi } from './api';
 
 const schema = changePasswordSchema
   .extend({ confirmPassword: z.string().min(1, 'Repeat the new password') })
-  .refine((v) => v.newPassword === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Passwords do not match',
+  });
 
 export function ChangePasswordForm({
   onSuccess,
@@ -30,7 +33,10 @@ export function ChangePasswordForm({
   });
 
   const onSubmit = async (values: z.output<typeof schema>) => {
-    await accountApi.changePassword({ currentPassword: values.currentPassword, newPassword: values.newPassword });
+    await accountApi.changePassword({
+      currentPassword: values.currentPassword,
+      newPassword: values.newPassword,
+    });
     form.reset();
     await onSuccess?.();
   };
@@ -58,10 +64,16 @@ export function ChangePasswordForm({
         control={form.control}
         name="confirmPassword"
         label="Confirm new password"
-        render={({ field, controlProps }) => <PasswordInput {...field} {...controlProps} autoComplete="new-password" />}
+        render={({ field, controlProps }) => (
+          <PasswordInput {...field} {...controlProps} autoComplete="new-password" />
+        )}
       />
       <div>
-        <Button type="submit" loading={form.formState.isSubmitting} className={fullWidthSubmit ? 'w-full' : undefined}>
+        <Button
+          type="submit"
+          loading={form.formState.isSubmitting}
+          className={fullWidthSubmit ? 'w-full' : undefined}
+        >
           {submitLabel}
         </Button>
       </div>

@@ -136,10 +136,24 @@ export const LAUNCH_JOB_TERMINAL_STATUSES: LaunchJobStatus[] = [
   'CANCELLED',
 ];
 
-export const LAUNCH_ITEM_KINDS = ['MEDIA_IMAGE', 'MEDIA_VIDEO', 'CAMPAIGN', 'ADSET', 'CREATIVE', 'AD'] as const;
+export const LAUNCH_ITEM_KINDS = [
+  'MEDIA_IMAGE',
+  'MEDIA_VIDEO',
+  'CAMPAIGN',
+  'ADSET',
+  'CREATIVE',
+  'AD',
+] as const;
 export type LaunchItemKind = (typeof LAUNCH_ITEM_KINDS)[number];
 
-export const LAUNCH_ITEM_STATUSES = ['PENDING', 'IN_FLIGHT', 'CREATED', 'VERIFIED', 'FAILED', 'SKIPPED'] as const;
+export const LAUNCH_ITEM_STATUSES = [
+  'PENDING',
+  'IN_FLIGHT',
+  'CREATED',
+  'VERIFIED',
+  'FAILED',
+  'SKIPPED',
+] as const;
 export type LaunchItemStatus = (typeof LAUNCH_ITEM_STATUSES)[number];
 
 export const ENTITY_LEVELS = ['ACCOUNT', 'CAMPAIGN', 'ADSET', 'AD'] as const;
@@ -158,7 +172,14 @@ export type RuleAction = (typeof RULE_ACTIONS)[number];
 export const RULE_TIME_RANGES = ['TODAY', 'YESTERDAY', 'LAST_N_HOURS', 'LAST_N_DAYS'] as const;
 export type RuleTimeRange = (typeof RULE_TIME_RANGES)[number];
 
-export const RULE_EXECUTION_RESULTS = ['PENDING', 'SUCCESS', 'FAILED', 'SKIPPED', 'DRY_RUN', 'NOTIFIED'] as const;
+export const RULE_EXECUTION_RESULTS = [
+  'PENDING',
+  'SUCCESS',
+  'FAILED',
+  'SKIPPED',
+  'DRY_RUN',
+  'NOTIFIED',
+] as const;
 export type RuleExecutionResult = (typeof RULE_EXECUTION_RESULTS)[number];
 
 export const DRAFT_STATUSES = ['DRAFT', 'LAUNCHED', 'ARCHIVED'] as const;

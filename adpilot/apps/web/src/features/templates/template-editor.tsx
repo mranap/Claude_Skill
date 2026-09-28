@@ -27,7 +27,12 @@ import { useUnsavedChangesWarning } from '@/lib/hooks/use-unsaved-changes';
 import { useConnectedAdAccounts } from '../ad-accounts/api';
 import { AudienceSection, PlacementsSection } from '../campaign-settings/audience-section';
 import { BudgetSection, CampaignSection } from '../campaign-settings/campaign-section';
-import { SettingsUiProvider, defaultSettings, type SettingsInput, type VariantInput } from '../campaign-settings/context';
+import {
+  SettingsUiProvider,
+  defaultSettings,
+  type SettingsInput,
+  type VariantInput,
+} from '../campaign-settings/context';
 import {
   ActivationSection,
   AttributionSection,
@@ -65,7 +70,10 @@ export function TemplateEditorPage({ id }: { id?: string }) {
   if (id && (template.isError || !template.data)) {
     return (
       <>
-        <PageHeader title="Template" breadcrumbs={[{ label: 'Templates', href: '/templates' }, { label: 'Not available' }]} />
+        <PageHeader
+          title="Template"
+          breadcrumbs={[{ label: 'Templates', href: '/templates' }, { label: 'Not available' }]}
+        />
         <ErrorAlert error={template.error} onRetry={() => void template.refetch()} />
       </>
     );
@@ -75,11 +83,15 @@ export function TemplateEditorPage({ id }: { id?: string }) {
 
 function initialValues(template?: TemplateDetail): EditorInput {
   if (!template) return { name: '', description: '', settings: defaultSettings(), variants: [] };
-  const parsed = z.object({ settings: templateSettingsSchema, variants: z.array(variantSchema) }).safeParse(template.config);
+  const parsed = z
+    .object({ settings: templateSettingsSchema, variants: z.array(variantSchema) })
+    .safeParse(template.config);
   return {
     name: template.name,
     description: template.description ?? '',
-    settings: (parsed.success ? parsed.data.settings : (template.config.settings ?? defaultSettings())) as SettingsInput,
+    settings: (parsed.success
+      ? parsed.data.settings
+      : (template.config.settings ?? defaultSettings())) as SettingsInput,
     variants: (parsed.success ? parsed.data.variants : (template.config.variants ?? [])) as VariantInput[],
   };
 }
@@ -94,7 +106,11 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
   const [advanced, setAdvanced] = useState(!!template);
   const [pickedAccount, setPickedAccount] = useState<string | null>(null);
   const assetsAccountId = pickedAccount ?? accounts.data?.[0]?.id ?? null;
-  const form = useForm<EditorInput, unknown, EditorOutput>({ resolver: zodResolver(editorSchema), defaultValues: initialValues(template), mode: 'onSubmit' });
+  const form = useForm<EditorInput, unknown, EditorOutput>({
+    resolver: zodResolver(editorSchema),
+    defaultValues: initialValues(template),
+    mode: 'onSubmit',
+  });
   const name = useWatch({ control: form.control, name: 'name' });
   const variants = useWatch({ control: form.control, name: 'variants' });
   useUnsavedChangesWarning(form.formState.isDirty && !form.formState.isSubmitSuccessful);
@@ -119,7 +135,9 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
 
   const onInvalid = () => {
     setAdvanced(true);
-    toast.error('Some fields need your attention', { description: 'The problems are listed at the top of the form.' });
+    toast.error('Some fields need your attention', {
+      description: 'The problems are listed at the top of the form.',
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -128,8 +146,11 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
       <form noValidate onSubmit={form.handleSubmit(onValid, onInvalid)} className="grid gap-4">
         <PageHeader
           className="mb-2"
-          breadcrumbs={[{ label: 'Templates', href: '/templates' }, { label: template ? template.name : 'New template' }]}
-          title={template ? (name || template.name) : 'New template'}
+          breadcrumbs={[
+            { label: 'Templates', href: '/templates' },
+            { label: template ? template.name : 'New template' },
+          ]}
+          title={template ? name || template.name : 'New template'}
           meta={template?.isArchived ? <Badge variant="muted">Archived</Badge> : null}
           description="Campaign and ad set settings reused by launches. Money amounts are applied in the currency of the ad account chosen at launch."
           actions={
@@ -170,29 +191,58 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
               <CardDescription>Name it after the use case, e.g. “Leads — website — PL/CZ”.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
-              <TextField control={form.control} name="name" label="Name" required maxLength={120} placeholder="Leads — website — EU" disabled={!canManage} />
+              <TextField
+                control={form.control}
+                name="name"
+                label="Name"
+                required
+                maxLength={120}
+                placeholder="Leads — website — EU"
+                disabled={!canManage}
+              />
               <div className="grid content-start gap-2">
                 <Label htmlFor="assets-account">Pages, pixels and audiences from</Label>
-                <Select value={assetsAccountId ?? ''} onValueChange={setPickedAccount} disabled={!accounts.data?.length}>
+                <Select
+                  value={assetsAccountId ?? ''}
+                  onValueChange={setPickedAccount}
+                  disabled={!accounts.data?.length}
+                >
                   <SelectTrigger id="assets-account">
-                    <SelectValue placeholder={accounts.isLoading ? 'Loading ad accounts…' : 'No connected ad accounts'} />
+                    <SelectValue
+                      placeholder={accounts.isLoading ? 'Loading ad accounts…' : 'No connected ad accounts'}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {(accounts.data ?? []).map((a) => (
-                      <SelectItem key={a.id} value={a.id} description={`act_${a.metaAccountId} · ${a.currency}`}>
+                      <SelectItem
+                        key={a.id}
+                        value={a.id}
+                        description={`act_${a.metaAccountId} · ${a.currency}`}
+                      >
                         {a.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Only used to offer choices in this editor; the template works with any ad account.</p>
+                <p className="text-xs text-muted-foreground">
+                  Only used to offer choices in this editor; the template works with any ad account.
+                </p>
               </div>
               <FormField
                 control={form.control}
                 name="description"
                 label="Description"
                 className="lg:col-span-2"
-                render={({ field, controlProps }) => <Textarea {...controlProps} {...field} rows={2} maxLength={1000} placeholder="Optional notes for your team" disabled={!canManage} />}
+                render={({ field, controlProps }) => (
+                  <Textarea
+                    {...controlProps}
+                    {...field}
+                    rows={2}
+                    maxLength={1000}
+                    placeholder="Optional notes for your team"
+                    disabled={!canManage}
+                  />
+                )}
               />
             </CardContent>
           </Card>
@@ -216,7 +266,8 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
             <Card>
               <CardContent className="flex flex-col items-start gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Ad format, schedule, attribution, EU transparency, naming patterns, activation and predefined groups are in the advanced settings.
+                  Ad format, schedule, attribution, EU transparency, naming patterns, activation and
+                  predefined groups are in the advanced settings.
                 </p>
                 <Button type="button" variant="outline" size="sm" onClick={() => setAdvanced(true)}>
                   Show advanced settings
@@ -228,7 +279,9 @@ function TemplateEditor({ template }: { template?: TemplateDetail }) {
 
         {canManage ? (
           <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
-            <p className="mr-auto hidden text-xs text-muted-foreground sm:block">{form.formState.isDirty ? 'You have unsaved changes.' : 'All changes saved.'}</p>
+            <p className="mr-auto hidden text-xs text-muted-foreground sm:block">
+              {form.formState.isDirty ? 'You have unsaved changes.' : 'All changes saved.'}
+            </p>
             <Button type="button" variant="outline" onClick={() => router.push('/templates')}>
               {form.formState.isDirty ? 'Cancel' : 'Back to templates'}
             </Button>

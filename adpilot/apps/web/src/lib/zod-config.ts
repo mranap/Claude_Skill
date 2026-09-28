@@ -15,7 +15,12 @@ export function configureZod(): void {
       switch (issue.code) {
         case 'invalid_type': {
           const input = issue.input;
-          if (input === undefined || input === null || input === '' || (typeof input === 'number' && Number.isNaN(input))) {
+          if (
+            input === undefined ||
+            input === null ||
+            input === '' ||
+            (typeof input === 'number' && Number.isNaN(input))
+          ) {
             return 'Required';
           }
           if (issue.expected === 'number' || issue.expected === 'int') return 'Enter a number';
@@ -24,7 +29,8 @@ export function configureZod(): void {
         case 'too_small': {
           const min = Number(issue.minimum);
           if (issue.origin === 'string') return min <= 1 ? 'Required' : `Use at least ${min} characters`;
-          if (issue.origin === 'array' || issue.origin === 'set') return min <= 1 ? 'Add at least one item' : `Add at least ${min} items`;
+          if (issue.origin === 'array' || issue.origin === 'set')
+            return min <= 1 ? 'Add at least one item' : `Add at least ${min} items`;
           if (issue.origin === 'number' || issue.origin === 'int' || issue.origin === 'bigint') {
             return issue.inclusive === false ? `Must be greater than ${min}` : `Must be at least ${min}`;
           }

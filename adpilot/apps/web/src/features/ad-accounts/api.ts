@@ -11,9 +11,11 @@ import type { PageDto } from '../meta-profiles/types';
 import type { AdAccountDetailDto, AdAccountDto, AudienceDto, PixelDto, StatusHistoryDto } from './types';
 
 export const adAccountsApi = {
-  list: (params: Record<string, string | number>, signal?: AbortSignal) => api.get<Paginated<AdAccountDto>>('/ad-accounts', params, { signal }),
+  list: (params: Record<string, string | number>, signal?: AbortSignal) =>
+    api.get<Paginated<AdAccountDto>>('/ad-accounts', params, { signal }),
   get: (id: string) => api.get<AdAccountDetailDto>(`/ad-accounts/${id}`),
-  update: (id: string, body: z.input<typeof adAccountUpdateSchema>) => api.patch<AdAccountDetailDto>(`/ad-accounts/${id}`, body),
+  update: (id: string, body: z.input<typeof adAccountUpdateSchema>) =>
+    api.patch<AdAccountDetailDto>(`/ad-accounts/${id}`, body),
   connect: (body: { profileId: string; connect: string[]; disconnect: string[] }) =>
     api.post<{ connected: number; disconnected: number }>('/ad-accounts/connect', body),
   checkStatus: (id: string) => api.post<{ queued: boolean }>(`/ad-accounts/${id}/check-status`),
@@ -21,7 +23,8 @@ export const adAccountsApi = {
   pixels: (id: string) => api.get<PixelDto[]>(`/ad-accounts/${id}/pixels`),
   audiences: (id: string) => api.get<AudienceDto[]>(`/ad-accounts/${id}/audiences`),
   pages: (id: string) => api.get<PageDto[]>(`/ad-accounts/${id}/pages`),
-  activity: (id: string, params: Record<string, string | number>) => api.get<Paginated<ActivityEventDto>>(`/ad-accounts/${id}/activity`, params),
+  activity: (id: string, params: Record<string, string | number>) =>
+    api.get<Paginated<ActivityEventDto>>(`/ad-accounts/${id}/activity`, params),
 };
 
 export function useAdAccounts(params: Record<string, string | number>) {
@@ -36,7 +39,8 @@ export function useAdAccounts(params: Record<string, string | number>) {
 export function useConnectedAdAccounts(enabled = true) {
   return useQuery({
     queryKey: queryKeys.adAccounts.lookup,
-    queryFn: ({ signal }) => adAccountsApi.list({ connected: 'true', pageSize: 200, sort: 'name:asc' }, signal).then((r) => r.items),
+    queryFn: ({ signal }) =>
+      adAccountsApi.list({ connected: 'true', pageSize: 200, sort: 'name:asc' }, signal).then((r) => r.items),
     staleTime: 60_000,
     enabled,
   });

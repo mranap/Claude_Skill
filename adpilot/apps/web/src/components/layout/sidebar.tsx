@@ -85,7 +85,13 @@ export function SidebarNav({
       <ul className="flex flex-col gap-0.5">
         {main.map((item) => (
           <li key={item.href}>
-            <NavLink item={item} active={active === item} mode={mode} collapsed={collapsed} onNavigate={onNavigate} />
+            <NavLink
+              item={item}
+              active={active === item}
+              mode={mode}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+            />
           </li>
         ))}
       </ul>
@@ -105,7 +111,13 @@ export function SidebarNav({
           <ul className="flex flex-col gap-0.5">
             {admin.map((item) => (
               <li key={item.href}>
-                <NavLink item={item} active={active === item} mode={mode} collapsed={collapsed} onNavigate={onNavigate} />
+                <NavLink
+                  item={item}
+                  active={active === item}
+                  mode={mode}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
               </li>
             ))}
           </ul>
@@ -116,7 +128,13 @@ export function SidebarNav({
 }
 
 /** Desktop/tablet sidebar: icon rail on `md`, full width on `lg` (collapsible), hidden on mobile. */
-export function Sidebar({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
+export function Sidebar({
+  collapsed,
+  onToggleCollapsed,
+}: {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
   return (
     <aside
       data-collapsed={collapsed}
@@ -126,7 +144,11 @@ export function Sidebar({ collapsed, onToggleCollapsed }: { collapsed: boolean; 
       )}
     >
       <div className="flex h-14 shrink-0 items-center px-3.5">
-        <Link href="/dashboard" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="AdPilot home">
+        <Link
+          href="/dashboard"
+          className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          aria-label="AdPilot home"
+        >
           <span className={cn('hidden', 'lg:inline lg:group-data-[collapsed=true]/sidebar:hidden')}>
             <Logo />
           </span>

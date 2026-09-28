@@ -49,7 +49,11 @@ export function parseUsageHeaders(headers: Record<string, string | string[] | un
 
   const app = parseJson(h('x-app-usage')) as Record<string, unknown> | undefined;
   if (app && typeof app === 'object') {
-    out.app = { callCount: num(app.call_count), totalTime: num(app.total_time), totalCputime: num(app.total_cputime) };
+    out.app = {
+      callCount: num(app.call_count),
+      totalTime: num(app.total_time),
+      totalCputime: num(app.total_cputime),
+    };
   }
 
   const acct = parseJson(h('x-ad-account-usage')) as Record<string, unknown> | undefined;

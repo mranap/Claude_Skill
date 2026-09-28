@@ -71,7 +71,11 @@ export function applyServerErrors<TIn extends FieldValues, TOut>(
       const path = typeof pathMap === 'function' ? pathMap(fe.path) : (pathMap[fe.path] ?? fe.path);
       const top = path.split('.')[0];
       if (!path || !top || !(top in values)) continue;
-      form.setError(path as Path<TIn>, { type: 'server', message: fe.message }, { shouldFocus: mapped === 0 });
+      form.setError(
+        path as Path<TIn>,
+        { type: 'server', message: fe.message },
+        { shouldFocus: mapped === 0 },
+      );
       mapped++;
     }
   }
@@ -150,7 +154,11 @@ export function FormField<TIn extends FieldValues, TName extends FieldPath<TIn>,
         const labelNode = label ? (
           <Label htmlFor={id} className={cn(orientation === 'horizontal' && 'leading-5')}>
             {label}
-            {required ? <span className="text-destructive-fg" aria-hidden>*</span> : null}
+            {required ? (
+              <span className="text-destructive-fg" aria-hidden>
+                *
+              </span>
+            ) : null}
           </Label>
         ) : null;
         const messages = (
@@ -169,7 +177,10 @@ export function FormField<TIn extends FieldValues, TName extends FieldPath<TIn>,
         );
         if (orientation === 'horizontal') {
           return (
-            <div className={cn('flex items-start justify-between gap-6', className)} data-invalid={!!fieldState.error || undefined}>
+            <div
+              className={cn('flex items-start justify-between gap-6', className)}
+              data-invalid={!!fieldState.error || undefined}
+            >
               <div className="grid min-w-0 gap-1">
                 {labelNode}
                 {messages}
@@ -179,7 +190,10 @@ export function FormField<TIn extends FieldValues, TName extends FieldPath<TIn>,
           );
         }
         return (
-          <div className={cn('grid content-start gap-2', className)} data-invalid={!!fieldState.error || undefined}>
+          <div
+            className={cn('grid content-start gap-2', className)}
+            data-invalid={!!fieldState.error || undefined}
+          >
             {labelNode || labelAction ? (
               <div className="flex min-h-4 items-center justify-between gap-2">
                 {labelNode}

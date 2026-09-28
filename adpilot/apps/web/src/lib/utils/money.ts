@@ -6,20 +6,29 @@ import { currencyDecimals, formatMoney, majorToMinor, minorToMajor } from '@adpi
  */
 
 /** "1234.5" + "USD" → "$1,234.50"; without a currency the plain decimal string is returned. */
-export function formatAmount(value: string | number | null | undefined, currency: string | null | undefined): string {
+export function formatAmount(
+  value: string | number | null | undefined,
+  currency: string | null | undefined,
+): string {
   if (value === null || value === undefined || value === '') return '—';
   if (!currency) return String(value);
   return formatMoney(String(value), currency);
 }
 
 /** Minor units (BigInt string) → formatted money, e.g. "2550" USD → "$25.50". */
-export function formatMinor(minor: string | number | bigint | null | undefined, currency: string | null | undefined): string {
+export function formatMinor(
+  minor: string | number | bigint | null | undefined,
+  currency: string | null | undefined,
+): string {
   if (minor === null || minor === undefined || minor === '' || !currency) return '—';
   return formatAmount(minorToMajor(minor, currency), currency);
 }
 
 /** Minor units → major decimal string ("2550" USD → "25.50"). */
-export function minorToDecimal(minor: string | number | bigint | null | undefined, currency: string): string | null {
+export function minorToDecimal(
+  minor: string | number | bigint | null | undefined,
+  currency: string,
+): string | null {
   if (minor === null || minor === undefined || minor === '') return null;
   try {
     return minorToMajor(minor, currency);
@@ -50,7 +59,12 @@ export function compactNumber(value: number): string {
 /** Compact money label for chart axes: "$12.5K". */
 export function compactMoney(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(value);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value);
   } catch {
     return `${compactNumber(value)} ${currency}`;
   }

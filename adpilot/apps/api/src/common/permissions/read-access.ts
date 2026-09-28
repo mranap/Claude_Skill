@@ -23,6 +23,9 @@ export const READ_ACCESS = {
   metaProfiles: ['app.meta_profiles.manage'],
 } as const satisfies Record<string, readonly PermissionKey[]>;
 
-export function canRead(user: Pick<AuthUser, 'roleKey' | 'permissions'>, area: keyof typeof READ_ACCESS): boolean {
+export function canRead(
+  user: Pick<AuthUser, 'roleKey' | 'permissions'>,
+  area: keyof typeof READ_ACCESS,
+): boolean {
   return READ_ACCESS[area].some((p) => hasPermission(user.roleKey, user.permissions, p));
 }

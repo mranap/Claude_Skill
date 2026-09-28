@@ -22,7 +22,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -65,20 +73,39 @@ function makeSchema(mode: 'create' | 'edit', hasStoredPassword: boolean) {
     const token = v.accessToken.trim();
     if (mode === 'create' || token) {
       const r = accessTokenSchema.safeParse(token);
-      if (!r.success) ctx.addIssue({ code: 'custom', path: ['accessToken'], message: token ? (r.error.issues[0]?.message ?? 'Invalid token') : 'Paste the access token' });
+      if (!r.success)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['accessToken'],
+          message: token ? (r.error.issues[0]?.message ?? 'Invalid token') : 'Paste the access token',
+        });
     }
     if (v.useProxy) {
       const r = proxyInputSchema.safeParse(toProxyInput(v, mode, hasStoredPassword));
       if (!r.success) {
-        for (const issue of r.error.issues) ctx.addIssue({ code: 'custom', path: ['proxy', ...issue.path.map(String)], message: issue.message });
+        for (const issue of r.error.issues)
+          ctx.addIssue({
+            code: 'custom',
+            path: ['proxy', ...issue.path.map(String)],
+            message: issue.message,
+          });
       }
     }
     if (v.appId.trim()) {
       const r = metaAppIdSchema.safeParse(v.appId);
-      if (!r.success) ctx.addIssue({ code: 'custom', path: ['appId'], message: r.error.issues[0]?.message ?? 'Invalid App ID' });
+      if (!r.success)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['appId'],
+          message: r.error.issues[0]?.message ?? 'Invalid App ID',
+        });
     }
     if (v.appSecret.trim() && !/^[a-f0-9]{32}$/i.test(v.appSecret.trim())) {
-      ctx.addIssue({ code: 'custom', path: ['appSecret'], message: 'App secret is a 32 character hex string' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['appSecret'],
+        message: 'App secret is a 32 character hex string',
+      });
     }
   });
 }
@@ -141,21 +168,40 @@ export function ProfileDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">{open ? <ProfileForm profile={profile} onDone={() => onOpenChange(false)} onSaved={onSaved} /> : null}</DialogContent>
+      <DialogContent size="lg">
+        {open ? <ProfileForm profile={profile} onDone={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+      </DialogContent>
     </Dialog>
   );
 }
 
-function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; onDone: () => void; onSaved?: (response: ProfileSaveResponse) => void }) {
+function ProfileForm({
+  profile,
+  onDone,
+  onSaved,
+}: {
+  profile?: MetaProfileDto;
+  onDone: () => void;
+  onSaved?: (response: ProfileSaveResponse) => void;
+}) {
   const mode = profile ? 'edit' : 'create';
   const hasStoredPassword = !!profile?.proxy?.hasPassword;
   const queryClient = useQueryClient();
-  const form = useForm<FormValues>({ resolver: zodResolver(makeSchema(mode, hasStoredPassword)), defaultValues: defaults(profile), mode: 'onTouched' });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(makeSchema(mode, hasStoredPassword)),
+    defaultValues: defaults(profile),
+    mode: 'onTouched',
+  });
   const values = useWatch({ control: form.control }) as FormValues;
   const [test, setTest] = useState<TestState | null>(null);
   const [appOpen, setAppOpen] = useState(!!profile?.appId);
 
-  const signature = JSON.stringify({ t: values.accessToken, p: values.useProxy ? values.proxy : null, a: values.appId, s: values.appSecret });
+  const signature = JSON.stringify({
+    t: values.accessToken,
+    p: values.useProxy ? values.proxy : null,
+    a: values.appId,
+    s: values.appSecret,
+  });
   const proxyChanged =
     mode === 'create' ||
     values.useProxy !== !!profile?.proxy ||
@@ -170,7 +216,10 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
   const testMutation = useMutation({
     mutationFn: async (kind: TestState['kind']): Promise<ConnectionTestResponse> => {
       const token = values.accessToken.trim();
-      const withApp = { appId: values.appId.trim() || undefined, appSecret: values.appSecret.trim() || undefined };
+      const withApp = {
+        appId: values.appId.trim() || undefined,
+        appSecret: values.appSecret.trim() || undefined,
+      };
       // Saved profile without a new token: validate the stored token / proxy on the server.
       if (mode === 'edit' && profile && kind !== 'proxy' && !token) {
         return { token: await metaProfilesApi.validate(profile.id) };
@@ -186,13 +235,15 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
     onSuccess: (result, kind) => setTest({ kind, result, signature }),
     // A rejected proxy (e.g. a private address while the admin setting forbids it) belongs to the proxy fields.
     onError: (error) => {
-      if (isApiError(error, 'PROXY_ERROR') && values.useProxy) form.setError('proxy.host', { type: 'server', message: getErrorMessage(error) });
+      if (isApiError(error, 'PROXY_ERROR') && values.useProxy)
+        form.setError('proxy.host', { type: 'server', message: getErrorMessage(error) });
     },
   });
 
   const runTest = async (kind: TestState['kind']) => {
     const fields: (keyof FormValues | `proxy.${string}`)[] = [];
-    if (kind !== 'proxy' && (mode === 'create' || values.accessToken.trim())) fields.push('accessToken', 'appId', 'appSecret');
+    if (kind !== 'proxy' && (mode === 'create' || values.accessToken.trim()))
+      fields.push('accessToken', 'appId', 'appSecret');
     if (kind !== 'token') fields.push('proxy.host', 'proxy.port', 'proxy.username', 'proxy.password');
     const ok = fields.length ? await form.trigger(fields as Parameters<typeof form.trigger>[0]) : true;
     if (!ok) return;
@@ -204,7 +255,11 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
       await persist(v);
     } catch (error) {
       if (isApiError(error, 'PROXY_ERROR') && v.useProxy) {
-        form.setError('proxy.host', { type: 'server', message: getErrorMessage(error) }, { shouldFocus: true });
+        form.setError(
+          'proxy.host',
+          { type: 'server', message: getErrorMessage(error) },
+          { shouldFocus: true },
+        );
         return;
       }
       throw error;
@@ -243,9 +298,16 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
     await queryClient.invalidateQueries({ queryKey: queryKeys.metaProfiles.all });
     await queryClient.invalidateQueries({ queryKey: queryKeys.adAccounts.all });
     const inspection = response.inspection;
-    if (inspection && !inspection.valid) toast.warning('Profile saved, but the token check failed', { description: inspection.message });
-    else if (inspection?.missingRequired.length) toast.warning('Profile saved with missing permissions', { description: inspection.missingRequired.join(', ') });
-    else toast.success(mode === 'create' ? 'Meta profile added' : 'Profile updated', { description: inspection?.valid ? 'Discovering Business Managers, ad accounts and pages…' : undefined });
+    if (inspection && !inspection.valid)
+      toast.warning('Profile saved, but the token check failed', { description: inspection.message });
+    else if (inspection?.missingRequired.length)
+      toast.warning('Profile saved with missing permissions', {
+        description: inspection.missingRequired.join(', '),
+      });
+    else
+      toast.success(mode === 'create' ? 'Meta profile added' : 'Profile updated', {
+        description: inspection?.valid ? 'Discovering Business Managers, ad accounts and pages…' : undefined,
+      });
     onSaved?.(response);
     onDone();
   };
@@ -259,12 +321,20 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
       <DialogHeader>
         <DialogTitle>{mode === 'create' ? 'Add Meta profile' : `Edit “${profile!.name}”`}</DialogTitle>
         <DialogDescription>
-          The token is encrypted at rest and never shown again — only a masked version is kept. Test the connection before saving.
+          The token is encrypted at rest and never shown again — only a masked version is kept. Test the
+          connection before saving.
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="grid gap-5">
         <FormRootError />
-        <TextField control={form.control} name="name" label="Profile name" placeholder="e.g. Agency main token" required autoComplete="off" />
+        <TextField
+          control={form.control}
+          name="name"
+          label="Profile name"
+          placeholder="e.g. Agency main token"
+          required
+          autoComplete="off"
+        />
         <FormField
           control={form.control}
           name="accessToken"
@@ -294,7 +364,12 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
           name="notes"
           label="Notes"
           render={({ field, controlProps }) => (
-            <Textarea {...controlProps} {...field} rows={2} placeholder="Optional — who owns the token, which clients it covers…" />
+            <Textarea
+              {...controlProps}
+              {...field}
+              rows={2}
+              placeholder="Optional — who owns the token, which clients it covers…"
+            />
           )}
         />
 
@@ -306,7 +381,9 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
             orientation="horizontal"
             label="Connect through a proxy"
             description="All Meta API calls of this profile use the proxy (HTTP, HTTPS or SOCKS5). Leave off for a direct connection."
-            render={({ field, controlProps }) => <Switch {...controlProps} checked={field.value} onCheckedChange={field.onChange} />}
+            render={({ field, controlProps }) => (
+              <Switch {...controlProps} checked={field.value} onCheckedChange={field.onChange} />
+            )}
           />
           {values.useProxy ? (
             <div className="grid gap-4 rounded-lg border bg-surface-subtle p-4">
@@ -325,16 +402,43 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
                 )}
               />
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
-                <TextField control={form.control} name="proxy.host" label="Host" placeholder="proxy.example.com or 10.0.0.5" autoComplete="off" required />
-                <TextField control={form.control} name="proxy.port" label="Port" placeholder="8080" inputMode="numeric" autoComplete="off" required />
+                <TextField
+                  control={form.control}
+                  name="proxy.host"
+                  label="Host"
+                  placeholder="proxy.example.com or 10.0.0.5"
+                  autoComplete="off"
+                  required
+                />
+                <TextField
+                  control={form.control}
+                  name="proxy.port"
+                  label="Port"
+                  placeholder="8080"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextField control={form.control} name="proxy.username" label="Username" placeholder="Optional" autoComplete="off" />
+                <TextField
+                  control={form.control}
+                  name="proxy.username"
+                  label="Username"
+                  placeholder="Optional"
+                  autoComplete="off"
+                />
                 <FormField
                   control={form.control}
                   name="proxy.password"
                   label="Password"
-                  description={hasStoredPassword && !values.proxy.password ? (values.proxy.removePassword ? 'The saved password will be removed.' : 'A password is saved. Type to replace it.') : undefined}
+                  description={
+                    hasStoredPassword && !values.proxy.password
+                      ? values.proxy.removePassword
+                        ? 'The saved password will be removed.'
+                        : 'A password is saved. Type to replace it.'
+                      : undefined
+                  }
                   render={({ field, controlProps }) => (
                     <PasswordInput
                       {...controlProps}
@@ -353,7 +457,9 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={values.proxy.removePassword}
-                    onCheckedChange={(v) => form.setValue('proxy.removePassword', v === true, { shouldDirty: true })}
+                    onCheckedChange={(v) =>
+                      form.setValue('proxy.removePassword', v === true, { shouldDirty: true })
+                    }
                     disabled={!!values.proxy.password}
                   />
                   Remove the saved proxy password
@@ -373,16 +479,29 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
           <CollapsibleContent>
             <div className="grid gap-4 pt-3">
               <p className="text-xs leading-relaxed text-muted-foreground">
-                The App ID and secret of the app that issued the token enable <span className="font-mono">appsecret_proof</span> and exact expiry
-                information.
+                The App ID and secret of the app that issued the token enable{' '}
+                <span className="font-mono">appsecret_proof</span> and exact expiry information.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextField control={form.control} name="appId" label="App ID" placeholder="1234567890" inputMode="numeric" autoComplete="off" />
+                <TextField
+                  control={form.control}
+                  name="appId"
+                  label="App ID"
+                  placeholder="1234567890"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
                 <FormField
                   control={form.control}
                   name="appSecret"
                   label="App secret"
-                  description={profile?.hasAppSecret && !values.appSecret ? (values.removeAppSecret ? 'The saved secret will be removed.' : 'A secret is saved. Type to replace it.') : undefined}
+                  description={
+                    profile?.hasAppSecret && !values.appSecret
+                      ? values.removeAppSecret
+                        ? 'The saved secret will be removed.'
+                        : 'A secret is saved. Type to replace it.'
+                      : undefined
+                  }
                   render={({ field, controlProps }) => (
                     <PasswordInput
                       {...controlProps}
@@ -402,7 +521,9 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={values.removeAppSecret}
-                    onCheckedChange={(v) => form.setValue('removeAppSecret', v === true, { shouldDirty: true })}
+                    onCheckedChange={(v) =>
+                      form.setValue('removeAppSecret', v === true, { shouldDirty: true })
+                    }
                     disabled={!!values.appSecret}
                   />
                   Remove the saved app secret
@@ -416,7 +537,14 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
         <div className="grid gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <Label className="mr-auto">Connection check</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => runTest('token')} loading={pending === 'token'} disabled={testMutation.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => runTest('token')}
+              loading={pending === 'token'}
+              disabled={testMutation.isPending}
+            >
               <KeyRound />
               {tokenLabel}
             </Button>
@@ -431,7 +559,14 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
               <Globe />
               Test proxy
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => runTest('connection')} loading={pending === 'connection'} disabled={testMutation.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => runTest('connection')}
+              loading={pending === 'connection'}
+              disabled={testMutation.isPending}
+            >
               <PlugZap />
               Test connection
             </Button>
@@ -443,17 +578,23 @@ function ProfileForm({ profile, onDone, onSaved }: { profile?: MetaProfileDto; o
             <div className={cn('grid gap-3', stale && 'opacity-60')} aria-live="polite">
               {stale ? (
                 <Alert icon={<FlaskConical />}>
-                  <AlertDescription>The settings changed since this test. Run it again to check the new values.</AlertDescription>
+                  <AlertDescription>
+                    The settings changed since this test. Run it again to check the new values.
+                  </AlertDescription>
                 </Alert>
               ) : null}
               {test.result.proxy ? <ProxyTestResultView result={test.result.proxy} /> : null}
               {test.result.token ? <TokenInspectionResult inspection={test.result.token} /> : null}
               {test.kind !== 'token' && test.result.proxy && !test.result.proxy.ok && !test.result.token ? (
-                <p className="text-xs text-muted-foreground">The token was not tested because the proxy is not reachable.</p>
+                <p className="text-xs text-muted-foreground">
+                  The token was not tested because the proxy is not reachable.
+                </p>
               ) : null}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">Nothing is saved while testing. The token is only held in memory for the check.</p>
+            <p className="text-xs text-muted-foreground">
+              Nothing is saved while testing. The token is only held in memory for the check.
+            </p>
           )}
         </div>
       </DialogBody>

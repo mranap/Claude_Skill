@@ -102,11 +102,17 @@ export class AuthService {
 
     if (user.status === 'BLOCKED') {
       await this.recordLogin(user.id, email, false, 'blocked', client);
-      throw new AppError('ACCOUNT_BLOCKED', 'Your account has been blocked. Please contact the administrator.');
+      throw new AppError(
+        'ACCOUNT_BLOCKED',
+        'Your account has been blocked. Please contact the administrator.',
+      );
     }
 
     if (this.hashing.needsRehash(user.passwordHash)) {
-      await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: await this.hashing.hashPassword(password) } });
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await this.hashing.hashPassword(password) },
+      });
     }
 
     // Failure counters are only cleared once sign-in is complete: a correct password alone (second factor still
@@ -129,15 +135,28 @@ export class AuthService {
     if (!user || user.status !== 'ACTIVE' || !user.twoFactorEnabled || !user.twoFactorSecretEnc) {
       throw new AppError('MFA_INVALID', 'The verification step expired. Please sign in again.');
     }
-    if (user.lockedUntil && user.lockedUntil > new Date()) throw lockedError(user.lockedUntil.getTime() - Date.now());
-    const ok = await this.checkSecondFactor(user.id, user.twoFactorSecretEnc, user.twoFactorRecoveryHashes, code);
+    if (user.lockedUntil && user.lockedUntil > new Date())
+      throw lockedError(user.lockedUntil.getTime() - Date.now());
+    const ok = await this.checkSecondFactor(
+      user.id,
+      user.twoFactorSecretEnc,
+      user.twoFactorRecoveryHashes,
+      code,
+    );
     if (!ok) {
       await this.recordLogin(user.id, user.email, false, 'bad_totp', client);
       throw new AppError('MFA_INVALID', 'Invalid verification code');
     }
     // The ticket is single-use.
-    const fresh = await this.redis.client.set(this.redis.key('auth', 'mfa-used', parsed.jti), '1', 'EX', 600, 'NX');
-    if (fresh !== 'OK') throw new AppError('MFA_INVALID', 'The verification step expired. Please sign in again.');
+    const fresh = await this.redis.client.set(
+      this.redis.key('auth', 'mfa-used', parsed.jti),
+      '1',
+      'EX',
+      600,
+      'NX',
+    );
+    if (fresh !== 'OK')
+      throw new AppError('MFA_INVALID', 'The verification step expired. Please sign in again.');
 
     const session = await this.completeLogin(user.id, user.email, client, 'password+totp');
     return { user: await this.me(user.id), session };
@@ -147,7 +166,12 @@ export class AuthService {
    * Verifies a TOTP code (with replay protection) or consumes a recovery code. Wrong codes are counted per user
    * across sign-in and the 2FA settings endpoints; too many lock the second factor and the account.
    */
-  async checkSecondFactor(userId: string, secretEnc: string, recoveryHashes: string[], code: string): Promise<boolean> {
+  async checkSecondFactor(
+    userId: string,
+    secretEnc: string,
+    recoveryHashes: string[],
+    code: string,
+  ): Promise<boolean> {
     const lockedMs = await this.guard.secondFactorLockMs(userId);
     if (lockedMs > 0) throw lockedError(lockedMs, 'Too many invalid verification codes.');
     const ok = await this.verifySecondFactor(userId, secretEnc, recoveryHashes, code);
@@ -158,19 +182,33 @@ export class AuthService {
     const security = await this.settings.get('security');
     const lockMs = security.lockoutMinutes * 60_000;
     if (await this.guard.secondFactorFailed(userId, lockMs)) {
-      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { email: true },
+      });
       await this.lockAccount(userId, user.email, lockMs, 'second_factor');
     }
     return false;
   }
 
-  private async verifySecondFactor(userId: string, secretEnc: string, recoveryHashes: string[], code: string): Promise<boolean> {
+  private async verifySecondFactor(
+    userId: string,
+    secretEnc: string,
+    recoveryHashes: string[],
+    code: string,
+  ): Promise<boolean> {
     const trimmed = code.trim();
     if (/^\d{6}$/.test(trimmed)) {
       const secret = this.encryption.decrypt(secretEnc, Aad.totpSecret(userId));
       const step = verifyTotp(secret, trimmed);
       if (step === null) return false;
-      const unused = await this.redis.client.set(this.redis.key('auth', 'totp-step', userId, step), '1', 'EX', 120, 'NX');
+      const unused = await this.redis.client.set(
+        this.redis.key('auth', 'totp-step', userId, step),
+        '1',
+        'EX',
+        120,
+        'NX',
+      );
       return unused === 'OK';
     }
     const hash = this.hashing.sha256(trimmed.toLowerCase());
@@ -180,7 +218,11 @@ export class AuthService {
       UPDATE users SET "twoFactorRecoveryHashes" = array_remove("twoFactorRecoveryHashes", ${hash})
       WHERE id = ${userId}::uuid AND ${hash} = ANY("twoFactorRecoveryHashes")`;
     if (updated === 1) {
-      await this.audit.log({ action: 'auth.2fa.recovery_code_used', subjectUserId: userId, actorUserId: userId });
+      await this.audit.log({
+        action: 'auth.2fa.recovery_code_used',
+        subjectUserId: userId,
+        actorUserId: userId,
+      });
       return true;
     }
     return false;
@@ -190,7 +232,12 @@ export class AuthService {
     const session = await this.sessions.create(userId, client);
     await this.prisma.user.update({
       where: { id: userId },
-      data: { lastLoginAt: new Date(), lastLoginIp: client.ip ?? null, failedLoginCount: 0, lockedUntil: null },
+      data: {
+        lastLoginAt: new Date(),
+        lastLoginIp: client.ip ?? null,
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
     });
     await this.guard.signedIn(email, client.ip ?? 'unknown');
     await this.recordLogin(userId, email, true, method, client);
@@ -209,18 +256,26 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string | undefined, client: ClientInfo): Promise<IssuedSession> {
-    if (!refreshToken) throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+    if (!refreshToken)
+      throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
     return this.sessions.rotate(refreshToken, client);
   }
 
   async logout(user: AuthUser | undefined, refreshToken: string | undefined): Promise<void> {
     if (user) {
       await this.sessions.revoke(user.sessionId, 'logout');
-      await this.audit.log({ action: 'auth.logout', actorUserId: user.id, targetType: 'session', targetId: user.sessionId });
+      await this.audit.log({
+        action: 'auth.logout',
+        actorUserId: user.id,
+        targetType: 'session',
+        targetId: user.sessionId,
+      });
       return;
     }
     if (refreshToken) {
-      const s = await this.prisma.session.findUnique({ where: { refreshTokenHash: this.hashing.sha256(refreshToken) } });
+      const s = await this.prisma.session.findUnique({
+        where: { refreshTokenHash: this.hashing.sha256(refreshToken) },
+      });
       if (s) await this.sessions.revoke(s.id, 'logout');
     }
   }
@@ -255,7 +310,9 @@ export class AuthService {
    */
   async forgotPassword(email: string, client: ClientInfo): Promise<void> {
     await this.enforceRateLimit('forgot-ip', client.ip ?? 'unknown', 10, 15 * 60);
-    this.sendResetLink(email, client).catch((err: unknown) => this.logger.error('Password reset request failed', { err }));
+    this.sendResetLink(email, client).catch((err: unknown) =>
+      this.logger.error('Password reset request failed', { err }),
+    );
   }
 
   private async sendResetLink(email: string, client: ClientInfo): Promise<void> {
@@ -283,11 +340,18 @@ export class AuthService {
       }),
     ]);
     await this.mail.sendPasswordReset(user.email, token, security.passwordResetTtlMinutes, user.id);
-    await this.audit.log({ action: 'auth.password.reset_requested', subjectUserId: user.id, actorEmail: email, ip: client.ip });
+    await this.audit.log({
+      action: 'auth.password.reset_requested',
+      subjectUserId: user.id,
+      actorEmail: email,
+      ip: client.ip,
+    });
   }
 
   async validateResetToken(token: string): Promise<{ valid: boolean; purpose?: string }> {
-    const row = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash: this.hashing.sha256(token) } });
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashing.sha256(token) },
+    });
     const valid = !!row && !row.usedAt && row.expiresAt > new Date();
     return valid ? { valid, purpose: row.purpose } : { valid: false };
   }
@@ -328,7 +392,12 @@ export class AuthService {
 
     await this.sessions.revokeAllForUser(userId, 'password_reset');
     await this.cache.invalidateUser(userId);
-    await this.audit.log({ action: 'auth.password.reset', subjectUserId: userId, actorUserId: userId, ip: client.ip });
+    await this.audit.log({
+      action: 'auth.password.reset',
+      subjectUserId: userId,
+      actorUserId: userId,
+      ip: client.ip,
+    });
     await this.notifications.notify({
       userId,
       type: 'SECURITY_ALERT',
@@ -342,10 +411,14 @@ export class AuthService {
     await this.enforceRateLimit('change-password', user.id, 10, 15 * 60);
     const row = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     if (!(await this.hashing.verifyPassword(row.passwordHash, currentPassword))) {
-      throw AppError.validation('Current password is incorrect', [{ path: 'currentPassword', message: 'Incorrect password' }]);
+      throw AppError.validation('Current password is incorrect', [
+        { path: 'currentPassword', message: 'Incorrect password' },
+      ]);
     }
     if (await this.hashing.verifyPassword(row.passwordHash, newPassword)) {
-      throw AppError.validation('The new password must be different', [{ path: 'newPassword', message: 'Choose a new password' }]);
+      throw AppError.validation('The new password must be different', [
+        { path: 'newPassword', message: 'Choose a new password' },
+      ]);
     }
     const passwordHash = await this.hashing.hashPassword(newPassword);
     await this.prisma.$transaction(async (tx) => {
@@ -374,7 +447,9 @@ export class AuthService {
     await this.enforceRateLimit('email-change', user.id, 5, 3600);
     const row = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     if (!(await this.hashing.verifyPassword(row.passwordHash, password))) {
-      throw AppError.validation('Password is incorrect', [{ path: 'password', message: 'Incorrect password' }]);
+      throw AppError.validation('Password is incorrect', [
+        { path: 'password', message: 'Incorrect password' },
+      ]);
     }
     if (newEmail === row.email) throw AppError.validation('This is already your e-mail address');
     const taken = await this.prisma.user.findUnique({ where: { email: newEmail }, select: { id: true } });
@@ -382,7 +457,10 @@ export class AuthService {
 
     const token = this.hashing.randomToken(32);
     await this.prisma.$transaction([
-      this.prisma.emailChangeToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
+      this.prisma.emailChangeToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
       this.prisma.emailChangeToken.create({
         data: {
           userId: user.id,
@@ -393,7 +471,12 @@ export class AuthService {
       }),
     ]);
     await this.mail.sendEmailChangeConfirmation(newEmail, token, user.id);
-    await this.audit.log({ action: 'auth.email.change_requested', actorUserId: user.id, subjectUserId: user.id, metadata: { newEmail } });
+    await this.audit.log({
+      action: 'auth.email.change_requested',
+      actorUserId: user.id,
+      subjectUserId: user.id,
+      metadata: { newEmail },
+    });
   }
 
   async confirmEmailChange(token: string): Promise<void> {
@@ -434,11 +517,23 @@ export class AuthService {
   // ───────────────────────────── Helpers ─────────────────────────────
 
   /** Locks sign-in for the whole account (distributed password guessing, or too many wrong 2FA codes). */
-  private async lockAccount(userId: string, email: string, lockMs: number, cause: 'password' | 'second_factor', client?: ClientInfo) {
+  private async lockAccount(
+    userId: string,
+    email: string,
+    lockMs: number,
+    cause: 'password' | 'second_factor',
+    client?: ClientInfo,
+  ) {
     const lockedUntil = new Date(Date.now() + lockMs);
     await this.prisma.user.update({ where: { id: userId }, data: { lockedUntil, failedLoginCount: 0 } });
     await this.cache.invalidateUser(userId);
-    await this.audit.log({ action: 'auth.account.locked', subjectUserId: userId, actorEmail: email, ip: client?.ip, metadata: { cause } });
+    await this.audit.log({
+      action: 'auth.account.locked',
+      subjectUserId: userId,
+      actorEmail: email,
+      ip: client?.ip,
+      metadata: { cause },
+    });
     const minutes = Math.ceil(lockMs / 60_000);
     await this.notifications.notify({
       userId,
@@ -453,12 +548,23 @@ export class AuthService {
     });
   }
 
-  private async enforceRateLimit(bucket: string, id: string, limit: number, windowSeconds: number): Promise<void> {
+  private async enforceRateLimit(
+    bucket: string,
+    id: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<void> {
     const res = await this.rateLimiter.hit(bucket, id, limit, windowSeconds * 1000);
     if (!res.allowed) throw AppError.rateLimited(Math.ceil(res.retryAfterMs / 1000));
   }
 
-  private async recordLogin(userId: string | null, email: string, success: boolean, reason: string, client: ClientInfo) {
+  private async recordLogin(
+    userId: string | null,
+    email: string,
+    success: boolean,
+    reason: string,
+    client: ClientInfo,
+  ) {
     await this.prisma.loginEvent.create({
       data: {
         userId,
@@ -474,13 +580,21 @@ export class AuthService {
 
 function lockedError(remainingMs: number, reason = 'Too many failed sign-in attempts.'): AppError {
   const retryAfterSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
-  return new AppError('ACCOUNT_LOCKED', `${reason} Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`, undefined, {
-    retryAfterSeconds,
-  });
+  return new AppError(
+    'ACCOUNT_LOCKED',
+    `${reason} Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`,
+    undefined,
+    {
+      retryAfterSeconds,
+    },
+  );
 }
 
 /** Marks every outstanding password-reset, invitation and e-mail-change link of the user as used. */
-export async function invalidateCredentialTokens(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+export async function invalidateCredentialTokens(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
   const usedAt = new Date();
   await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt } });
   await tx.emailChangeToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt } });

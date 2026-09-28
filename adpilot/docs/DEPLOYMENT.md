@@ -5,12 +5,12 @@ the API, background workers, the scheduler, PostgreSQL 17, Redis 7 and MinIO (S3
 
 ## 1. Requirements
 
-| | Minimum | Recommended |
-|---|---|---|
-| CPU / RAM | 2 vCPU / 4 GB | 4 vCPU / 8 GB (video processing, many accounts) |
-| Disk | 40 GB SSD | 100 GB+ SSD (creatives are stored in MinIO; plan ~2× the video library size for backups) |
-| OS | Ubuntu 22.04/24.04 LTS or Debian 12 (x86-64) | |
-| Software | Docker Engine 25+ with the Compose plugin | |
+|           | Minimum                                      | Recommended                                                                              |
+| --------- | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| CPU / RAM | 2 vCPU / 4 GB                                | 4 vCPU / 8 GB (video processing, many accounts)                                          |
+| Disk      | 40 GB SSD                                    | 100 GB+ SSD (creatives are stored in MinIO; plan ~2× the video library size for backups) |
+| OS        | Ubuntu 22.04/24.04 LTS or Debian 12 (x86-64) |                                                                                          |
+| Software  | Docker Engine 25+ with the Compose plugin    |                                                                                          |
 
 Network: a domain (A/AAAA record → the server), inbound TCP 80/443 (and UDP 443 for HTTP/3), outbound HTTPS
 to `graph.facebook.com`, `graph-video.facebook.com`, `api.telegram.org`, Let's Encrypt, and your SMTP server
@@ -56,6 +56,7 @@ docker compose logs migrate        # "RBAC seeded", "Super Admin …: created"
 ```
 
 Open `https://<DOMAIN>` and sign in as the Super Admin. Then:
+
 1. remove `SUPER_ADMIN_PASSWORD` from `.env` (it is only used when no Super Admin exists);
 2. enable two-factor authentication for your account (Settings → Security) and consider
    Super Admin → Security → "Require 2FA for administrators";
@@ -64,17 +65,17 @@ Open `https://<DOMAIN>` and sign in as the Super Admin. Then:
 
 ## 5. What runs
 
-| Service | Image | Notes |
-|---|---|---|
-| `caddy` | caddy:2.10 | TLS, HTTP/3, `/api` → `api:4000`, rest → `web:3000`, 4.2 GB upload limit |
-| `web` | adpilot-web | Next.js standalone |
-| `api` | adpilot-api | `node dist/main.js`, health `GET /api/health` |
-| `worker` | adpilot-api | `node dist/worker.js`, graceful stop 120 s |
-| `scheduler` | adpilot-api | `node dist/scheduler.js` (leader election) |
-| `migrate` | adpilot-migrate | runs `prisma migrate deploy` + seed, then exits |
-| `postgres` | postgres:17 | volume `pgdata` |
-| `redis` | redis:7.4 | AOF persistence, `noeviction` (required by BullMQ), volume `redisdata` |
-| `minio` / `minio-init` | minio | buckets (private, versioned) + least-privilege app user, volume `miniodata` |
+| Service                | Image           | Notes                                                                       |
+| ---------------------- | --------------- | --------------------------------------------------------------------------- |
+| `caddy`                | caddy:2.10      | TLS, HTTP/3, `/api` → `api:4000`, rest → `web:3000`, 4.2 GB upload limit    |
+| `web`                  | adpilot-web     | Next.js standalone                                                          |
+| `api`                  | adpilot-api     | `node dist/main.js`, health `GET /api/health`                               |
+| `worker`               | adpilot-api     | `node dist/worker.js`, graceful stop 120 s                                  |
+| `scheduler`            | adpilot-api     | `node dist/scheduler.js` (leader election)                                  |
+| `migrate`              | adpilot-migrate | runs `prisma migrate deploy` + seed, then exits                             |
+| `postgres`             | postgres:17     | volume `pgdata`                                                             |
+| `redis`                | redis:7.4       | AOF persistence, `noeviction` (required by BullMQ), volume `redisdata`      |
+| `minio` / `minio-init` | minio           | buckets (private, versioned) + least-privilege app user, volume `miniodata` |
 
 Only Caddy publishes ports. The MinIO console (port 9001) is not exposed; reach it through an SSH tunnel if
 needed (`ssh -L 9001:<minio-container-ip>:9001 server`).
@@ -103,8 +104,12 @@ maintenance windows, enable **Super Admin → Maintenance mode** (users see a ba
       extends: { file: docker-compose.yml, service: worker }
       environment: { WORKER_QUEUES: 'campaign-launch,creative-upload' }
     worker:
-      environment: { WORKER_QUEUES: 'meta-sync,account-status,statistics,auto-rules,bulk-actions,email,telegram,maintenance' }
+      environment:
+        {
+          WORKER_QUEUES: 'meta-sync,account-status,statistics,auto-rules,bulk-actions,email,telegram,maintenance',
+        }
   ```
+
 - Concurrency per queue: Super Admin → Settings → Queues (applies after a worker restart).
 - The API is stateless and can run several replicas behind Caddy (`--scale api=2` and list both upstreams, or
   use `reverse_proxy api:4000` with Docker DNS round-robin).
@@ -157,12 +162,12 @@ migrations and starts the services again. Test a restore on a staging server reg
 
 ## 11. Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| Caddy cannot obtain a certificate | DNS points to the server; ports 80/443 open; `docker compose logs caddy` |
-| `migrate` fails | `docker compose logs migrate` — usually a wrong `DATABASE_URL`/password or an invalid `.env` value (the error lists the variable) |
-| Invitations/resets are not delivered | Super Admin → Settings → SMTP → "Send test e-mail"; Monitoring → queue `email` failures |
-| Meta calls fail with "Proxy connection failed" | Test the profile's proxy; check credentials and that the proxy allows CONNECT to `graph.facebook.com:443` |
-| "Meta API limit reached" | Normal throttling: work resumes automatically; see Monitoring → Meta rate limits |
-| Statistics look stale | Ad account → last sync / error; minimum interval is 35 min; the manual refresh has a cooldown |
-| Worker jobs stuck in "delayed" | Deferred on purpose (video processing, rate limits, ambiguity window); the job shows the reason in its log |
+| Symptom                                        | Check                                                                                                                             |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Caddy cannot obtain a certificate              | DNS points to the server; ports 80/443 open; `docker compose logs caddy`                                                          |
+| `migrate` fails                                | `docker compose logs migrate` — usually a wrong `DATABASE_URL`/password or an invalid `.env` value (the error lists the variable) |
+| Invitations/resets are not delivered           | Super Admin → Settings → SMTP → "Send test e-mail"; Monitoring → queue `email` failures                                           |
+| Meta calls fail with "Proxy connection failed" | Test the profile's proxy; check credentials and that the proxy allows CONNECT to `graph.facebook.com:443`                         |
+| "Meta API limit reached"                       | Normal throttling: work resumes automatically; see Monitoring → Meta rate limits                                                  |
+| Statistics look stale                          | Ad account → last sync / error; minimum interval is 35 min; the manual refresh has a cooldown                                     |
+| Worker jobs stuck in "delayed"                 | Deferred on purpose (video processing, rate limits, ambiguity window); the job shows the reason in its log                        |

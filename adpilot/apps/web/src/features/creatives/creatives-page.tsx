@@ -58,10 +58,17 @@ export function CreativesPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const state = useUrlTableState({ filterKeys: ['type'], defaultSort: 'createdAt:desc', defaultPageSize: 25 });
+  const state = useUrlTableState({
+    filterKeys: ['type'],
+    defaultSort: 'createdAt:desc',
+    defaultPageSize: 25,
+  });
   const creatives = useCreatives(state.params);
   const usage = useCreativeUsage();
-  const [view, changeView] = useLocalPreference<'grid' | 'list'>('adpilot.creatives.view', 'grid', ['grid', 'list']);
+  const [view, changeView] = useLocalPreference<'grid' | 'list'>('adpilot.creatives.view', 'grid', [
+    'grid',
+    'list',
+  ]);
   const [deleting, setDeleting] = useState<CreativeDto | null>(null);
   const openId = searchParams.get('open');
 
@@ -120,16 +127,43 @@ export function CreativesPage() {
       ),
     },
     { id: 'type', header: 'Type', cell: (c) => (c.type === 'VIDEO' ? 'Video' : 'Image') },
-    { id: 'dims', header: 'Dimensions', cell: (c) => (c.width && c.height ? `${c.width}×${c.height}${c.aspectRatio ? ` · ${c.aspectRatio}` : ''}` : '—') },
-    { id: 'duration', header: 'Duration', sortField: 'durationMs', cell: (c) => (c.type === 'VIDEO' ? formatDuration(c.durationMs) : '—') },
-    { id: 'size', header: 'Size', sortField: 'sizeBytes', align: 'right', cell: (c) => <span className="tabular-nums">{formatBytes(c.sizeBytes)}</span> },
-    { id: 'created', header: 'Uploaded', sortField: 'createdAt', cell: (c) => <RelativeTime value={c.createdAt} /> },
+    {
+      id: 'dims',
+      header: 'Dimensions',
+      cell: (c) =>
+        c.width && c.height ? `${c.width}×${c.height}${c.aspectRatio ? ` · ${c.aspectRatio}` : ''}` : '—',
+    },
+    {
+      id: 'duration',
+      header: 'Duration',
+      sortField: 'durationMs',
+      cell: (c) => (c.type === 'VIDEO' ? formatDuration(c.durationMs) : '—'),
+    },
+    {
+      id: 'size',
+      header: 'Size',
+      sortField: 'sizeBytes',
+      align: 'right',
+      cell: (c) => <span className="tabular-nums">{formatBytes(c.sizeBytes)}</span>,
+    },
+    {
+      id: 'created',
+      header: 'Uploaded',
+      sortField: 'createdAt',
+      cell: (c) => <RelativeTime value={c.createdAt} />,
+    },
     {
       id: 'actions',
       header: <span className="sr-only">Actions</span>,
       align: 'right',
       interactive: true,
-      cell: (c) => <CreativeMenu creative={c} onOpen={() => setOpen(c.id)} onDelete={canManage ? () => setDeleting(c) : undefined} />,
+      cell: (c) => (
+        <CreativeMenu
+          creative={c}
+          onOpen={() => setOpen(c.id)}
+          onDelete={canManage ? () => setDeleting(c) : undefined}
+        />
+      ),
     },
   ];
 
@@ -140,7 +174,11 @@ export function CreativesPage() {
         description="Your image and video library. Files are validated against Meta's requirements on upload and reused across launches."
         actions={
           canManage ? (
-            <Button onClick={() => document.querySelector<HTMLInputElement>('[data-testid="creative-file-input"]')?.click()}>
+            <Button
+              onClick={() =>
+                document.querySelector<HTMLInputElement>('[data-testid="creative-file-input"]')?.click()
+              }
+            >
               <Upload />
               Upload
             </Button>
@@ -161,7 +199,11 @@ export function CreativesPage() {
                   <Skeleton className="h-4 w-32" />
                 )}
               </div>
-              <Progress value={usedPct} tone={usedPct > 90 ? 'danger' : usedPct > 75 ? 'warning' : 'default'} aria-label="Storage used" />
+              <Progress
+                value={usedPct}
+                tone={usedPct > 90 ? 'danger' : usedPct > 75 ? 'warning' : 'default'}
+                aria-label="Storage used"
+              />
             </div>
             <div className="flex gap-4 text-sm text-muted-foreground sm:pl-4">
               <span className="flex items-center gap-1.5">
@@ -213,8 +255,18 @@ export function CreativesPage() {
               value={view}
               onValueChange={changeView}
               options={[
-                { value: 'grid', label: <span className="sr-only">Grid</span>, icon: <LayoutGrid />, title: 'Grid' },
-                { value: 'list', label: <span className="sr-only">List</span>, icon: <List />, title: 'List' },
+                {
+                  value: 'grid',
+                  label: <span className="sr-only">Grid</span>,
+                  icon: <LayoutGrid />,
+                  title: 'Grid',
+                },
+                {
+                  value: 'list',
+                  label: <span className="sr-only">List</span>,
+                  icon: <List />,
+                  title: 'List',
+                },
               ]}
             />
           </div>
@@ -246,10 +298,21 @@ export function CreativesPage() {
           </div>
         ) : creatives.data?.items.length ? (
           <div className={cn('grid gap-4 transition-opacity', creatives.isFetching && 'opacity-70')}>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" aria-label="Creatives">
+            <ul
+              className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+              aria-label="Creatives"
+            >
               {creatives.data.items.map((c) => (
-                <li key={c.id} className="group relative min-w-0 overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-overlay">
-                  <button type="button" onClick={() => setOpen(c.id)} className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Preview ${c.name}`}>
+                <li
+                  key={c.id}
+                  className="group relative min-w-0 overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-overlay"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpen(c.id)}
+                    className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    aria-label={`Preview ${c.name}`}
+                  >
                     <CreativeThumb creative={c} className="aspect-square w-full" />
                     <div className="grid gap-0.5 p-2.5">
                       <span className="truncate text-sm font-medium">{c.name}</span>
@@ -257,7 +320,12 @@ export function CreativesPage() {
                     </div>
                   </button>
                   <div className="absolute top-1.5 right-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                    <CreativeMenu creative={c} onOpen={() => setOpen(c.id)} onDelete={canManage ? () => setDeleting(c) : undefined} overlay />
+                    <CreativeMenu
+                      creative={c}
+                      onOpen={() => setOpen(c.id)}
+                      onDelete={canManage ? () => setDeleting(c) : undefined}
+                      overlay
+                    />
                   </div>
                 </li>
               ))}
@@ -292,11 +360,26 @@ export function CreativesPage() {
   );
 }
 
-function CreativeMenu({ creative, onOpen, onDelete, overlay = false }: { creative: CreativeDto; onOpen: () => void; onDelete?: () => void; overlay?: boolean }) {
+function CreativeMenu({
+  creative,
+  onOpen,
+  onDelete,
+  overlay = false,
+}: {
+  creative: CreativeDto;
+  onOpen: () => void;
+  onDelete?: () => void;
+  overlay?: boolean;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={overlay ? 'secondary' : 'ghost'} size="icon-sm" className={overlay ? 'shadow-sm' : undefined} aria-label={`Actions for ${creative.name}`}>
+        <Button
+          variant={overlay ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          className={overlay ? 'shadow-sm' : undefined}
+          aria-label={`Actions for ${creative.name}`}
+        >
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
@@ -337,6 +420,10 @@ function LibraryEmpty({ filtered, onReset }: { filtered: boolean; onReset: () =>
       }
     />
   ) : (
-    <EmptyState icon={Images} title="Your library is empty" description="Upload JPG/PNG images and MP4/MOV videos. They can be used in any launch and uploaded to Meta once per ad account." />
+    <EmptyState
+      icon={Images}
+      title="Your library is empty"
+      description="Upload JPG/PNG images and MP4/MOV videos. They can be used in any launch and uploaded to Meta once per ad account."
+    />
   );
 }

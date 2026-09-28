@@ -8,12 +8,15 @@ import { uploadWithProgress, type UploadHandlers } from '@/lib/api/upload';
 import type { CreativeDto, CreativeUsage, UploadItemResult } from './types';
 
 export const creativesApi = {
-  list: (params: Record<string, string | number>, signal?: AbortSignal) => api.get<Paginated<CreativeDto>>('/creatives', params, { signal }),
+  list: (params: Record<string, string | number>, signal?: AbortSignal) =>
+    api.get<Paginated<CreativeDto>>('/creatives', params, { signal }),
   usage: () => api.get<CreativeUsage>('/creatives/usage'),
   get: (id: string) => api.get<CreativeDto>(`/creatives/${id}`),
-  update: (id: string, body: { originalName?: string; tags?: string[] }) => api.patch<CreativeDto>(`/creatives/${id}`, body),
+  update: (id: string, body: { originalName?: string; tags?: string[] }) =>
+    api.patch<CreativeDto>(`/creatives/${id}`, body),
   remove: (id: string) => api.delete<OkResponse>(`/creatives/${id}`),
-  metaUpload: (id: string, adAccountId: string) => api.post<{ status: string }>(`/creatives/${id}/meta-upload`, { adAccountId }),
+  metaUpload: (id: string, adAccountId: string) =>
+    api.post<{ status: string }>(`/creatives/${id}/meta-upload`, { adAccountId }),
   /** One file per request so every file has its own progress, result and retry. */
   upload: (file: File, handlers: UploadHandlers) => {
     const body = new FormData();
@@ -36,5 +39,9 @@ export function useCreativeUsage() {
 }
 
 export function useCreative(id: string | null | undefined) {
-  return useQuery({ queryKey: queryKeys.creatives.detail(id ?? ''), queryFn: () => creativesApi.get(id as string), enabled: !!id });
+  return useQuery({
+    queryKey: queryKeys.creatives.detail(id ?? ''),
+    queryFn: () => creativesApi.get(id as string),
+    enabled: !!id,
+  });
 }

@@ -34,7 +34,9 @@ export class AccountStatusProcessor implements QueueProcessor {
       include: { proxy: true },
     });
     if (!profile || profile.status !== 'ACTIVE') return { skipped: 'profile inactive' };
-    const accounts = await this.prisma.adAccount.findMany({ where: { id: { in: adAccountIds }, profileId, isConnected: true } });
+    const accounts = await this.prisma.adAccount.findMany({
+      where: { id: { in: adAccountIds }, profileId, isConnected: true },
+    });
     if (!accounts.length) return { skipped: 'no accounts' };
 
     const conn = await this.connections.forProfile(profile);
@@ -42,16 +44,35 @@ export class AccountStatusProcessor implements QueueProcessor {
     try {
       let data: Record<string, MetaAdAccountData> = {};
       try {
-        data = await this.graph.getMany<MetaAdAccountData>(conn, accounts.map((a) => actId(a.metaAccountId)), AD_ACCOUNT_STATUS_FIELDS, 'account.status');
+        data = await this.graph.getMany<MetaAdAccountData>(
+          conn,
+          accounts.map((a) => actId(a.metaAccountId)),
+          AD_ACCOUNT_STATUS_FIELDS,
+          'account.status',
+        );
       } catch (err) {
         // One inaccessible account fails the whole multi-id request: fall back to single reads.
-        if (!(err instanceof MetaApiError) || err.category === 'RATE_LIMIT' || err.category === 'AUTH') throw err;
+        if (!(err instanceof MetaApiError) || err.category === 'RATE_LIMIT' || err.category === 'AUTH')
+          throw err;
         for (const a of accounts) {
           try {
-            data[actId(a.metaAccountId)] = await this.graph.get<MetaAdAccountData>(conn, `/${actId(a.metaAccountId)}`, { fields: AD_ACCOUNT_STATUS_FIELDS }, 'account.status', { metaAccountId: a.metaAccountId });
+            data[actId(a.metaAccountId)] = await this.graph.get<MetaAdAccountData>(
+              conn,
+              `/${actId(a.metaAccountId)}`,
+              { fields: AD_ACCOUNT_STATUS_FIELDS },
+              'account.status',
+              { metaAccountId: a.metaAccountId },
+            );
           } catch (inner) {
-            if (inner instanceof MetaApiError && (inner.category === 'RATE_LIMIT' || inner.category === 'AUTH')) throw inner;
-            await this.statusService.markCheckFailed([a.id], inner instanceof MetaApiError ? inner.details.friendlyMessage : String(inner));
+            if (
+              inner instanceof MetaApiError &&
+              (inner.category === 'RATE_LIMIT' || inner.category === 'AUTH')
+            )
+              throw inner;
+            await this.statusService.markCheckFailed(
+              [a.id],
+              inner instanceof MetaApiError ? inner.details.friendlyMessage : String(inner),
+            );
           }
         }
       }
@@ -64,9 +85,16 @@ export class AccountStatusProcessor implements QueueProcessor {
       return { checked: accounts.length, changed };
     } catch (err) {
       if (err instanceof MetaApiError && err.category !== 'RATE_LIMIT') {
-        await this.statusService.markCheckFailed(accounts.map((a) => a.id), err.details.friendlyMessage);
+        await this.statusService.markCheckFailed(
+          accounts.map((a) => a.id),
+          err.details.friendlyMessage,
+        );
       }
-      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus, tokenFingerprint: conn.tokenFingerprint });
+      return handleMetaJobError(err, job, token, {
+        profileId,
+        profileStatus: this.profileStatus,
+        tokenFingerprint: conn.tokenFingerprint,
+      });
     }
   }
 }

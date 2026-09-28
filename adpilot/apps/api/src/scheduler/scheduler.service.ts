@@ -60,7 +60,12 @@ export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy
     if (!(await this.ensureLeadership())) return;
     await this.redis.client.set(
       this.redis.key('scheduler', 'hb'),
-      JSON.stringify({ host: hostname(), pid: process.pid, at: new Date().toISOString(), tasks: this.tasks.map((t) => t.name) }),
+      JSON.stringify({
+        host: hostname(),
+        pid: process.pid,
+        at: new Date().toISOString(),
+        tasks: this.tasks.map((t) => t.name),
+      }),
       'EX',
       60,
     );
@@ -75,7 +80,9 @@ export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy
         try {
           await task.run();
         } catch (err) {
-          await this.systemLog.error('scheduler', `Task ${task.name} failed: ${(err as Error).message}`, { task: task.name });
+          await this.systemLog.error('scheduler', `Task ${task.name} failed: ${(err as Error).message}`, {
+            task: task.name,
+          });
         }
       });
     }

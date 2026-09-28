@@ -1,9 +1,20 @@
-import { Briefcase, FilePen, Image as ImageIcon, LayoutTemplate, Layers, Megaphone, Plug, RectangleHorizontal, type LucideIcon } from 'lucide-react';
+import {
+  Briefcase,
+  FilePen,
+  Image as ImageIcon,
+  LayoutTemplate,
+  Layers,
+  Megaphone,
+  Plug,
+  RectangleHorizontal,
+  type LucideIcon,
+} from 'lucide-react';
 import type { CommandEntry, CommandSource } from '@/components/layout/command-menu';
 import { api } from '@/lib/api/client';
 import { safeHref } from '@/lib/utils/strings';
 
-type SearchHitType = 'AD_ACCOUNT' | 'CAMPAIGN' | 'ADSET' | 'AD' | 'TEMPLATE' | 'DRAFT' | 'CREATIVE' | 'META_PROFILE';
+type SearchHitType =
+  'AD_ACCOUNT' | 'CAMPAIGN' | 'ADSET' | 'AD' | 'TEMPLATE' | 'DRAFT' | 'CREATIVE' | 'META_PROFILE';
 
 /** GET /search */
 interface SearchResponse {
@@ -37,7 +48,16 @@ export const globalSearchSource: CommandSource = {
       const target = safeHref(hit.link);
       if (!target || target.external) return [];
       const meta = GROUPS[hit.type] ?? { group: 'Results', icon: Briefcase };
-      return [{ id: `search:${hit.type}:${hit.id}`, label: hit.title, group: meta.group, icon: meta.icon, href: target.href, hint: hit.subtitle }];
+      return [
+        {
+          id: `search:${hit.type}:${hit.id}`,
+          label: hit.title,
+          group: meta.group,
+          icon: meta.icon,
+          href: target.href,
+          hint: hit.subtitle,
+        },
+      ];
     });
   },
 };

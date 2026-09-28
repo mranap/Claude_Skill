@@ -7,7 +7,8 @@ import { formatBytes } from '@/lib/utils/format';
 import { creativesApi } from './api';
 import type { CreativeDto, CreativeUsage } from './types';
 
-export type UploadStatus = 'queued' | 'waiting' | 'uploading' | 'processing' | 'done' | 'duplicate' | 'error' | 'cancelled';
+export type UploadStatus =
+  'queued' | 'waiting' | 'uploading' | 'processing' | 'done' | 'duplicate' | 'error' | 'cancelled';
 
 export interface UploadItem {
   id: string;
@@ -41,15 +42,25 @@ export function fileKind(name: string): 'IMAGE' | 'VIDEO' | null {
 }
 
 /** Client-side pre-checks mirroring the server (the server re-validates and probes every file). */
-export function validateFile(file: File, usage: CreativeUsage | undefined, reservedBytes: number): string | null {
+export function validateFile(
+  file: File,
+  usage: CreativeUsage | undefined,
+  reservedBytes: number,
+): string | null {
   const kind = fileKind(file.name);
-  if (!kind) return `Unsupported file type. Images: ${[...IMAGE_EXT].join(', ').toUpperCase()}; videos: ${[...VIDEO_EXT].join(', ').toUpperCase()}.`;
+  if (!kind)
+    return `Unsupported file type. Images: ${[...IMAGE_EXT].join(', ').toUpperCase()}; videos: ${[...VIDEO_EXT].join(', ').toUpperCase()}.`;
   if (file.size === 0) return 'The file is empty.';
   if (usage) {
-    const limitMb = Math.min(kind === 'IMAGE' ? usage.limits.maxImageSizeMb : usage.limits.maxVideoSizeMb, usage.limits.maxUploadSizeMb);
-    if (file.size > limitMb * MB) return `File is larger than the ${limitMb} MB limit for ${kind === 'IMAGE' ? 'images' : 'videos'}.`;
+    const limitMb = Math.min(
+      kind === 'IMAGE' ? usage.limits.maxImageSizeMb : usage.limits.maxVideoSizeMb,
+      usage.limits.maxUploadSizeMb,
+    );
+    if (file.size > limitMb * MB)
+      return `File is larger than the ${limitMb} MB limit for ${kind === 'IMAGE' ? 'images' : 'videos'}.`;
     const free = Number(usage.quotaBytes) - Number(usage.usedBytes) - reservedBytes;
-    if (file.size > free) return `Not enough storage left (${formatBytes(Math.max(0, free))} free). Delete unused creatives first.`;
+    if (file.size > free)
+      return `Not enough storage left (${formatBytes(Math.max(0, free))} free). Delete unused creatives first.`;
   }
   return null;
 }
@@ -91,7 +102,15 @@ export class UploadQueue {
 
   /** Bytes of files that are queued or uploading (reserved against the quota). */
   pendingBytes(): number {
-    return this.items.filter((i) => i.status === 'queued' || i.status === 'waiting' || i.status === 'uploading' || i.status === 'processing').reduce((n, i) => n + i.file.size, 0);
+    return this.items
+      .filter(
+        (i) =>
+          i.status === 'queued' ||
+          i.status === 'waiting' ||
+          i.status === 'uploading' ||
+          i.status === 'processing',
+      )
+      .reduce((n, i) => n + i.file.size, 0);
   }
 
   add(files: File[], usage: CreativeUsage | undefined) {
@@ -99,7 +118,14 @@ export class UploadQueue {
     const added: UploadItem[] = files.map((file) => {
       const error = validateFile(file, usage, reserved);
       if (!error) reserved += file.size;
-      return { id: `upload-${++counter}`, file, kind: fileKind(file.name), status: error ? 'error' : 'queued', progress: 0, error: error ?? undefined };
+      return {
+        id: `upload-${++counter}`,
+        file,
+        kind: fileKind(file.name),
+        status: error ? 'error' : 'queued',
+        progress: 0,
+        error: error ?? undefined,
+      };
     });
     this.items = [...added, ...this.items];
     this.emit();
@@ -118,7 +144,13 @@ export class UploadQueue {
     this.active++;
     const controller = new AbortController();
     this.controllers.set(item.id, controller);
-    this.patch(item.id, { status: 'uploading', progress: 0, error: undefined, note: undefined, warnings: undefined });
+    this.patch(item.id, {
+      status: 'uploading',
+      progress: 0,
+      error: undefined,
+      note: undefined,
+      warnings: undefined,
+    });
     let lastPercent = -1;
     try {
       const res = await creativesApi.upload(item.file, {
@@ -133,22 +165,39 @@ export class UploadQueue {
         onSent: () => this.patch(item.id, { status: 'processing', progress: 1 }),
       });
       const result = res.results[0];
-      if (!result) this.patch(item.id, { status: 'error', error: 'The server did not return a result for this file.' });
-      else if (!result.ok) this.patch(item.id, { status: 'error', error: result.error ?? 'The file was rejected.' });
-      else this.patch(item.id, { status: result.duplicate ? 'duplicate' : 'done', result: result.file, warnings: result.warnings?.length ? result.warnings : undefined, progress: 1 });
+      if (!result)
+        this.patch(item.id, { status: 'error', error: 'The server did not return a result for this file.' });
+      else if (!result.ok)
+        this.patch(item.id, { status: 'error', error: result.error ?? 'The file was rejected.' });
+      else
+        this.patch(item.id, {
+          status: result.duplicate ? 'duplicate' : 'done',
+          result: result.file,
+          warnings: result.warnings?.length ? result.warnings : undefined,
+          progress: 1,
+        });
     } catch (error) {
       const retries = this.items.find((i) => i.id === item.id)?.autoRetries ?? 0;
       const wait = isApiError(error, 'RATE_LIMITED') ? (error.retryAfterSeconds ?? 5) : null;
-      if (error instanceof DOMException && error.name === 'AbortError') this.patch(item.id, { status: 'cancelled' });
+      if (error instanceof DOMException && error.name === 'AbortError')
+        this.patch(item.id, { status: 'cancelled' });
       else if (wait !== null && wait <= MAX_AUTO_RETRY_WAIT_S && retries < MAX_AUTO_RETRIES) {
         // Other uploads of this account (e.g. in another tab) are still running: wait and try again.
-        this.patch(item.id, { status: 'waiting', progress: 0, autoRetries: retries + 1, note: 'Waiting for other uploads to finish…' });
-        setTimeout(() => {
-          if (this.items.find((i) => i.id === item.id)?.status === 'waiting') {
-            this.patch(item.id, { status: 'queued' });
-            this.pump();
-          }
-        }, Math.max(1, wait) * 1000);
+        this.patch(item.id, {
+          status: 'waiting',
+          progress: 0,
+          autoRetries: retries + 1,
+          note: 'Waiting for other uploads to finish…',
+        });
+        setTimeout(
+          () => {
+            if (this.items.find((i) => i.id === item.id)?.status === 'waiting') {
+              this.patch(item.id, { status: 'queued' });
+              this.pump();
+            }
+          },
+          Math.max(1, wait) * 1000,
+        );
       } else this.patch(item.id, { status: 'error', error: getErrorMessage(error), note: undefined });
     } finally {
       this.controllers.delete(item.id);
@@ -163,7 +212,8 @@ export class UploadQueue {
     const controller = this.controllers.get(id);
     const status = this.items.find((i) => i.id === id)?.status;
     if (controller) controller.abort();
-    else if (status === 'queued' || status === 'waiting') this.patch(id, { status: 'cancelled', note: undefined });
+    else if (status === 'queued' || status === 'waiting')
+      this.patch(id, { status: 'cancelled', note: undefined });
   }
 
   retry(id: string) {
@@ -179,7 +229,13 @@ export class UploadQueue {
   }
 
   clearFinished() {
-    this.items = this.items.filter((i) => i.status === 'queued' || i.status === 'waiting' || i.status === 'uploading' || i.status === 'processing');
+    this.items = this.items.filter(
+      (i) =>
+        i.status === 'queued' ||
+        i.status === 'waiting' ||
+        i.status === 'uploading' ||
+        i.status === 'processing',
+    );
     this.emit();
   }
 }

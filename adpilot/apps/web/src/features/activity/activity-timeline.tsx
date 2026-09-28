@@ -48,7 +48,11 @@ const SOURCES: Record<string, string> = {
 function detailChips(details: Record<string, unknown> | null): [string, string][] {
   if (!details) return [];
   return Object.entries(details)
-    .filter(([key, value]) => (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') && !/id$/i.test(key))
+    .filter(
+      ([key, value]) =>
+        (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') &&
+        !/id$/i.test(key),
+    )
     .slice(0, 4)
     .map(([key, value]) => [humanize(key), String(value)]);
 }
@@ -63,8 +67,15 @@ export function ActivityTimeline({ events, className }: { events: ActivityEventD
         const chips = detailChips(event.details);
         return (
           <li key={event.id} className="relative flex gap-3 pb-4 last:pb-0">
-            {index < events.length - 1 ? <span aria-hidden className="absolute top-8 bottom-0 left-[15px] w-px bg-border" /> : null}
-            <span className={cn('relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full', meta.tone)}>
+            {index < events.length - 1 ? (
+              <span aria-hidden className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />
+            ) : null}
+            <span
+              className={cn(
+                'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full',
+                meta.tone,
+              )}
+            >
               <Icon className="size-4" aria-hidden />
             </span>
             <div className="grid min-w-0 flex-1 gap-1 pt-1">

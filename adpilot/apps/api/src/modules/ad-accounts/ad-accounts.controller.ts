@@ -1,14 +1,28 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { adAccountBulkConnectSchema, adAccountListQuerySchema, adAccountUpdateSchema, paginationQuerySchema } from '@adpilot/shared';
-import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import {
+  adAccountBulkConnectSchema,
+  adAccountListQuerySchema,
+  adAccountUpdateSchema,
+  paginationQuerySchema,
+} from '@adpilot/shared';
+import {
+  CurrentUser,
+  RateLimit,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators';
 import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { ActivityService } from '../activity/activity.service';
 import { AdAccountsService } from './ad-accounts.service';
+import { TargetingLookupService } from './targeting-lookup.service';
 import type { AuthUser } from '../auth/auth.types';
 
 const uuid = new ParseUUIDPipe();
+const interestQuerySchema = z.object({ q: z.string().trim().min(2).max(100) });
+const localeQuerySchema = z.object({ q: z.string().trim().max(50).default('') });
+const metaPageId = z.string().regex(/^\d{5,25}$/, 'Invalid Page id');
 
 @RequireAnyPermission(...READ_ACCESS.adAccounts)
 @Controller('ad-accounts')
@@ -16,17 +30,24 @@ export class AdAccountsController {
   constructor(
     private readonly accounts: AdAccountsService,
     private readonly activity: ActivityService,
+    private readonly targeting: TargetingLookupService,
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query(zod(adAccountListQuerySchema)) q: z.infer<typeof adAccountListQuerySchema>) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(adAccountListQuerySchema)) q: z.infer<typeof adAccountListQuerySchema>,
+  ) {
     return this.accounts.list(user.id, q);
   }
 
   @Post('connect')
   @HttpCode(200)
   @RequirePermissions('app.meta_profiles.manage')
-  bulkConnect(@CurrentUser() user: AuthUser, @Body(zod(adAccountBulkConnectSchema)) body: z.infer<typeof adAccountBulkConnectSchema>) {
+  bulkConnect(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(adAccountBulkConnectSchema)) body: z.infer<typeof adAccountBulkConnectSchema>,
+  ) {
     return this.accounts.bulkConnect(user.id, body.profileId, body.connect, body.disconnect);
   }
 
@@ -37,7 +58,11 @@ export class AdAccountsController {
 
   @Patch(':id')
   @RequirePermissions('app.meta_profiles.manage')
-  update(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Body(zod(adAccountUpdateSchema)) body: z.infer<typeof adAccountUpdateSchema>) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(adAccountUpdateSchema)) body: z.infer<typeof adAccountUpdateSchema>,
+  ) {
     return this.accounts.update(user.id, id, body);
   }
 
@@ -68,8 +93,48 @@ export class AdAccountsController {
     return this.accounts.pages(user.id, id);
   }
 
+  /** Interest search for detailed targeting (Meta Targeting Search). */
+  @Get(':id/targeting/interests')
+  @RequireAnyPermission('app.campaigns.launch', 'app.templates.manage')
+  @RateLimit({ bucket: 'targeting-search', limit: 120, windowSeconds: 60 })
+  interests(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Query(zod(interestQuerySchema)) q: z.infer<typeof interestQuerySchema>,
+  ) {
+    return this.targeting.interests(user.id, id, q.q).then((items) => ({ items }));
+  }
+
+  /** Language (locale) search; an empty query lists all targetable languages. */
+  @Get(':id/targeting/locales')
+  @RequireAnyPermission('app.campaigns.launch', 'app.templates.manage')
+  @RateLimit({ bucket: 'targeting-search', limit: 120, windowSeconds: 60 })
+  locales(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Query(zod(localeQuerySchema)) q: z.infer<typeof localeQuerySchema>,
+  ) {
+    return this.targeting.locales(user.id, id, q.q).then((items) => ({ items }));
+  }
+
+  /** Instant Forms of one of the profile's Pages (lead ads). */
+  @Get(':id/pages/:pageId/lead-forms')
+  @RequireAnyPermission('app.campaigns.launch', 'app.templates.manage')
+  @RateLimit({ bucket: 'lead-forms', limit: 30, windowSeconds: 60 })
+  leadForms(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Param('pageId', zod(metaPageId)) pageId: string,
+  ) {
+    return this.targeting.leadForms(user.id, id, pageId).then((items) => ({ items }));
+  }
+
   @Get(':id/activity')
-  async timeline(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>) {
+  async timeline(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>,
+  ) {
     await this.accounts.findOwned(user.id, id);
     return this.activity.list(user.id, { adAccountId: id, page: q.page, pageSize: q.pageSize });
   }

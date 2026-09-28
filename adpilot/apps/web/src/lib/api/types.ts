@@ -265,9 +265,12 @@ export interface SettingsEnvironment {
 }
 
 /** Settings group as returned to admins: public values plus `<secret>Set` flags. */
-export type AdminSettingGroup<K extends SettingKey> = SettingValue<K> & Record<`${string}Set`, boolean | undefined>;
+export type AdminSettingGroup<K extends SettingKey> = SettingValue<K> &
+  Record<`${string}Set`, boolean | undefined>;
 
-export type AdminSettingsResponse = { [K in SettingKey]: AdminSettingGroup<K> } & { environment: SettingsEnvironment };
+export type AdminSettingsResponse = { [K in SettingKey]: AdminSettingGroup<K> } & {
+  environment: SettingsEnvironment;
+};
 
 export interface MetaConnectivityResult {
   ok: boolean;

@@ -37,19 +37,36 @@ export class RetentionService {
         result[name] = await fn();
       } catch (err) {
         failed.push(name);
-        await this.systemLog.error('retention', `Retention step "${name}" failed: ${(err as Error).message}`, { step: name });
+        await this.systemLog.error(
+          'retention',
+          `Retention step "${name}" failed: ${(err as Error).message}`,
+          { step: name },
+        );
       }
     };
 
-    await step('metaApiLogs', () => this.batchDelete('meta_api_logs', '"createdAt"', before(r.metaApiLogsDays)));
+    await step('metaApiLogs', () =>
+      this.batchDelete('meta_api_logs', '"createdAt"', before(r.metaApiLogsDays)),
+    );
     await step('systemLogs', () => this.batchDelete('system_logs', '"createdAt"', before(r.systemLogsDays)));
     await step('auditLogs', () => this.batchDelete('audit_logs', '"createdAt"', before(r.auditLogsDays)));
-    await step('notifications', () => this.batchDelete('notifications', '"createdAt"', before(r.notificationsDays)));
-    await step('loginEvents', () => this.batchDelete('login_events', '"createdAt"', before(r.loginEventsDays)));
+    await step('notifications', () =>
+      this.batchDelete('notifications', '"createdAt"', before(r.notificationsDays)),
+    );
+    await step('loginEvents', () =>
+      this.batchDelete('login_events', '"createdAt"', before(r.loginEventsDays)),
+    );
     await step('statistics', () => this.batchDelete('insights_daily', '"date"', before(r.statisticsDays)));
-    await step('ruleExecutions', () => this.batchDelete('auto_rule_executions', '"executedAt"', before(r.ruleExecutionsDays)));
+    await step('ruleExecutions', () =>
+      this.batchDelete('auto_rule_executions', '"executedAt"', before(r.ruleExecutionsDays)),
+    );
     await step('launchJobs', () =>
-      this.batchDelete('launch_jobs', '"createdAt"', before(r.launchJobsDays), `AND status IN ('COMPLETED','PARTIAL_FAILURE','FAILED','CANCELLED')`),
+      this.batchDelete(
+        'launch_jobs',
+        '"createdAt"',
+        before(r.launchJobsDays),
+        `AND status IN ('COMPLETED','PARTIAL_FAILURE','FAILED','CANCELLED')`,
+      ),
     );
     await step('expiredSessions', () => this.batchDelete('sessions', '"expiresAt"', before(7)));
     await step('resetTokens', () => this.batchDelete('password_reset_tokens', '"expiresAt"', before(1)));
@@ -71,7 +88,12 @@ export class RetentionService {
     return result;
   }
 
-  private async batchDelete(table: string, column: string, olderThan: Date, extraWhere = ''): Promise<number> {
+  private async batchDelete(
+    table: string,
+    column: string,
+    olderThan: Date,
+    extraWhere = '',
+  ): Promise<number> {
     const sql = `DELETE FROM "${table}" WHERE id IN (SELECT id FROM "${table}" WHERE ${column} < $1 ${extraWhere} LIMIT 5000)`;
     let total = 0;
     for (let i = 0; i < 200; i++) {

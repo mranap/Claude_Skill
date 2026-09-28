@@ -30,7 +30,11 @@ function stripToken(): void {
   query.delete('token');
   const qs = query.toString();
   const fragment = hash.toString();
-  window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${fragment ? `#${fragment}` : ''}`);
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${qs ? `?${qs}` : ''}${fragment ? `#${fragment}` : ''}`,
+  );
 }
 
 function subscribe(): () => void {

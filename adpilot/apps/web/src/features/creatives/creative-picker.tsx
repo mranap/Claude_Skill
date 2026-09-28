@@ -4,7 +4,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, Film, ImageIcon, Images, Search } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -55,8 +63,14 @@ export function CreativeField({
             <CreativeThumb creative={creative.data} className="size-14 shrink-0 rounded-md" />
             <span className="grid min-w-0 gap-0.5">
               <span className="truncate text-sm font-medium">{creative.data.name}</span>
-              <span className="truncate text-xs text-muted-foreground">{describeCreative(creative.data)}</span>
-              {wrongType ? <span className="text-xs text-destructive-fg">This format needs {type === 'VIDEO' ? 'a video' : 'an image'}.</span> : null}
+              <span className="truncate text-xs text-muted-foreground">
+                {describeCreative(creative.data)}
+              </span>
+              {wrongType ? (
+                <span className="text-xs text-destructive-fg">
+                  This format needs {type === 'VIDEO' ? 'a video' : 'an image'}.
+                </span>
+              ) : null}
             </span>
             <span className="ml-auto shrink-0 text-xs font-medium text-primary-fg">Change</span>
           </>
@@ -103,18 +117,42 @@ export function CreativePickerDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">{open ? <PickerBody type={type} selected={selected} onSelect={onSelect} onCancel={() => onOpenChange(false)} /> : null}</DialogContent>
+      <DialogContent size="xl">
+        {open ? (
+          <PickerBody
+            type={type}
+            selected={selected}
+            onSelect={onSelect}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : null}
+      </DialogContent>
     </Dialog>
   );
 }
 
-function PickerBody({ type, selected, onSelect, onCancel }: { type: 'IMAGE' | 'VIDEO'; selected?: string; onSelect: (id: string) => void; onCancel: () => void }) {
+function PickerBody({
+  type,
+  selected,
+  onSelect,
+  onCancel,
+}: {
+  type: 'IMAGE' | 'VIDEO';
+  selected?: string;
+  onSelect: (id: string) => void;
+  onCancel: () => void;
+}) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string | undefined>(selected);
   const q = useDebouncedValue(query.trim(), 300);
-  const params: Record<string, string | number> = { type, pageSize: 48, sort: 'createdAt:desc', ...(q ? { q } : {}) };
+  const params: Record<string, string | number> = {
+    type,
+    pageSize: 48,
+    sort: 'createdAt:desc',
+    ...(q ? { q } : {}),
+  };
   const creatives = useCreatives(params);
   const usage = useCreativeUsage();
   const onSettled = useCallback(
@@ -133,14 +171,24 @@ function PickerBody({ type, selected, onSelect, onCancel }: { type: 'IMAGE' | 'V
     <>
       <DialogHeader>
         <DialogTitle>Choose {type === 'VIDEO' ? 'a video' : 'an image'}</DialogTitle>
-        <DialogDescription>Pick from your library or upload new files. Uploaded files are added to the library.</DialogDescription>
+        <DialogDescription>
+          Pick from your library or upload new files. Uploaded files are added to the library.
+        </DialogDescription>
       </DialogHeader>
       <DialogBody className="grid gap-4">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or tag" className="h-9 pl-8" aria-label="Search creatives" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or tag"
+            className="h-9 pl-8"
+            aria-label="Search creatives"
+          />
         </div>
-        {can('app.creatives.manage') ? <UploadDropzone onFiles={(files) => queue.add(files, usage.data)} usage={usage.data} compact /> : null}
+        {can('app.creatives.manage') ? (
+          <UploadDropzone onFiles={(files) => queue.add(files, usage.data)} usage={usage.data} compact />
+        ) : null}
         <UploadList items={items} queue={queue} />
         {creatives.isError ? (
           <ErrorAlert error={creatives.error} onRetry={() => void creatives.refetch()} />
@@ -169,7 +217,9 @@ function PickerBody({ type, selected, onSelect, onCancel }: { type: 'IMAGE' | 'V
                     <CreativeThumb creative={c} className="aspect-square w-full" />
                     <span className="grid gap-0.5 p-2">
                       <span className="truncate text-xs font-medium">{c.name}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">{describeCreative(c)}</span>
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {describeCreative(c)}
+                      </span>
                     </span>
                     {active ? (
                       <span className="absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
@@ -182,7 +232,16 @@ function PickerBody({ type, selected, onSelect, onCancel }: { type: 'IMAGE' | 'V
             })}
           </ul>
         ) : (
-          <EmptyState compact icon={q ? Images : Icon} title={q ? 'Nothing matches your search' : `No ${type === 'VIDEO' ? 'videos' : 'images'} in your library`} description={q ? undefined : 'Upload a file above to use it in this ad.'} />
+          <EmptyState
+            compact
+            icon={q ? Images : Icon}
+            title={
+              q
+                ? 'Nothing matches your search'
+                : `No ${type === 'VIDEO' ? 'videos' : 'images'} in your library`
+            }
+            description={q ? undefined : 'Upload a file above to use it in this ad.'}
+          />
         )}
       </DialogBody>
       <DialogFooter>

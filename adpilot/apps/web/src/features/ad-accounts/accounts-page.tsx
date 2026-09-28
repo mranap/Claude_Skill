@@ -9,7 +9,14 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,13 +47,19 @@ import { adAccountsApi, useAdAccounts } from './api';
 import { ConnectAccountsPanel } from './connect-accounts';
 import type { AdAccountDto } from './types';
 
-const STATUS_OPTIONS = AD_ACCOUNT_STATUS_KEYS.filter((k) => !k.startsWith('ANY_')).map((k) => ({ value: k, label: AD_ACCOUNT_STATUS_DISPLAY[k].label }));
+const STATUS_OPTIONS = AD_ACCOUNT_STATUS_KEYS.filter((k) => !k.startsWith('ANY_')).map((k) => ({
+  value: k,
+  label: AD_ACCOUNT_STATUS_DISPLAY[k].label,
+}));
 
 export function AccountsPage() {
   const router = useRouter();
   const { can } = useAuth();
   const canManage = can('app.meta_profiles.manage');
-  const state = useUrlTableState({ filterKeys: ['profileId', 'status', 'connected'], defaultSort: 'name:asc' });
+  const state = useUrlTableState({
+    filterKeys: ['profileId', 'status', 'connected'],
+    defaultSort: 'name:asc',
+  });
   const accounts = useAdAccounts(state.params);
   const profiles = useMetaProfiles(canManage);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -77,7 +90,9 @@ export function AccountsPage() {
             <AdAccountStatusBadge statusKey={a.statusKey} label={a.statusLabel} tone={a.statusTone} />
             {!a.isConnected ? <Badge variant="muted">Not connected</Badge> : null}
           </div>
-          {a.disableReasonLabel ? <span className="text-xs text-destructive-fg">{a.disableReasonLabel}</span> : null}
+          {a.disableReasonLabel ? (
+            <span className="text-xs text-destructive-fg">{a.disableReasonLabel}</span>
+          ) : null}
         </div>
       ),
     },
@@ -116,7 +131,9 @@ export function AccountsPage() {
       cell: (a) => (
         <div className="grid justify-items-end gap-0.5 tabular-nums">
           <span>{formatAmount(a.balance, a.currency)}</span>
-          <span className="text-xs text-muted-foreground">{a.spendCap ? `cap ${formatAmount(a.spendCap, a.currency)}` : 'no cap'}</span>
+          <span className="text-xs text-muted-foreground">
+            {a.spendCap ? `cap ${formatAmount(a.spendCap, a.currency)}` : 'no cap'}
+          </span>
         </div>
       ),
     },
@@ -127,7 +144,11 @@ export function AccountsPage() {
       cell: (a) =>
         a.isConnected ? (
           <div className="grid gap-0.5">
-            {a.lastStatusCheckAt ? <RelativeTime value={a.lastStatusCheckAt} /> : <span className="text-muted-foreground">Pending</span>}
+            {a.lastStatusCheckAt ? (
+              <RelativeTime value={a.lastStatusCheckAt} />
+            ) : (
+              <span className="text-muted-foreground">Pending</span>
+            )}
             {a.statusCheckError ? (
               <SimpleTooltip content={a.statusCheckError}>
                 <span className="w-fit text-xs text-destructive-fg">Check failed</span>
@@ -162,7 +183,11 @@ export function AccountsPage() {
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem asChild>
-              <a href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${a.metaAccountId}`} target="_blank" rel="noreferrer noopener">
+              <a
+                href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${a.metaAccountId}`}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
                 <ExternalLink />
                 Open in Ads Manager
               </a>
@@ -170,7 +195,9 @@ export function AccountsPage() {
             {canManage ? (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => actions.setConnected.mutate({ account: a, connected: !a.isConnected })}>
+                <DropdownMenuItem
+                  onSelect={() => actions.setConnected.mutate({ account: a, connected: !a.isConnected })}
+                >
                   {a.isConnected ? <Unlink /> : <Link2 />}
                   {a.isConnected ? 'Disconnect' : 'Connect'}
                 </DropdownMenuItem>
@@ -215,10 +242,29 @@ export function AccountsPage() {
             searchPlaceholder="Search name, act_ id or business"
             filters={
               <>
-                <FilterSelect state={state} filterKey="connected" allLabel="Connected" options={[{ value: 'false', label: 'Not connected' }, { value: 'all', label: 'All accounts' }]} aria-label="Connection" />
-                <FilterSelect state={state} filterKey="status" allLabel="Any status" options={STATUS_OPTIONS} />
+                <FilterSelect
+                  state={state}
+                  filterKey="connected"
+                  allLabel="Connected"
+                  options={[
+                    { value: 'false', label: 'Not connected' },
+                    { value: 'all', label: 'All accounts' },
+                  ]}
+                  aria-label="Connection"
+                />
+                <FilterSelect
+                  state={state}
+                  filterKey="status"
+                  allLabel="Any status"
+                  options={STATUS_OPTIONS}
+                />
                 {canManage && (profiles.data?.length ?? 0) > 1 ? (
-                  <FilterSelect state={state} filterKey="profileId" allLabel="All profiles" options={(profiles.data ?? []).map((p) => ({ value: p.id, label: p.name }))} />
+                  <FilterSelect
+                    state={state}
+                    filterKey="profileId"
+                    allLabel="All profiles"
+                    options={(profiles.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                  />
                 ) : null}
               </>
             }
@@ -226,7 +272,16 @@ export function AccountsPage() {
         }
         emptyState={
           state.hasActiveFilters ? (
-            <EmptyState compact icon={Briefcase} title="No ad accounts match the filters" action={<Button variant="outline" size="sm" onClick={state.reset}>Reset filters</Button>} />
+            <EmptyState
+              compact
+              icon={Briefcase}
+              title="No ad accounts match the filters"
+              action={
+                <Button variant="outline" size="sm" onClick={state.reset}>
+                  Reset filters
+                </Button>
+              }
+            />
           ) : (
             <EmptyState
               icon={Briefcase}
@@ -264,23 +319,35 @@ export function useAccountActions(onCooldown?: (error: unknown) => boolean) {
   const check = useMutation({
     mutationFn: (account: AdAccountDto) => adAccountsApi.checkStatus(account.id),
     onSuccess: async (_r, account) => {
-      toast.success('Status check queued', { description: `“${account.name}” is checked within a few seconds.` });
+      toast.success('Status check queued', {
+        description: `“${account.name}” is checked within a few seconds.`,
+      });
       await invalidate();
     },
     onError: (error) => {
       if (onCooldown?.(error)) return;
-      if (isApiError(error, 'COOLDOWN')) toast.warning('Checked moments ago', { description: getErrorMessage(error) });
+      if (isApiError(error, 'COOLDOWN'))
+        toast.warning('Checked moments ago', { description: getErrorMessage(error) });
       else toast.error(getErrorTitle(error), { description: getErrorMessage(error) });
     },
   });
   const setConnected = useMutation({
     mutationFn: ({ account, connected }: { account: AdAccountDto; connected: boolean }) =>
-      adAccountsApi.connect({ profileId: account.profileId, connect: connected ? [account.metaAccountId] : [], disconnect: connected ? [] : [account.metaAccountId] }),
+      adAccountsApi.connect({
+        profileId: account.profileId,
+        connect: connected ? [account.metaAccountId] : [],
+        disconnect: connected ? [] : [account.metaAccountId],
+      }),
     onSuccess: async (_r, { account, connected }) => {
       toast.success(connected ? `“${account.name}” connected` : `“${account.name}” disconnected`, {
-        description: connected ? 'Pixels, audiences and campaigns are being synchronised.' : 'Monitoring, statistics and rules stop for this account.',
+        description: connected
+          ? 'Pixels, audiences and campaigns are being synchronised.'
+          : 'Monitoring, statistics and rules stop for this account.',
       });
-      await Promise.all([invalidate(), queryClient.invalidateQueries({ queryKey: queryKeys.metaProfiles.all })]);
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.metaProfiles.all }),
+      ]);
     },
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
   });
@@ -297,7 +364,10 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Connect ad accounts</DialogTitle>
-          <DialogDescription>Select the accounts to manage. Disconnecting stops monitoring, statistics sync and rules for that account.</DialogDescription>
+          <DialogDescription>
+            Select the accounts to manage. Disconnecting stops monitoring, statistics sync and rules for that
+            account.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-4">
           {profiles.isLoading ? null : usable.length ? (
@@ -310,14 +380,24 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
                   </SelectTrigger>
                   <SelectContent>
                     {usable.map((p) => (
-                      <SelectItem key={p.id} value={p.id} description={`${p.counts.connectedAdAccounts} of ${p.counts.adAccounts} accounts connected · ${p.statusLabel}`}>
+                      <SelectItem
+                        key={p.id}
+                        value={p.id}
+                        description={`${p.counts.connectedAdAccounts} of ${p.counts.adAccounts} accounts connected · ${p.statusLabel}`}
+                      >
                         {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              {profileId ? <ConnectAccountsPanel key={profileId} profileId={profileId} onSaved={() => onOpenChange(false)} /> : null}
+              {profileId ? (
+                <ConnectAccountsPanel
+                  key={profileId}
+                  profileId={profileId}
+                  onSaved={() => onOpenChange(false)}
+                />
+              ) : null}
             </>
           ) : (
             <EmptyState

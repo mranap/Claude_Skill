@@ -115,7 +115,8 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
       for (const name of names) {
         const path = join(this.tmpDir, name);
         const info = await stat(path).catch(() => null);
-        if (info && Date.now() - info.mtimeMs > STALE_TMP_MS) await rm(path, { force: true, recursive: true });
+        if (info && Date.now() - info.mtimeMs > STALE_TMP_MS)
+          await rm(path, { force: true, recursive: true });
       }
     } catch (err) {
       this.logger.warn('Temporary upload sweep failed', { err: String(err) });
@@ -124,7 +125,8 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
 
   async handle(req: Request, userId: string): Promise<{ results: UploadItemResult[] }> {
     const contentType = req.headers['content-type'] ?? '';
-    if (!contentType.startsWith('multipart/form-data')) throw new AppError('UNSUPPORTED_MEDIA_TYPE', 'Use multipart/form-data');
+    if (!contentType.startsWith('multipart/form-data'))
+      throw new AppError('UNSUPPORTED_MEDIA_TYPE', 'Use multipart/form-data');
     const limits = await this.settings.get('files');
     const maxImage = Math.min(limits.maxImageSizeMb, limits.maxUploadSizeMb) * MB;
     const maxVideo = Math.min(limits.maxVideoSizeMb, limits.maxUploadSizeMb) * MB;
@@ -133,17 +135,28 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
     const remaining = await this.remainingQuota(userId);
     const declared = Number(req.headers['content-length'] ?? 0);
     if (remaining <= 0 || (declared > 0 && declared > remaining + MB)) {
-      throw new AppError('QUOTA_EXCEEDED', 'This upload does not fit into your remaining storage. Delete unused creatives or ask the administrator for more space.');
+      throw new AppError(
+        'QUOTA_EXCEEDED',
+        'This upload does not fit into your remaining storage. Delete unused creatives or ask the administrator for more space.',
+      );
     }
     const active = this.redis.key('creative-uploads', userId);
     const running = await this.redis.client.incr(active);
     await this.redis.client.pexpire(active, 3 * 3600_000);
     try {
       if (running > MAX_CONCURRENT_UPLOADS) {
-        throw AppError.rateLimited(30, `At most ${MAX_CONCURRENT_UPLOADS} uploads can run at the same time. Wait for the others to finish.`);
+        throw AppError.rateLimited(
+          30,
+          `At most ${MAX_CONCURRENT_UPLOADS} uploads can run at the same time. Wait for the others to finish.`,
+        );
       }
       await mkdir(this.tmpDir, { recursive: true });
-      return await this.receiveAndProcess(req, userId, { maxImage, maxVideo, maxFiles: limits.maxFilesPerUpload, budget: { left: remaining } });
+      return await this.receiveAndProcess(req, userId, {
+        maxImage,
+        maxVideo,
+        maxFiles: limits.maxFilesPerUpload,
+        budget: { left: remaining },
+      });
     } finally {
       if ((await this.redis.client.decr(active)) <= 0) await this.redis.client.del(active);
     }
@@ -160,13 +173,23 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
     try {
       const bb = busboy({
         headers: req.headers,
-        limits: { files: opts.maxFiles, fields: 5, parts: opts.maxFiles + 5, fileSize: Math.max(opts.maxImage, opts.maxVideo) + 1 },
+        limits: {
+          files: opts.maxFiles,
+          fields: 5,
+          parts: opts.maxFiles + 5,
+          fileSize: Math.max(opts.maxImage, opts.maxVideo) + 1,
+        },
       });
       bb.on('file', (_field, stream, info) => {
         const originalName = (info.filename || 'file').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 200);
         const ext = extname(originalName).slice(1).toLowerCase();
         const kind = IMAGE_EXT.has(ext) ? 'IMAGE' : VIDEO_EXT.has(ext) ? 'VIDEO' : null;
-        const mimeOk = kind === 'IMAGE' ? IMAGE_MIME.has(info.mimeType) : kind === 'VIDEO' ? VIDEO_MIME.has(info.mimeType) : false;
+        const mimeOk =
+          kind === 'IMAGE'
+            ? IMAGE_MIME.has(info.mimeType)
+            : kind === 'VIDEO'
+              ? VIDEO_MIME.has(info.mimeType)
+              : false;
         if (!kind || !mimeOk) {
           stream.resume();
           rejected.push({
@@ -183,7 +206,15 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
           pipeline(stream, limiter, createWriteStream(tmpPath))
             .then(async () => {
               if (!limiter.exceeded) {
-                received.push({ originalName, declaredMime: info.mimeType, ext, kind, tmpPath, size: limiter.bytes, sha256: limiter.hash.digest('hex') });
+                received.push({
+                  originalName,
+                  declaredMime: info.mimeType,
+                  ext,
+                  kind,
+                  tmpPath,
+                  size: limiter.bytes,
+                  sha256: limiter.hash.digest('hex'),
+                });
                 return;
               }
               await rm(tmpPath, { force: true });
@@ -203,7 +234,9 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
             }),
         );
       });
-      bb.on('filesLimit', () => rejected.push({ originalName: '…', ok: false, error: `At most ${opts.maxFiles} files per upload.` }));
+      bb.on('filesLimit', () =>
+        rejected.push({ originalName: '…', ok: false, error: `At most ${opts.maxFiles} files per upload.` }),
+      );
       // pipeline() (unlike req.pipe) destroys the parser when the client disconnects, which ends every open
       // file stream with an error, so their temporary files are removed and the request settles.
       await pipeline(req, bb);
@@ -220,8 +253,12 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
       try {
         results.push(await this.finalize(userId, file));
       } catch (err) {
-        const message = err instanceof MediaValidationError || err instanceof AppError ? err.message : 'Processing failed. Try another file.';
-        if (!(err instanceof MediaValidationError) && !(err instanceof AppError)) this.logger.error('Creative processing failed', { err });
+        const message =
+          err instanceof MediaValidationError || err instanceof AppError
+            ? err.message
+            : 'Processing failed. Try another file.';
+        if (!(err instanceof MediaValidationError) && !(err instanceof AppError))
+          this.logger.error('Creative processing failed', { err });
         results.push({ originalName: file.originalName, ok: false, error: message });
       } finally {
         await rm(file.tmpPath, { force: true });
@@ -231,10 +268,21 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async finalize(userId: string, file: ReceivedFile): Promise<UploadItemResult> {
-    const existing = await this.prisma.creativeFile.findFirst({ where: { userId, sha256: file.sha256, deletedAt: null } });
-    if (existing) return { originalName: file.originalName, ok: true, duplicate: true, file: this.creatives.toDto(existing) };
+    const existing = await this.prisma.creativeFile.findFirst({
+      where: { userId, sha256: file.sha256, deletedAt: null },
+    });
+    if (existing)
+      return {
+        originalName: file.originalName,
+        ok: true,
+        duplicate: true,
+        file: this.creatives.toDto(existing),
+      };
 
-    const probe: ProbeResult = file.kind === 'IMAGE' ? await this.probe.probeImage(file.tmpPath) : await this.probe.probeVideo(file.tmpPath);
+    const probe: ProbeResult =
+      file.kind === 'IMAGE'
+        ? await this.probe.probeImage(file.tmpPath)
+        : await this.probe.probeVideo(file.tmpPath);
     const actualSize = (await stat(file.tmpPath)).size;
     await this.reserveQuota(userId, actualSize);
 
@@ -249,7 +297,11 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
         const thumb =
           file.kind === 'IMAGE'
             ? await this.probe.imageThumbnail(file.tmpPath)
-            : await this.probe.videoThumbnail(file.tmpPath, probe.durationMs ?? 0, `${file.tmpPath}.thumb.jpg`);
+            : await this.probe.videoThumbnail(
+                file.tmpPath,
+                probe.durationMs ?? 0,
+                `${file.tmpPath}.thumb.jpg`,
+              );
         await this.storage.uploadBuffer(thumbKey, thumb, 'image/jpeg');
         thumbnailKey = thumbKey;
       } catch (err) {
@@ -280,8 +332,20 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
           bitrate: probe.bitrate ?? null,
         },
       });
-      await this.audit.log({ action: 'creative.uploaded', actorUserId: userId, subjectUserId: userId, targetType: 'creative', targetId: id, metadata: { name: file.originalName, type: file.kind, size: actualSize } });
-      return { originalName: file.originalName, ok: true, file: this.creatives.toDto(row), warnings: probe.warnings };
+      await this.audit.log({
+        action: 'creative.uploaded',
+        actorUserId: userId,
+        subjectUserId: userId,
+        targetType: 'creative',
+        targetId: id,
+        metadata: { name: file.originalName, type: file.kind, size: actualSize },
+      });
+      return {
+        originalName: file.originalName,
+        ok: true,
+        file: this.creatives.toDto(row),
+        warnings: probe.warnings,
+      };
     } catch (err) {
       await this.releaseQuota(userId, actualSize);
       await this.storage.delete(storageKey).catch(() => undefined);
@@ -291,7 +355,10 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
 
   private async remainingQuota(userId: string): Promise<number> {
     const { maxUserStorageMb } = await this.settings.get('files');
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { storageUsedBytes: true, storageQuotaBytes: true } });
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { storageUsedBytes: true, storageQuotaBytes: true },
+    });
     const quota = user.storageQuotaBytes ?? BigInt(maxUserStorageMb) * BigInt(MB);
     return Number(quota - user.storageUsedBytes);
   }
@@ -304,10 +371,15 @@ export class CreativeUploadService implements OnModuleInit, OnModuleDestroy {
     const updated = await this.prisma.$executeRaw`
       UPDATE users SET "storageUsedBytes" = "storageUsedBytes" + ${size}
       WHERE id = ${userId}::uuid AND "storageUsedBytes" + ${size} <= COALESCE("storageQuotaBytes", ${globalQuota})`;
-    if (updated !== 1) throw new AppError('QUOTA_EXCEEDED', 'Your storage quota is full. Delete unused creatives or ask the administrator for more space.');
+    if (updated !== 1)
+      throw new AppError(
+        'QUOTA_EXCEEDED',
+        'Your storage quota is full. Delete unused creatives or ask the administrator for more space.',
+      );
   }
 
   private async releaseQuota(userId: string, bytes: number): Promise<void> {
-    await this.prisma.$executeRaw`UPDATE users SET "storageUsedBytes" = GREATEST(0, "storageUsedBytes" - ${BigInt(bytes)}) WHERE id = ${userId}::uuid`;
+    await this.prisma
+      .$executeRaw`UPDATE users SET "storageUsedBytes" = GREATEST(0, "storageUsedBytes" - ${BigInt(bytes)}) WHERE id = ${userId}::uuid`;
   }
 }

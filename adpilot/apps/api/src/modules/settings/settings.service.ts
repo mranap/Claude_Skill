@@ -110,7 +110,9 @@ export class SettingsService implements OnModuleInit, BeforeApplicationShutdown 
     // group, or a secret rotated on another replica, cannot be reverted by a stale copy.
     const saved = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`INSERT INTO system_settings (key, value, "updatedAt") VALUES (${key}, '{}'::jsonb, now()) ON CONFLICT (key) DO NOTHING`;
-      const rows = await tx.$queryRaw<{ value: Stored }[]>`SELECT value FROM system_settings WHERE key = ${key} FOR UPDATE`;
+      const rows = await tx.$queryRaw<
+        { value: Stored }[]
+      >`SELECT value FROM system_settings WHERE key = ${key} FOR UPDATE`;
       const current = rows[0]?.value ?? {};
       const merged = { ...this.withoutSecrets(key, current), ...patch };
       const parsed = SETTINGS_SCHEMAS[key].safeParse(merged);
@@ -133,7 +135,10 @@ export class SettingsService implements OnModuleInit, BeforeApplicationShutdown 
           next[field] = this.encryption.encrypt(incoming, Aad.setting(`${key}.${field}`));
         }
       }
-      await tx.systemSetting.update({ where: { key }, data: { value: next as Prisma.InputJsonValue, updatedById: actorId ?? null } });
+      await tx.systemSetting.update({
+        where: { key },
+        data: { value: next as Prisma.InputJsonValue, updatedById: actorId ?? null },
+      });
       return parsed.data as SettingValue<K>;
     });
     await this.invalidate(key);
@@ -165,8 +170,9 @@ const SECRET_BINDINGS: Partial<Record<SettingKey, Record<string, readonly string
 function assertSecretStillBound(key: SettingKey, field: string, current: Stored, next: Stored): void {
   const changed = (SECRET_BINDINGS[key]?.[field] ?? []).filter((f) => f in current && current[f] !== next[f]);
   if (changed.length) {
-    throw AppError.validation(`Enter the ${field} again: it is only kept while ${changed.join(', ')} stay the same`, [
-      { path: `secrets.${field}`, message: 'Required when the server settings change' },
-    ]);
+    throw AppError.validation(
+      `Enter the ${field} again: it is only kept while ${changed.join(', ')} stay the same`,
+      [{ path: `secrets.${field}`, message: 'Required when the server settings change' }],
+    );
   }
 }

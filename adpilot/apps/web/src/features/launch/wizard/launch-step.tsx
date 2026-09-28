@@ -38,36 +38,56 @@ export function LaunchStep({
         <CardHeader>
           <CardTitle>Launch</CardTitle>
           <CardDescription>
-            Every object is created paused first and verified at Meta. The launch keeps running in the background — you can close this page and follow the
-            progress in the launch history.
+            Every object is created paused first and verified at Meta. The launch keeps running in the
+            background — you can close this page and follow the progress in the launch history.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           {blocked ? (
             <Alert variant="destructive" icon={<CircleAlert />}>
               <AlertTitle>The configuration has errors</AlertTitle>
-              <AlertDescription>Fix the problems listed in the review step before launching.</AlertDescription>
+              <AlertDescription>
+                Fix the problems listed in the review step before launching.
+              </AlertDescription>
             </Alert>
           ) : !checked || stale ? (
             <Alert variant="info" icon={<ShieldCheck />}>
-              <AlertTitle>{stale ? 'The configuration changed after the last check' : 'Not checked yet'}</AlertTitle>
-              <AlertDescription>The configuration is validated again when you launch. A dry run shows every payload first.</AlertDescription>
+              <AlertTitle>
+                {stale ? 'The configuration changed after the last check' : 'Not checked yet'}
+              </AlertTitle>
+              <AlertDescription>
+                The configuration is validated again when you launch. A dry run shows every payload first.
+              </AlertDescription>
             </Alert>
           ) : null}
           {summary ? (
             <p className="text-sm">
-              You are about to create <strong>1 campaign</strong>, <strong>{summary.adSets} ad {summary.adSets === 1 ? 'set' : 'sets'}</strong> and{' '}
+              You are about to create <strong>1 campaign</strong>,{' '}
+              <strong>
+                {summary.adSets} ad {summary.adSets === 1 ? 'set' : 'sets'}
+              </strong>{' '}
+              and{' '}
               <strong>
                 {summary.ads} {summary.ads === 1 ? 'ad' : 'ads'}
               </strong>{' '}
-              in <strong>{account?.name ?? 'the ad account'}</strong> with a total {summary.budget.type === 'LIFETIME' ? 'lifetime' : 'daily'} budget of{' '}
+              in <strong>{account?.name ?? 'the ad account'}</strong> with a total{' '}
+              {summary.budget.type === 'LIFETIME' ? 'lifetime' : 'daily'} budget of{' '}
               <strong>{formatAmount(summary.budget.total, summary.currency)}</strong>.{' '}
-              {summary.activateOnSuccess ? 'They are activated when everything was created.' : 'They stay paused until you activate them.'}
+              {summary.activateOnSuccess
+                ? 'They are activated when everything was created.'
+                : 'They stay paused until you activate them.'}
             </p>
           ) : null}
           {error ? <ErrorAlert error={error} title="The launch could not start" /> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="lg" onClick={onLaunch} loading={launching} disabled={blocked || launching} data-testid="launch-now">
+            <Button
+              type="button"
+              size="lg"
+              onClick={onLaunch}
+              loading={launching}
+              disabled={blocked || launching}
+              data-testid="launch-now"
+            >
               <Rocket />
               Launch now
             </Button>

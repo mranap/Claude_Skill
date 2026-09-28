@@ -9,9 +9,18 @@ import { pickSchemaValues, useSaveSettings } from '../api';
 import { managePermission } from '../categories';
 import { FieldGrid, FieldSection, SettingsFormCard } from '../settings-form-card';
 
-export function RetentionSettingsForm({ values, readOnly }: { values: AdminSettingGroup<'retention'>; readOnly: boolean }) {
+export function RetentionSettingsForm({
+  values,
+  readOnly,
+}: {
+  values: AdminSettingGroup<'retention'>;
+  readOnly: boolean;
+}) {
   const save = useSaveSettings('retention');
-  const form = useForm({ resolver: zodResolver(retentionSettingsSchema), values: pickSchemaValues(retentionSettingsSchema.shape, values) });
+  const form = useForm({
+    resolver: zodResolver(retentionSettingsSchema),
+    values: pickSchemaValues(retentionSettingsSchema.shape, values),
+  });
 
   return (
     <SettingsFormCard
@@ -24,19 +33,82 @@ export function RetentionSettingsForm({ values, readOnly }: { values: AdminSetti
     >
       <FieldSection title="Logs & history">
         <FieldGrid columns={3}>
-          <NumberField control={form.control} name="auditLogsDays" label="Audit log" unit="days" min={30} max={3650} />
-          <NumberField control={form.control} name="systemLogsDays" label="System logs" unit="days" min={1} max={3650} />
-          <NumberField control={form.control} name="metaApiLogsDays" label="Meta API logs" unit="days" min={1} max={3650} />
-          <NumberField control={form.control} name="loginEventsDays" label="Login history" unit="days" min={7} max={3650} />
-          <NumberField control={form.control} name="notificationsDays" label="Notifications" unit="days" min={7} max={3650} />
+          <NumberField
+            control={form.control}
+            name="auditLogsDays"
+            label="Audit log"
+            unit="days"
+            min={30}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="systemLogsDays"
+            label="System logs"
+            unit="days"
+            min={1}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="metaApiLogsDays"
+            label="Meta API logs"
+            unit="days"
+            min={1}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="loginEventsDays"
+            label="Login history"
+            unit="days"
+            min={7}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="notificationsDays"
+            label="Notifications"
+            unit="days"
+            min={7}
+            max={3650}
+          />
         </FieldGrid>
       </FieldSection>
       <FieldSection title="Product data">
         <FieldGrid columns={3}>
-          <NumberField control={form.control} name="statisticsDays" label="Daily statistics" unit="days" min={30} max={3650} />
-          <NumberField control={form.control} name="launchJobsDays" label="Launch jobs" unit="days" min={7} max={3650} />
-          <NumberField control={form.control} name="ruleExecutionsDays" label="Rule executions" unit="days" min={7} max={3650} />
-          <NumberField control={form.control} name="completedQueueJobsHours" label="Completed queue jobs" unit="hours" min={1} max={720} />
+          <NumberField
+            control={form.control}
+            name="statisticsDays"
+            label="Daily statistics"
+            unit="days"
+            min={30}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="launchJobsDays"
+            label="Launch jobs"
+            unit="days"
+            min={7}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="ruleExecutionsDays"
+            label="Rule executions"
+            unit="days"
+            min={7}
+            max={3650}
+          />
+          <NumberField
+            control={form.control}
+            name="completedQueueJobsHours"
+            label="Completed queue jobs"
+            unit="hours"
+            min={1}
+            max={720}
+          />
         </FieldGrid>
       </FieldSection>
     </SettingsFormCard>

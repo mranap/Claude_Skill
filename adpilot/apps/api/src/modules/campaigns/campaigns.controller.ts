@@ -1,7 +1,12 @@
 import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { DATE_RANGE_KEYS } from '@adpilot/shared';
-import { CurrentUser, RateLimit, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import {
+  CurrentUser,
+  RateLimit,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators';
 import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { CampaignsService, budgetChangeSchema, campaignListQuerySchema } from './campaigns.service';
@@ -12,10 +17,20 @@ import type { AuthUser } from '../auth/auth.types';
 const uuid = new ParseUUIDPipe();
 const detailQuery = z.object({
   range: z.enum(DATE_RANGE_KEYS).default('last_7d'),
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
-const statusSchema = z.object({ level: z.enum(['CAMPAIGN', 'ADSET', 'AD']), id: z.uuid(), status: z.enum(['ACTIVE', 'PAUSED']) });
+const statusSchema = z.object({
+  level: z.enum(['CAMPAIGN', 'ADSET', 'AD']),
+  id: z.uuid(),
+  status: z.enum(['ACTIVE', 'PAUSED']),
+});
 
 @RequireAnyPermission(...READ_ACCESS.campaigns)
 @Controller('campaigns')
@@ -27,7 +42,10 @@ export class CampaignsController {
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query(zod(campaignListQuerySchema)) q: z.infer<typeof campaignListQuerySchema>) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(campaignListQuerySchema)) q: z.infer<typeof campaignListQuerySchema>,
+  ) {
     return this.campaigns.list(user.id, q);
   }
 
@@ -37,7 +55,11 @@ export class CampaignsController {
   }
 
   @Get(':id')
-  detail(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Query(zod(detailQuery)) q: z.infer<typeof detailQuery>) {
+  detail(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Query(zod(detailQuery)) q: z.infer<typeof detailQuery>,
+  ) {
     return this.campaigns.detail(user.id, id, q.range, { from: q.from, to: q.to });
   }
 
@@ -46,7 +68,10 @@ export class CampaignsController {
   @HttpCode(200)
   @RequirePermissions('app.campaigns.manage')
   @RateLimit({ bucket: 'entity-status', limit: 120, windowSeconds: 60 })
-  async setStatus(@CurrentUser() user: AuthUser, @Body(zod(statusSchema)) body: z.infer<typeof statusSchema>) {
+  async setStatus(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(statusSchema)) body: z.infer<typeof statusSchema>,
+  ) {
     const e = await this.actions.resolve(user.id, body.level, body.id);
     return this.actions.setStatus(e, body.status, { source: 'USER', actorUserId: user.id });
   }
@@ -69,7 +94,10 @@ export class CampaignsController {
   @HttpCode(202)
   @RequirePermissions('app.campaigns.manage')
   @RateLimit({ bucket: 'bulk-status', limit: 30, windowSeconds: 600 })
-  bulkStatus(@CurrentUser() user: AuthUser, @Body(zod(bulkStatusSchema)) body: z.infer<typeof bulkStatusSchema>) {
+  bulkStatus(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(bulkStatusSchema)) body: z.infer<typeof bulkStatusSchema>,
+  ) {
     return this.bulk.requestStatus(user.id, body);
   }
 }

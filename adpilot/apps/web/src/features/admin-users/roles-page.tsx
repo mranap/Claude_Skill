@@ -14,7 +14,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -39,7 +47,8 @@ function groupPermissions(catalog: PermissionDto[]): [string, PermissionDto[]][]
   const map = new Map<string, PermissionDto[]>();
   for (const p of catalog) map.set(p.group, [...(map.get(p.group) ?? []), p]);
   return [...map.entries()].sort(
-    ([a], [b]) => (GROUP_ORDER.indexOf(a) + 1 || 99) - (GROUP_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b),
+    ([a], [b]) =>
+      (GROUP_ORDER.indexOf(a) + 1 || 99) - (GROUP_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b),
   );
 }
 
@@ -71,7 +80,10 @@ export function RolesPage() {
         }
       />
       {roles.error || catalog.error ? (
-        <ErrorAlert error={roles.error ?? catalog.error} onRetry={() => void (roles.refetch(), catalog.refetch())} />
+        <ErrorAlert
+          error={roles.error ?? catalog.error}
+          onRetry={() => void (roles.refetch(), catalog.refetch())}
+        />
       ) : (
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
           <Card className="overflow-hidden">
@@ -97,15 +109,23 @@ export function RolesPage() {
                         <span
                           className={cn(
                             'flex size-8 shrink-0 items-center justify-center rounded-md',
-                            isPrivilegedRole(role) ? 'bg-primary/10 text-primary-fg' : 'bg-muted text-muted-foreground',
+                            isPrivilegedRole(role)
+                              ? 'bg-primary/10 text-primary-fg'
+                              : 'bg-muted text-muted-foreground',
                           )}
                         >
-                          {isPrivilegedRole(role) ? <ShieldCheck className="size-4" /> : <Users className="size-4" />}
+                          {isPrivilegedRole(role) ? (
+                            <ShieldCheck className="size-4" />
+                          ) : (
+                            <Users className="size-4" />
+                          )}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{role.name}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {pluralize(role.userCount, 'user')} · {role.key === SYSTEM_ROLES.SUPER_ADMIN ? 'all' : role.permissions.length} permissions
+                            {pluralize(role.userCount, 'user')} ·{' '}
+                            {role.key === SYSTEM_ROLES.SUPER_ADMIN ? 'all' : role.permissions.length}{' '}
+                            permissions
                           </span>
                         </span>
                         {role.isSystem ? (
@@ -119,14 +139,23 @@ export function RolesPage() {
             </ul>
           </Card>
           {selected && catalog.data ? (
-            <RoleEditor key={`${selected.id}:${selected.permissions.join(',')}:${selected.name}`} role={selected} catalog={catalog.data} canManage={canManage} />
+            <RoleEditor
+              key={`${selected.id}:${selected.permissions.join(',')}:${selected.name}`}
+              role={selected}
+              catalog={catalog.data}
+              canManage={canManage}
+            />
           ) : (
             <Skeleton className="h-[32rem] rounded-lg" />
           )}
         </div>
       )}
       {createOpen ? (
-        <CreateRoleDialog roles={roles.data ?? []} onClose={() => setCreateOpen(false)} onCreated={(role) => select(role.id)} />
+        <CreateRoleDialog
+          roles={roles.data ?? []}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(role) => select(role.id)}
+        />
       ) : null}
     </>
   );
@@ -134,7 +163,15 @@ export function RolesPage() {
 
 const isAdminPermission = (key: string) => key.startsWith('admin.');
 
-function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: PermissionDto[]; canManage: boolean }) {
+function RoleEditor({
+  role,
+  catalog,
+  canManage,
+}: {
+  role: RoleDto;
+  catalog: PermissionDto[];
+  canManage: boolean;
+}) {
   const queryClient = useQueryClient();
   const pathname = usePathname();
   const { user: me, isSuperAdmin } = useAuth();
@@ -142,13 +179,14 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
   // Only a Super Admin may grant admin.* permissions, edit roles that hold them, or edit their own role.
   const ownRole = role.key === me.role;
   const adminRole = role.permissions.some(isAdminPermission);
-  const restriction = superAdmin || isSuperAdmin || !canManage
-    ? null
-    : ownRole
-      ? 'You cannot change your own role. Ask a Super Admin.'
-      : adminRole
-        ? 'This role has administrative permissions, so only a Super Admin can change it.'
-        : null;
+  const restriction =
+    superAdmin || isSuperAdmin || !canManage
+      ? null
+      : ownRole
+        ? 'You cannot change your own role. Ask a Super Admin.'
+        : adminRole
+          ? 'This role has administrative permissions, so only a Super Admin can change it.'
+          : null;
   const readOnly = !canManage || !role.editable || superAdmin || !!restriction;
   const lockAdminPermissions = !isSuperAdmin;
   const [permissions, setPermissions] = useState<Set<string>>(() => new Set(role.permissions));
@@ -170,7 +208,9 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
         ...(permsDirty ? { permissions: [...permissions] } : {}),
       }),
     onSuccess: async () => {
-      toast.success('Role saved', { description: 'Users with this role get the new permissions on their next request.' });
+      toast.success('Role saved', {
+        description: 'Users with this role get the new permissions on their next request.',
+      });
       await queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
       await queryClient.invalidateQueries({ queryKey: queryKeys.me });
     },
@@ -207,7 +247,13 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
               <Badge variant="outline" size="sm" className="font-mono">
                 {role.key}
               </Badge>
-              {role.isSystem ? <Badge variant="muted" size="sm">System role</Badge> : <Badge size="sm">Custom role</Badge>}
+              {role.isSystem ? (
+                <Badge variant="muted" size="sm">
+                  System role
+                </Badge>
+              ) : (
+                <Badge size="sm">Custom role</Badge>
+              )}
             </CardTitle>
             <p className="text-sm text-muted-foreground">{pluralize(role.userCount, 'user')} assigned</p>
           </div>
@@ -223,11 +269,15 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
         {superAdmin ? (
           <Alert variant="info" icon={<Lock />}>
             <AlertTitle>Super Admin always has every permission</AlertTitle>
-            <AlertDescription>This role cannot be edited or deleted. At least one active Super Admin must always exist.</AlertDescription>
+            <AlertDescription>
+              This role cannot be edited or deleted. At least one active Super Admin must always exist.
+            </AlertDescription>
           </Alert>
         ) : !canManage ? (
           <Alert icon={<Lock />}>
-            <AlertDescription>You can view roles. Changing them requires the “Manage roles and permissions” permission.</AlertDescription>
+            <AlertDescription>
+              You can view roles. Changing them requires the “Manage roles and permissions” permission.
+            </AlertDescription>
           </Alert>
         ) : restriction ? (
           <Alert icon={<Lock />}>
@@ -235,7 +285,10 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
           </Alert>
         ) : !readOnly && lockAdminPermissions ? (
           <Alert variant="info" icon={<Lock />}>
-            <AlertDescription>Administrative permissions (admin.*) can only be granted by a Super Admin, so they are locked here.</AlertDescription>
+            <AlertDescription>
+              Administrative permissions (admin.*) can only be granted by a Super Admin, so they are locked
+              here.
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -243,7 +296,13 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
           <div className="grid gap-4">
             <div className="grid gap-2 sm:max-w-sm">
               <Label htmlFor="role-name">Name</Label>
-              <Input id="role-name" value={name} onChange={(e) => setName(e.target.value)} disabled={readOnly} maxLength={60} />
+              <Input
+                id="role-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={readOnly}
+                maxLength={60}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="role-description">Description</Label>
@@ -295,10 +354,22 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
                     return (
                       <li key={p.key}>
                         <label
-                          className={cn('flex items-start gap-3 px-4 py-2.5 transition-colors', !locked && 'cursor-pointer hover:bg-muted/40')}
-                          title={!readOnly && locked ? 'Only a Super Admin can grant administrative permissions' : undefined}
+                          className={cn(
+                            'flex items-start gap-3 px-4 py-2.5 transition-colors',
+                            !locked && 'cursor-pointer hover:bg-muted/40',
+                          )}
+                          title={
+                            !readOnly && locked
+                              ? 'Only a Super Admin can grant administrative permissions'
+                              : undefined
+                          }
                         >
-                          <Checkbox className="mt-0.5" checked={has(p.key)} onCheckedChange={(v) => toggle(p.key, v === true)} disabled={locked} />
+                          <Checkbox
+                            className="mt-0.5"
+                            checked={has(p.key)}
+                            onCheckedChange={(v) => toggle(p.key, v === true)}
+                            disabled={locked}
+                          />
                           <span className="min-w-0">
                             <span className="block text-sm">{p.description}</span>
                             <span className="block font-mono text-xs text-muted-foreground">
@@ -321,7 +392,9 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
       {!readOnly ? (
         <div className="sticky bottom-0 flex items-center justify-between gap-3 rounded-b-lg border-t bg-card/95 px-5 py-3.5 backdrop-blur">
           <p className="text-xs text-muted-foreground">
-            {dirty ? 'You have unsaved changes' : `${permissions.size} of ${catalog.length} permissions granted`}
+            {dirty
+              ? 'You have unsaved changes'
+              : `${permissions.size} of ${catalog.length} permissions granted`}
           </p>
           <div className="flex gap-2">
             <Button
@@ -335,7 +408,11 @@ function RoleEditor({ role, catalog, canManage }: { role: RoleDto; catalog: Perm
             >
               Discard
             </Button>
-            <Button onClick={() => save.mutate()} disabled={!dirty || name.trim().length < 2} loading={save.isPending}>
+            <Button
+              onClick={() => save.mutate()}
+              disabled={!dirty || name.trim().length < 2}
+              loading={save.isPending}
+            >
               Save role
             </Button>
           </div>
@@ -375,10 +452,20 @@ function toRoleKey(name: string): string {
     .slice(0, 40);
 }
 
-function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClose: () => void; onCreated: (role: RoleDto) => void }) {
+function CreateRoleDialog({
+  roles,
+  onClose,
+  onCreated,
+}: {
+  roles: RoleDto[];
+  onClose: () => void;
+  onCreated: (role: RoleDto) => void;
+}) {
   const queryClient = useQueryClient();
   const { isSuperAdmin } = useAuth();
-  const [template, setTemplate] = useState<string>(roles.find((r) => r.key === SYSTEM_ROLES.USER)?.id ?? 'none');
+  const [template, setTemplate] = useState<string>(
+    roles.find((r) => r.key === SYSTEM_ROLES.USER)?.id ?? 'none',
+  );
   const [keyTouched, setKeyTouched] = useState(false);
   const form = useForm({
     resolver: zodResolver(roleCreateSchema),
@@ -404,7 +491,9 @@ function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onC
         <Form form={form} onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
             <DialogTitle>Create role</DialogTitle>
-            <DialogDescription>Start from an existing role’s permissions and fine-tune them afterwards.</DialogDescription>
+            <DialogDescription>
+              Start from an existing role’s permissions and fine-tune them afterwards.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4">
             <FormRootError />
@@ -420,7 +509,10 @@ function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onC
                   autoFocus
                   onChange={(e) => {
                     field.onChange(e);
-                    if (!keyTouched) form.setValue('key', toRoleKey(e.target.value), { shouldValidate: form.formState.isSubmitted });
+                    if (!keyTouched)
+                      form.setValue('key', toRoleKey(e.target.value), {
+                        shouldValidate: form.formState.isSubmitted,
+                      });
                   }}
                 />
               )}
@@ -456,7 +548,12 @@ function CreateRoleDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onC
                     .map((r) => {
                       const adminPerms = !isSuperAdmin && r.permissions.some(isAdminPermission);
                       return (
-                        <SelectItem key={r.id} value={r.id} disabled={adminPerms} description={adminPerms ? 'Has admin permissions (Super Admin only)' : undefined}>
+                        <SelectItem
+                          key={r.id}
+                          value={r.id}
+                          disabled={adminPerms}
+                          description={adminPerms ? 'Has admin permissions (Super Admin only)' : undefined}
+                        >
                           {r.name} ({r.permissions.length})
                         </SelectItem>
                       );

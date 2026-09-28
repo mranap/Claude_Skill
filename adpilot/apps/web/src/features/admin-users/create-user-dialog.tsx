@@ -10,7 +10,15 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { PasswordInput, generatePassword } from '@/components/ui/password-input';
 import { RadioCard, RadioGroup } from '@/components/ui/radio-group';
 import { Form, FormField, FormRootError, TextField } from '@/components/shared/form';
@@ -20,7 +28,13 @@ import { adminUsersApi } from './api';
 import { useRoles } from './hooks';
 import { RoleSelect } from './role-select';
 
-export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CreateUserDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const roles = useRoles(open);
@@ -28,7 +42,14 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
 
   const form = useForm({
     resolver: zodResolver(adminCreateUserSchema),
-    defaultValues: { email: '', name: '', roleId: '', mode: 'invite' as const, password: undefined, timezone: 'UTC' },
+    defaultValues: {
+      email: '',
+      name: '',
+      roleId: '',
+      mode: 'invite' as const,
+      password: undefined,
+      timezone: 'UTC',
+    },
   });
   const mode = useWatch({ control: form.control, name: 'mode' });
   const password = useWatch({ control: form.control, name: 'password' });
@@ -62,13 +83,29 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
         <Form form={form} onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
             <DialogTitle>Create user</DialogTitle>
-            <DialogDescription>New users can sign in right away with an invitation link or a temporary password.</DialogDescription>
+            <DialogDescription>
+              New users can sign in right away with an invitation link or a temporary password.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-5">
             <FormRootError />
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField control={form.control} name="email" label="Email" type="email" required autoComplete="off" autoFocus />
-              <TextField control={form.control} name="name" label="Full name" autoComplete="off" placeholder="Optional" />
+              <TextField
+                control={form.control}
+                name="email"
+                label="Email"
+                type="email"
+                required
+                autoComplete="off"
+                autoFocus
+              />
+              <TextField
+                control={form.control}
+                name="name"
+                label="Full name"
+                autoComplete="off"
+                placeholder="Optional"
+              />
               <FormField
                 control={form.control}
                 name="roleId"
@@ -98,7 +135,11 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
               name="mode"
               label="How will the user get access?"
               render={({ field }) => (
-                <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-3 sm:grid-cols-2">
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
                   <RadioCard
                     value="invite"
                     icon={<MailPlus />}
@@ -125,7 +166,12 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
                       type="button"
                       variant="ghost"
                       size="xs"
-                      onClick={() => form.setValue('password', generatePassword(), { shouldValidate: true, shouldDirty: true })}
+                      onClick={() =>
+                        form.setValue('password', generatePassword(), {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        })
+                      }
                     >
                       <Wand2 />
                       Generate
@@ -134,7 +180,13 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
                   </div>
                 }
                 render={({ field, controlProps }) => (
-                  <PasswordInput {...controlProps} {...field} value={field.value ?? ''} autoComplete="new-password" showStrength />
+                  <PasswordInput
+                    {...controlProps}
+                    {...field}
+                    value={field.value ?? ''}
+                    autoComplete="new-password"
+                    showStrength
+                  />
                 )}
               />
             ) : null}

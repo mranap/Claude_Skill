@@ -11,10 +11,30 @@ import { expectStatus } from './http-client';
 export function generateMedia(dir: string) {
   mkdirSync(dir, { recursive: true });
   const ffmpeg = process.env.FFMPEG_PATH ?? 'ffmpeg';
-  const run = (args: string[]) => execFileSync(ffmpeg, ['-y', '-loglevel', 'error', ...args], { stdio: ['ignore', 'ignore', 'inherit'] });
+  const run = (args: string[]) =>
+    execFileSync(ffmpeg, ['-y', '-loglevel', 'error', ...args], { stdio: ['ignore', 'ignore', 'inherit'] });
   const video = (name: string, color: string, seconds: number, size = '720x1280') => {
     const out = join(dir, name);
-    run(['-f', 'lavfi', '-i', `testsrc2=size=${size}:rate=25,drawbox=color=${color}@0.5:t=fill`, '-f', 'lavfi', '-i', 'sine=frequency=440', '-t', String(seconds), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', out]);
+    run([
+      '-f',
+      'lavfi',
+      '-i',
+      `testsrc2=size=${size}:rate=25,drawbox=color=${color}@0.5:t=fill`,
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440',
+      '-t',
+      String(seconds),
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      out,
+    ]);
     return out;
   };
   const image = (name: string, color: string, size = '1080x1080') => {
@@ -31,10 +51,15 @@ export function generateMedia(dir: string) {
   };
 }
 
-export async function uploadCreative(client: ApiClient, path: string, mime: string): Promise<{ id: string; status: string; type: string }> {
+export async function uploadCreative(
+  client: ApiClient,
+  path: string,
+  mime: string,
+): Promise<{ id: string; status: string; type: string }> {
   const form = new FormData();
   form.append('files', new Blob([readFileSync(path)], { type: mime }), path.split('/').pop());
-  const res = expectStatus(await client.request('POST', '/api/creatives/upload', undefined, { form }), 200).body as {
+  const res = expectStatus(await client.request('POST', '/api/creatives/upload', undefined, { form }), 200)
+    .body as {
     results: { ok: boolean; error?: string; file?: { id: string; status: string; type: string } }[];
   };
   const r = res.results[0];

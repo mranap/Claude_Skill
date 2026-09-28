@@ -20,11 +20,15 @@ export class FakeProxy {
       res.end();
     });
     this.server.on('connect', (req, client: net.Socket, head: Buffer) => {
-      const expected = this.credentials ? `Basic ${Buffer.from(`${this.credentials.username}:${this.credentials.password}`).toString('base64')}` : null;
+      const expected = this.credentials
+        ? `Basic ${Buffer.from(`${this.credentials.username}:${this.credentials.password}`).toString('base64')}`
+        : null;
       const authorized = !expected || req.headers['proxy-authorization'] === expected;
       this.tunnels.push({ target: req.url ?? '', authorized });
       if (!authorized) {
-        client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="test"\r\nContent-Length: 0\r\n\r\n');
+        client.end(
+          'HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="test"\r\nContent-Length: 0\r\n\r\n',
+        );
         return;
       }
       const [host, port] = (req.url ?? '').split(':');

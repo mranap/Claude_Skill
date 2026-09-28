@@ -43,7 +43,8 @@ export const PAGE_FIELDS = 'id,name,category,picture{url},instagram_business_acc
 
 export const PIXEL_FIELDS = 'id,name,last_fired_time,is_unavailable';
 
-export const CUSTOM_AUDIENCE_FIELDS = 'id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound';
+export const CUSTOM_AUDIENCE_FIELDS =
+  'id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound';
 
 export const CAMPAIGN_FIELDS = [
   'id',

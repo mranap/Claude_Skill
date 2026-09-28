@@ -65,7 +65,19 @@ interface MetaAd {
 
 const CAMPAIGN_STATUSES = ['ACTIVE', 'PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
 const ADSET_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
-const AD_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'PENDING_REVIEW', 'DISAPPROVED', 'PREAPPROVED', 'PENDING_BILLING_INFO', 'ARCHIVED'];
+const AD_STATUSES = [
+  'ACTIVE',
+  'PAUSED',
+  'CAMPAIGN_PAUSED',
+  'ADSET_PAUSED',
+  'IN_PROCESS',
+  'WITH_ISSUES',
+  'PENDING_REVIEW',
+  'DISAPPROVED',
+  'PREAPPROVED',
+  'PENDING_BILLING_INFO',
+  'ARCHIVED',
+];
 const MAX_CAMPAIGNS = 5000;
 const MAX_ADSETS = 10_000;
 const MAX_ADS = 10_000;
@@ -91,14 +103,38 @@ export class EntitySyncService {
     private readonly activity: ActivityService,
   ) {}
 
-  async syncAccount(account: AdAccount, conn: MetaConnection): Promise<{ campaigns: number; adSets: number; ads: number }> {
+  async syncAccount(
+    account: AdAccount,
+    conn: MetaConnection,
+  ): Promise<{ campaigns: number; adSets: number; ads: number }> {
     const metaAccountId = account.metaAccountId;
     const act = actId(metaAccountId);
     const since = new Date();
     const [campaigns, adSets, ads] = await Promise.all([
-      this.graph.paginate<MetaCampaign>(conn, `/${act}/campaigns`, { fields: CAMPAIGN_FIELDS, effective_status: CAMPAIGN_STATUSES }, 'entities.campaigns', { metaAccountId }, MAX_CAMPAIGNS),
-      this.graph.paginate<MetaAdSet>(conn, `/${act}/adsets`, { fields: ADSET_FIELDS, effective_status: ADSET_STATUSES }, 'entities.adsets', { metaAccountId }, MAX_ADSETS),
-      this.graph.paginate<MetaAd>(conn, `/${act}/ads`, { fields: AD_FIELDS, effective_status: AD_STATUSES }, 'entities.ads', { metaAccountId }, MAX_ADS),
+      this.graph.paginate<MetaCampaign>(
+        conn,
+        `/${act}/campaigns`,
+        { fields: CAMPAIGN_FIELDS, effective_status: CAMPAIGN_STATUSES },
+        'entities.campaigns',
+        { metaAccountId },
+        MAX_CAMPAIGNS,
+      ),
+      this.graph.paginate<MetaAdSet>(
+        conn,
+        `/${act}/adsets`,
+        { fields: ADSET_FIELDS, effective_status: ADSET_STATUSES },
+        'entities.adsets',
+        { metaAccountId },
+        MAX_ADSETS,
+      ),
+      this.graph.paginate<MetaAd>(
+        conn,
+        `/${act}/ads`,
+        { fields: AD_FIELDS, effective_status: AD_STATUSES },
+        'entities.ads',
+        { metaAccountId },
+        MAX_ADS,
+      ),
     ]);
     await this.upsert(account, campaigns, adSets, ads, {}, since);
     // Objects that disappeared from Meta (deleted) are flagged — per level, and only when that listing was
@@ -106,32 +142,73 @@ export class EntitySyncService {
     // after the listing started (it may be newer than the listing, e.g. created by a launch meanwhile).
     const stale = { adAccountId: account.id, isDeleted: false, updatedAt: { lt: since } };
     if (campaigns.length < MAX_CAMPAIGNS) {
-      await this.prisma.campaign.updateMany({ where: { ...stale, metaCampaignId: { notIn: campaigns.map((c) => c.id) } }, data: { isDeleted: true } });
+      await this.prisma.campaign.updateMany({
+        where: { ...stale, metaCampaignId: { notIn: campaigns.map((c) => c.id) } },
+        data: { isDeleted: true },
+      });
     }
     if (adSets.length < MAX_ADSETS) {
-      await this.prisma.adSet.updateMany({ where: { ...stale, metaAdSetId: { notIn: adSets.map((s) => s.id) } }, data: { isDeleted: true } });
+      await this.prisma.adSet.updateMany({
+        where: { ...stale, metaAdSetId: { notIn: adSets.map((s) => s.id) } },
+        data: { isDeleted: true },
+      });
     }
     if (ads.length < MAX_ADS) {
-      await this.prisma.ad.updateMany({ where: { ...stale, metaAdId: { notIn: ads.map((a) => a.id) } }, data: { isDeleted: true } });
+      await this.prisma.ad.updateMany({
+        where: { ...stale, metaAdId: { notIn: ads.map((a) => a.id) } },
+        data: { isDeleted: true },
+      });
     }
     await this.prisma.adAccount.update({ where: { id: account.id }, data: { entitiesSyncedAt: new Date() } });
     return { campaigns: campaigns.length, adSets: adSets.length, ads: ads.length };
   }
 
   /** Syncs one campaign with its ad sets and ads (after a launch). */
-  async syncCampaignTree(account: AdAccount, conn: MetaConnection, campaignMetaId: string, links: { launchJobId?: string; templateId?: string | null }) {
+  async syncCampaignTree(
+    account: AdAccount,
+    conn: MetaConnection,
+    campaignMetaId: string,
+    links: { launchJobId?: string; templateId?: string | null },
+  ) {
     const metaAccountId = account.metaAccountId;
     const since = new Date();
     const [campaign, adSets, ads] = await Promise.all([
-      this.graph.get<MetaCampaign>(conn, `/${campaignMetaId}`, { fields: CAMPAIGN_FIELDS }, 'entities.campaign', { metaAccountId }),
-      this.graph.paginate<MetaAdSet>(conn, `/${campaignMetaId}/adsets`, { fields: ADSET_FIELDS }, 'entities.adsets', { metaAccountId }, 2000),
-      this.graph.paginate<MetaAd>(conn, `/${campaignMetaId}/ads`, { fields: AD_FIELDS }, 'entities.ads', { metaAccountId }, 5000),
+      this.graph.get<MetaCampaign>(
+        conn,
+        `/${campaignMetaId}`,
+        { fields: CAMPAIGN_FIELDS },
+        'entities.campaign',
+        { metaAccountId },
+      ),
+      this.graph.paginate<MetaAdSet>(
+        conn,
+        `/${campaignMetaId}/adsets`,
+        { fields: ADSET_FIELDS },
+        'entities.adsets',
+        { metaAccountId },
+        2000,
+      ),
+      this.graph.paginate<MetaAd>(
+        conn,
+        `/${campaignMetaId}/ads`,
+        { fields: AD_FIELDS },
+        'entities.ads',
+        { metaAccountId },
+        5000,
+      ),
     ]);
     await this.upsert(account, [campaign], adSets, ads, links, since);
   }
 
   /** Writes a snapshot read from Meta after `since`; rows written after `since` are newer and kept as they are. */
-  private async upsert(account: AdAccount, campaigns: MetaCampaign[], adSets: MetaAdSet[], ads: MetaAd[], links: { launchJobId?: string; templateId?: string | null }, since: Date) {
+  private async upsert(
+    account: AdAccount,
+    campaigns: MetaCampaign[],
+    adSets: MetaAdSet[],
+    ads: MetaAd[],
+    links: { launchJobId?: string; templateId?: string | null },
+    since: Date,
+  ) {
     const countriesByCampaign = new Map<string, Set<string>>();
     for (const s of adSets) {
       const set = countriesByCampaign.get(s.campaign_id) ?? new Set<string>();
@@ -141,7 +218,9 @@ export class EntitySyncService {
 
     const campaignIds = new Map<string, string>();
     for (const c of campaigns) {
-      const prev = await this.prisma.campaign.findUnique({ where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: c.id } } });
+      const prev = await this.prisma.campaign.findUnique({
+        where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: c.id } },
+      });
       if (prev && prev.updatedAt > since) {
         campaignIds.set(c.id, prev.id);
         continue;
@@ -168,13 +247,26 @@ export class EntitySyncService {
         isDeleted: false,
         lastSyncedAt: new Date(),
       };
-      const stoppedAs = prev?.effectiveStatus === 'ACTIVE' && c.effective_status && c.effective_status !== 'ACTIVE' && c.effective_status !== 'IN_PROCESS' ? c.effective_status : null;
+      const stoppedAs =
+        prev?.effectiveStatus === 'ACTIVE' &&
+        c.effective_status &&
+        c.effective_status !== 'ACTIVE' &&
+        c.effective_status !== 'IN_PROCESS'
+          ? c.effective_status
+          : null;
       const row = await this.writeWithAlert(
         (db) =>
           prev
             ? db.campaign.update({ where: { id: prev.id }, data })
             : db.campaign.create({
-                data: { ...data, userId: account.userId, adAccountId: account.id, metaCampaignId: c.id, launchJobId: links.launchJobId ?? null, templateId: links.templateId ?? null },
+                data: {
+                  ...data,
+                  userId: account.userId,
+                  adAccountId: account.id,
+                  metaCampaignId: c.id,
+                  launchJobId: links.launchJobId ?? null,
+                  templateId: links.templateId ?? null,
+                },
               }),
         prev && stoppedAs ? this.stoppedAlert(account, prev.id, c.id, c.name, stoppedAs) : null,
       );
@@ -185,14 +277,22 @@ export class EntitySyncService {
     const adSetIds = new Map<string, { id: string; campaignId: string }>();
     for (const s of adSets) {
       const where = { adAccountId_metaAdSetId: { adAccountId: account.id, metaAdSetId: s.id } };
-      const prev = await this.prisma.adSet.findUnique({ where, select: { id: true, campaignId: true, updatedAt: true } });
+      const prev = await this.prisma.adSet.findUnique({
+        where,
+        select: { id: true, campaignId: true, updatedAt: true },
+      });
       if (prev && prev.updatedAt > since) {
         adSetIds.set(s.id, { id: prev.id, campaignId: prev.campaignId });
         continue;
       }
       let campaignId = campaignIds.get(s.campaign_id);
       if (!campaignId) {
-        campaignId = (await this.prisma.campaign.findUnique({ where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: s.campaign_id } }, select: { id: true } }))?.id;
+        campaignId = (
+          await this.prisma.campaign.findUnique({
+            where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: s.campaign_id } },
+            select: { id: true },
+          })
+        )?.id;
       }
       if (!campaignId) continue;
       const data = {
@@ -230,12 +330,18 @@ export class EntitySyncService {
     for (const a of ads) {
       let parent = adSetIds.get(a.adset_id);
       if (!parent) {
-        const s = await this.prisma.adSet.findUnique({ where: { adAccountId_metaAdSetId: { adAccountId: account.id, metaAdSetId: a.adset_id } }, select: { id: true, campaignId: true } });
+        const s = await this.prisma.adSet.findUnique({
+          where: { adAccountId_metaAdSetId: { adAccountId: account.id, metaAdSetId: a.adset_id } },
+          select: { id: true, campaignId: true },
+        });
         if (s) parent = s;
       }
       if (!parent) continue;
       const where = { adAccountId_metaAdId: { adAccountId: account.id, metaAdId: a.id } };
-      const prev = await this.prisma.ad.findUnique({ where, select: { effectiveStatus: true, updatedAt: true } });
+      const prev = await this.prisma.ad.findUnique({
+        where,
+        select: { effectiveStatus: true, updatedAt: true },
+      });
       if (prev && prev.updatedAt > since) continue;
       const data = {
         name: a.name,
@@ -253,9 +359,16 @@ export class EntitySyncService {
         isDeleted: false,
         lastSyncedAt: new Date(),
       };
-      const rejected = (a.effective_status === 'DISAPPROVED' || a.effective_status === 'WITH_ISSUES') && prev?.effectiveStatus !== a.effective_status;
+      const rejected =
+        (a.effective_status === 'DISAPPROVED' || a.effective_status === 'WITH_ISSUES') &&
+        prev?.effectiveStatus !== a.effective_status;
       await this.writeWithAlert(
-        (db) => db.ad.upsert({ where, create: { ...data, userId: account.userId, adAccountId: account.id, metaAdId: a.id }, update: data }),
+        (db) =>
+          db.ad.upsert({
+            where,
+            create: { ...data, userId: account.userId, adAccountId: account.id, metaAdId: a.id },
+            update: data,
+          }),
         rejected ? this.rejectedAlert(account, parent.campaignId, a) : null,
       );
       if (rejected) await this.recordRejected(account, a);
@@ -267,14 +380,26 @@ export class EntitySyncService {
    * transaction. Otherwise a failure between the two would keep the new status and lose the alert for good (the
    * next sync sees no change any more).
    */
-  private async writeWithAlert<T>(write: (db: Prisma.TransactionClient) => Promise<T>, alert: NotifyInput | null): Promise<T> {
+  private async writeWithAlert<T>(
+    write: (db: Prisma.TransactionClient) => Promise<T>,
+    alert: NotifyInput | null,
+  ): Promise<T> {
     if (!alert) return write(this.prisma);
-    const { row, pending } = await this.prisma.$transaction(async (tx) => ({ row: await write(tx), pending: await this.notifications.notifyInTx(tx, alert) }));
+    const { row, pending } = await this.prisma.$transaction(async (tx) => ({
+      row: await write(tx),
+      pending: await this.notifications.notifyInTx(tx, alert),
+    }));
     await this.notifications.dispatch(pending);
     return row;
   }
 
-  private stoppedAlert(account: AdAccount, campaignRowId: string, metaId: string, name: string, status: string): NotifyInput {
+  private stoppedAlert(
+    account: AdAccount,
+    campaignRowId: string,
+    metaId: string,
+    name: string,
+    status: string,
+  ): NotifyInput {
     return {
       userId: account.userId,
       type: 'CAMPAIGN_STOPPED',

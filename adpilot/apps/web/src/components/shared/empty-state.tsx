@@ -38,7 +38,9 @@ export function EmptyState({
         </div>
       ) : null}
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      {description ? <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
+      {description ? (
+        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
+      ) : null}
       {children}
       {action ? <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{action}</div> : null}
     </div>

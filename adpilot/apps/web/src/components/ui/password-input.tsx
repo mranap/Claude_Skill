@@ -25,7 +25,8 @@ export function evaluatePassword(value: string): PasswordStrength {
 
   let hint = '';
   if (!value) hint = `Use at least ${PASSWORD_MIN_LENGTH} characters with letters and a digit.`;
-  else if (value.length < PASSWORD_MIN_LENGTH) hint = `${PASSWORD_MIN_LENGTH - value.length} more character${PASSWORD_MIN_LENGTH - value.length === 1 ? '' : 's'} needed.`;
+  else if (value.length < PASSWORD_MIN_LENGTH)
+    hint = `${PASSWORD_MIN_LENGTH - value.length} more character${PASSWORD_MIN_LENGTH - value.length === 1 ? '' : 's'} needed.`;
   else if (!hasLetter || !hasDigit) hint = 'Use letters and at least one digit.';
   else if (!trimmedOk) hint = 'Remove spaces at the start or end.';
 
@@ -37,7 +38,12 @@ export function evaluatePassword(value: string): PasswordStrength {
   if (value.length >= 18 && hasSymbol) points++;
   const score = Math.min(4, points) as 2 | 3 | 4;
   const label = score === 2 ? 'Fair' : score === 3 ? 'Good' : 'Strong';
-  return { score, label, meetsPolicy, hint: score < 4 ? 'Longer passphrases with mixed characters are stronger.' : '' };
+  return {
+    score,
+    label,
+    meetsPolicy,
+    hint: score < 4 ? 'Longer passphrases with mixed characters are stronger.' : '',
+  };
 }
 
 const BAR_TONES = ['bg-muted', 'bg-destructive', 'bg-warning', 'bg-success', 'bg-success'];
@@ -59,7 +65,9 @@ export function PasswordStrengthMeter({ value, className }: { value: string; cla
       </div>
       <p className="flex justify-between gap-2 text-xs text-muted-foreground">
         <span>{strength.hint}</span>
-        {strength.label ? <span className="shrink-0 font-medium text-foreground/80">{strength.label}</span> : null}
+        {strength.label ? (
+          <span className="shrink-0 font-medium text-foreground/80">{strength.label}</span>
+        ) : null}
       </p>
     </div>
   );

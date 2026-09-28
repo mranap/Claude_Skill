@@ -17,7 +17,12 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { NavTabs } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { DataTable, DataTableToolbar, useUrlTableState, type DataTableColumn } from '@/components/shared/data-table';
+import {
+  DataTable,
+  DataTableToolbar,
+  useUrlTableState,
+  type DataTableColumn,
+} from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { RelativeTime } from '@/components/shared/relative-time';
@@ -83,12 +88,28 @@ function DraftsTable() {
           <Link href={`/launch/${d.id}`} className="truncate font-medium hover:underline">
             {d.name}
           </Link>
-          <span className="truncate text-xs text-muted-foreground">{d.template ? `From template “${d.template.name}”` : 'From scratch'}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {d.template ? `From template “${d.template.name}”` : 'From scratch'}
+          </span>
         </div>
       ),
     },
-    { id: 'groups', header: 'Groups', align: 'right', cell: (d) => <span className="tabular-nums">{d.variants}</span> },
-    { id: 'validated', header: 'Last check', cell: (d) => (d.lastValidatedAt ? <RelativeTime value={d.lastValidatedAt} /> : <span className="text-muted-foreground">Not checked</span>) },
+    {
+      id: 'groups',
+      header: 'Groups',
+      align: 'right',
+      cell: (d) => <span className="tabular-nums">{d.variants}</span>,
+    },
+    {
+      id: 'validated',
+      header: 'Last check',
+      cell: (d) =>
+        d.lastValidatedAt ? (
+          <RelativeTime value={d.lastValidatedAt} />
+        ) : (
+          <span className="text-muted-foreground">Not checked</span>
+        ),
+    },
     { id: 'updated', header: 'Last edited', cell: (d) => <RelativeTime value={d.updatedAt} /> },
     {
       id: 'actions',
@@ -142,7 +163,11 @@ function DraftsTable() {
           <EmptyState
             icon={Rocket}
             title={state.hasActiveFilters ? 'No drafts match' : 'No drafts'}
-            description={state.hasActiveFilters ? undefined : 'Start a launch — every step is saved as a draft you can continue later.'}
+            description={
+              state.hasActiveFilters
+                ? undefined
+                : 'Start a launch — every step is saved as a draft you can continue later.'
+            }
             action={
               state.hasActiveFilters ? undefined : (
                 <Button asChild>
@@ -179,7 +204,9 @@ export function LaunchHistory({ adAccountId }: { adAccountId?: string }) {
   const state = useUrlTableState({ filterKeys: ['tab'] });
   const params = { page: state.page, pageSize: state.pageSize, ...(state.q ? { q: state.q } : {}) };
   const jobs = useLaunchJobs(params);
-  const items = adAccountId ? jobs.data?.items.filter((j) => j.adAccount.id === adAccountId) : jobs.data?.items;
+  const items = adAccountId
+    ? jobs.data?.items.filter((j) => j.adAccount.id === adAccountId)
+    : jobs.data?.items;
 
   const columns: DataTableColumn<LaunchJobListItem>[] = [
     {
@@ -195,22 +222,56 @@ export function LaunchHistory({ adAccountId }: { adAccountId?: string }) {
         </div>
       ),
     },
-    { id: 'account', header: 'Ad account', cell: (j) => <span className="truncate">{j.adAccount.name}</span> },
+    {
+      id: 'account',
+      header: 'Ad account',
+      cell: (j) => <span className="truncate">{j.adAccount.name}</span>,
+    },
     { id: 'status', header: 'Status', cell: (j) => <LaunchStatusBadge status={j.status} /> },
     {
       id: 'progress',
       header: 'Progress',
       cell: (j) => (
         <div className="grid w-40 gap-1">
-          <Progress value={j.progress} tone={j.status === 'FAILED' ? 'danger' : j.status === 'PARTIAL_FAILURE' ? 'warning' : j.status === 'COMPLETED' ? 'success' : 'default'} indeterminate={!isTerminal(j.status) && j.progress === 0} aria-label={`Progress of ${j.name}`} />
+          <Progress
+            value={j.progress}
+            tone={
+              j.status === 'FAILED'
+                ? 'danger'
+                : j.status === 'PARTIAL_FAILURE'
+                  ? 'warning'
+                  : j.status === 'COMPLETED'
+                    ? 'success'
+                    : 'default'
+            }
+            indeterminate={!isTerminal(j.status) && j.progress === 0}
+            aria-label={`Progress of ${j.name}`}
+          />
           <span className="text-xs text-muted-foreground tabular-nums">
             {j.createdItems}/{j.totalItems} created{j.failedItems ? ` · ${j.failedItems} failed` : ''}
           </span>
         </div>
       ),
     },
-    { id: 'created', header: 'Started', cell: (j) => <span title={formatDateTime(j.createdAt)}><RelativeTime value={j.createdAt} /></span> },
-    { id: 'finished', header: 'Finished', cell: (j) => (j.finishedAt ? <RelativeTime value={j.finishedAt} /> : <span className="text-muted-foreground">—</span>) },
+    {
+      id: 'created',
+      header: 'Started',
+      cell: (j) => (
+        <span title={formatDateTime(j.createdAt)}>
+          <RelativeTime value={j.createdAt} />
+        </span>
+      ),
+    },
+    {
+      id: 'finished',
+      header: 'Finished',
+      cell: (j) =>
+        j.finishedAt ? (
+          <RelativeTime value={j.finishedAt} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
   ];
 
   return (
@@ -228,7 +289,13 @@ export function LaunchHistory({ adAccountId }: { adAccountId?: string }) {
       onRowClick={(j) => router.push(`/launches/${j.id}`)}
       minWidth={820}
       toolbar={<DataTableToolbar state={state} searchPlaceholder="Search by name or code" />}
-      emptyState={<EmptyState icon={History} title={state.q ? 'No launches match' : 'No launches yet'} description={state.q ? undefined : 'Launches appear here with their live progress.'} />}
+      emptyState={
+        <EmptyState
+          icon={History}
+          title={state.q ? 'No launches match' : 'No launches yet'}
+          description={state.q ? undefined : 'Launches appear here with their live progress.'}
+        />
+      }
     />
   );
 }

@@ -18,7 +18,10 @@ export class MaintenanceGuard implements CanActivate {
     if (context.getType() !== 'http') return true;
     const maintenance = await this.settings.get('maintenance');
     if (!maintenance.enabled) return true;
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()]);
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     const req = context.switchToHttp().getRequest<Request & { user?: AuthUser }>();
     if (isPublic || req.user?.isAdmin) return true;
     if (req.path.endsWith('/auth/me') || req.path.endsWith('/auth/logout')) return true;

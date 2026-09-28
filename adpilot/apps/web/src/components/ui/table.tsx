@@ -2,10 +2,18 @@ import type * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /** Horizontally scrollable table container (tables never overflow their card on small screens). */
-export function Table({ className, containerClassName, ...props }: React.ComponentProps<'table'> & { containerClassName?: string }) {
+export function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<'table'> & { containerClassName?: string }) {
   return (
     <div data-slot="table-container" className={cn('relative w-full overflow-x-auto', containerClassName)}>
-      <table data-slot="table" className={cn('w-full caption-bottom border-separate border-spacing-0 text-sm', className)} {...props} />
+      <table
+        data-slot="table"
+        className={cn('w-full caption-bottom border-separate border-spacing-0 text-sm', className)}
+        {...props}
+      />
     </div>
   );
 }
@@ -15,11 +23,19 @@ export function TableHeader({ className, ...props }: React.ComponentProps<'thead
 }
 
 export function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
-  return <tbody data-slot="table-body" className={cn('[&_tr:last-child>td]:border-b-0', className)} {...props} />;
+  return (
+    <tbody data-slot="table-body" className={cn('[&_tr:last-child>td]:border-b-0', className)} {...props} />
+  );
 }
 
 export function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
-  return <tfoot data-slot="table-footer" className={cn('bg-muted/40 font-medium [&_td]:border-t', className)} {...props} />;
+  return (
+    <tfoot
+      data-slot="table-footer"
+      className={cn('bg-muted/40 font-medium [&_td]:border-t', className)}
+      {...props}
+    />
+  );
 }
 
 export function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
@@ -60,5 +76,11 @@ export function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
 }
 
 export function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
-  return <caption data-slot="table-caption" className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />;
+  return (
+    <caption
+      data-slot="table-caption"
+      className={cn('mt-4 text-sm text-muted-foreground', className)}
+      {...props}
+    />
+  );
 }

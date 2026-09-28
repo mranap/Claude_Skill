@@ -37,7 +37,10 @@ export function DialogContent({
   size = 'md',
   hideClose = false,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { size?: keyof typeof sizes; hideClose?: boolean }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  size?: keyof typeof sizes;
+  hideClose?: boolean;
+}) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -70,12 +73,24 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="dialog-header" className={cn('flex flex-col gap-1.5 px-6 pt-5 pb-1 pr-12', className)} {...props} />;
+  return (
+    <div
+      data-slot="dialog-header"
+      className={cn('flex flex-col gap-1.5 px-6 pt-5 pb-1 pr-12', className)}
+      {...props}
+    />
+  );
 }
 
 /** Scrollable middle section. */
 export function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="dialog-body" className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-4', className)} {...props} />;
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-4', className)}
+      {...props}
+    />
+  );
 }
 
 export function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
@@ -101,7 +116,10 @@ export function DialogTitle({ className, ...props }: React.ComponentProps<typeof
   );
 }
 
-export function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
+export function DialogDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"

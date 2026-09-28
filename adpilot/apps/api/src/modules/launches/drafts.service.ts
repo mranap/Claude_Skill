@@ -16,7 +16,10 @@ export class DraftsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(userId: string, q: z.infer<typeof paginationQuerySchema> & { status?: 'DRAFT' | 'LAUNCHED' | 'ARCHIVED' }) {
+  async list(
+    userId: string,
+    q: z.infer<typeof paginationQuerySchema> & { status?: 'DRAFT' | 'LAUNCHED' | 'ARCHIVED' },
+  ) {
     const where: Prisma.LaunchDraftWhereInput = {
       userId,
       status: q.status ?? 'DRAFT',
@@ -40,7 +43,9 @@ export class DraftsService {
         template: r.template,
         profileId: r.profileId,
         adAccountId: r.adAccountId,
-        variants: Array.isArray((r.config as { variants?: unknown[] }).variants) ? (r.config as { variants: unknown[] }).variants.length : 0,
+        variants: Array.isArray((r.config as { variants?: unknown[] }).variants)
+          ? (r.config as { variants: unknown[] }).variants.length
+          : 0,
         lastValidatedAt: r.lastValidatedAt,
         updatedAt: r.updatedAt,
         createdAt: r.createdAt,
@@ -84,7 +89,13 @@ export class DraftsService {
         userId,
         name: tpl.name,
         templateId: tpl.id,
-        config: { version: 1, templateId: tpl.id, name: tpl.name, settings: parsed.data.settings, variants: parsed.data.variants },
+        config: {
+          version: 1,
+          templateId: tpl.id,
+          name: tpl.name,
+          settings: parsed.data.settings,
+          variants: parsed.data.variants,
+        },
       },
     });
     await this.prisma.campaignTemplate.update({ where: { id: tpl.id }, data: { lastUsedAt: new Date() } });
@@ -93,7 +104,8 @@ export class DraftsService {
 
   async update(userId: string, id: string, input: z.infer<typeof draftSaveSchema>) {
     const draft = await this.findOwned(userId, id);
-    if (draft.status !== 'DRAFT') throw AppError.conflict('This draft was already launched; clone it to make changes');
+    if (draft.status !== 'DRAFT')
+      throw AppError.conflict('This draft was already launched; clone it to make changes');
     await this.assertRefs(userId, input);
     this.assertSize(input.config);
     return this.prisma.launchDraft.update({
@@ -121,7 +133,14 @@ export class DraftsService {
         clonedFromId: src.id,
       },
     });
-    await this.audit.log({ action: 'draft.cloned', actorUserId: userId, subjectUserId: userId, targetType: 'draft', targetId: row.id, metadata: { from: id } });
+    await this.audit.log({
+      action: 'draft.cloned',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'draft',
+      targetId: row.id,
+      metadata: { from: id },
+    });
     return row;
   }
 
@@ -131,13 +150,26 @@ export class DraftsService {
   }
 
   private assertSize(config: unknown) {
-    if (Buffer.byteLength(JSON.stringify(config)) > MAX_DRAFT_BYTES) throw AppError.validation('The draft is too large');
+    if (Buffer.byteLength(JSON.stringify(config)) > MAX_DRAFT_BYTES)
+      throw AppError.validation('The draft is too large');
   }
 
   /** Referenced template/profile/account must belong to the user (no cross-tenant references). */
   private async assertRefs(userId: string, input: z.infer<typeof draftSaveSchema>) {
-    if (input.templateId && !(await this.prisma.campaignTemplate.count({ where: { id: input.templateId, userId } }))) throw AppError.notFound('Template');
-    if (input.profileId && !(await this.prisma.metaProfile.count({ where: { id: input.profileId, userId, deletedAt: null } }))) throw AppError.notFound('Meta profile');
-    if (input.adAccountId && !(await this.prisma.adAccount.count({ where: { id: input.adAccountId, userId } }))) throw AppError.notFound('Ad account');
+    if (
+      input.templateId &&
+      !(await this.prisma.campaignTemplate.count({ where: { id: input.templateId, userId } }))
+    )
+      throw AppError.notFound('Template');
+    if (
+      input.profileId &&
+      !(await this.prisma.metaProfile.count({ where: { id: input.profileId, userId, deletedAt: null } }))
+    )
+      throw AppError.notFound('Meta profile');
+    if (
+      input.adAccountId &&
+      !(await this.prisma.adAccount.count({ where: { id: input.adAccountId, userId } }))
+    )
+      throw AppError.notFound('Ad account');
   }
 }

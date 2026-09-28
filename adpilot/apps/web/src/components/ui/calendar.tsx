@@ -38,7 +38,13 @@ function CalendarDayButton({ className, day, modifiers, ...props }: DayButtonPro
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 /** DayPicker styled with the design tokens (single, multiple and range modes). */
-export function Calendar({ className, classNames, showOutsideDays = true, components, ...props }: CalendarProps) {
+export function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  components,
+  ...props
+}: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -47,7 +53,10 @@ export function Calendar({ className, classNames, showOutsideDays = true, compon
         months: 'relative flex flex-col gap-4 sm:flex-row sm:gap-6',
         month: 'flex w-full flex-col gap-3',
         nav: 'absolute inset-x-0 top-0 z-10 flex items-center justify-between',
-        button_previous: cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'aria-disabled:opacity-40'),
+        button_previous: cn(
+          buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
+          'aria-disabled:opacity-40',
+        ),
         button_next: cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'aria-disabled:opacity-40'),
         month_caption: 'flex h-8 items-center justify-center px-10',
         caption_label: 'text-sm font-medium',

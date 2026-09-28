@@ -38,7 +38,9 @@ function MaintenanceNotice() {
   return (
     <Alert variant="warning">
       <AlertTitle>Maintenance in progress</AlertTitle>
-      <AlertDescription>{status.data.maintenance.message ?? 'AdPilot is being updated. Please try again later.'}</AlertDescription>
+      <AlertDescription>
+        {status.data.maintenance.message ?? 'AdPilot is being updated. Please try again later.'}
+      </AlertDescription>
     </Alert>
   );
 }
@@ -64,7 +66,8 @@ export function LoginView() {
     const resume = async () => {
       const probe = await authApi.session(controller.signal);
       let user = probe.authenticated ? probe.user : null;
-      if (!probe.authenticated && probe.refreshable && (await refreshSession()) === 'ok') user = await authApi.me(controller.signal);
+      if (!probe.authenticated && probe.refreshable && (await refreshSession()) === 'ok')
+        user = await authApi.me(controller.signal);
       if (!user || controller.signal.aborted) return;
       queryClient.setQueryData(queryKeys.me, user);
       router.replace(next);
@@ -131,7 +134,10 @@ function CredentialsStep({
   };
 
   return (
-    <AuthCard title="Sign in to AdPilot" description="Manage your Meta ad accounts, campaigns and automations.">
+    <AuthCard
+      title="Sign in to AdPilot"
+      description="Manage your Meta ad accounts, campaigns and automations."
+    >
       <Form form={form} onSubmit={onSubmit} className="grid gap-4">
         <MaintenanceNotice />
         <LoginError error={error} />
@@ -154,7 +160,9 @@ function CredentialsStep({
               Forgot password?
             </Link>
           }
-          render={({ field, controlProps }) => <PasswordInput {...field} {...controlProps} autoComplete="current-password" />}
+          render={({ field, controlProps }) => (
+            <PasswordInput {...field} {...controlProps} autoComplete="current-password" />
+          )}
         />
         <Button type="submit" className="mt-1 w-full" loading={form.formState.isSubmitting}>
           Sign in

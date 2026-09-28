@@ -10,7 +10,10 @@ import {
 
 describe('Meta error classification', () => {
   it('expired token → AUTH, not retryable, friendly message', () => {
-    const d = classifyGraphError({ code: 190, error_subcode: 463, message: 'Session has expired', type: 'OAuthException' }, 400);
+    const d = classifyGraphError(
+      { code: 190, error_subcode: 463, message: 'Session has expired', type: 'OAuthException' },
+      400,
+    );
     expect(d.category).toBe('AUTH');
     expect(d.retryable).toBe(false);
     expect(d.friendlyMessage).toMatch(/expired/i);
@@ -41,14 +44,24 @@ describe('Meta error classification', () => {
   });
 
   it('invalid parameter → VALIDATION with explanation for promoted_object', () => {
-    const d = classifyGraphError({ code: 100, message: 'Invalid parameter: promoted_object is required', error_user_msg: 'Select a pixel' }, 400);
+    const d = classifyGraphError(
+      {
+        code: 100,
+        message: 'Invalid parameter: promoted_object is required',
+        error_user_msg: 'Select a pixel',
+      },
+      400,
+    );
     expect(d.category).toBe('VALIDATION');
     expect(d.retryable).toBe(false);
     expect(d.friendlyMessage).toMatch(/promoted object/i);
   });
 
   it("uses Meta's user message when available", () => {
-    const d = classifyGraphError({ code: 100, message: 'Invalid parameter', error_user_msg: 'Your budget is too low.' }, 400);
+    const d = classifyGraphError(
+      { code: 100, message: 'Invalid parameter', error_user_msg: 'Your budget is too low.' },
+      400,
+    );
     expect(d.friendlyMessage).toBe('Your budget is too low.');
   });
 
@@ -77,18 +90,33 @@ describe('Meta error classification', () => {
       expect(d.category, String(err.code)).toBe('PERMISSION');
       expect(authStatusFromError(new MetaApiError(d)), String(err.code)).toBeNull();
     }
-    expect(authStatusFromError(new MetaApiError(classifyGraphError({ code: 102, message: 'Session key invalid' }, 400)))).toBe('INVALID');
+    expect(
+      authStatusFromError(
+        new MetaApiError(classifyGraphError({ code: 102, message: 'Session key invalid' }, 400)),
+      ),
+    ).toBe('INVALID');
   });
 
   it('613/1487225 (ad creation limit) fails with a clear message instead of throttling the account', () => {
-    const d = classifyGraphError({ code: 613, error_subcode: AD_CREATION_LIMIT_SUBCODE, message: 'User request limit reached' }, 400);
+    const d = classifyGraphError(
+      { code: 613, error_subcode: AD_CREATION_LIMIT_SUBCODE, message: 'User request limit reached' },
+      400,
+    );
     expect(d.category).toBe('VALIDATION');
     expect(d.retryable).toBe(false);
     expect(d.friendlyMessage).toMatch(/how many ads this ad account can create.*daily spending limit/);
   });
 
   it('613/1487632 (ad set budget changes) is a rate limit of that object only', () => {
-    const d = classifyGraphError({ code: 613, error_subcode: BUDGET_CHANGE_LIMIT_SUBCODE, message: 'You can only change your ad set budget 4 times per hour.' }, 400, 3_600_000);
+    const d = classifyGraphError(
+      {
+        code: 613,
+        error_subcode: BUDGET_CHANGE_LIMIT_SUBCODE,
+        message: 'You can only change your ad set budget 4 times per hour.',
+      },
+      400,
+      3_600_000,
+    );
     expect(d.category).toBe('RATE_LIMIT');
     expect(isBudgetChangeLimit(d)).toBe(true);
     expect(d.friendlyMessage).toMatch(/4 budget changes per hour.*about 60 min/);
@@ -100,12 +128,18 @@ describe('Meta error classification', () => {
     const d = classifyGraphError({ code: 100, error_subcode: 33, message: 'Unsupported post request.' }, 400);
     expect(d.category).toBe('VALIDATION');
     expect(d.friendlyMessage).toMatch(/does not exist in Meta anymore, or .* has no access/);
-    expect(classifyGraphError({ code: 803, message: 'Some of the aliases you requested do not exist' }, 404).category).toBe('NOT_FOUND');
+    expect(
+      classifyGraphError({ code: 803, message: 'Some of the aliases you requested do not exist' }, 404)
+        .category,
+    ).toBe('NOT_FOUND');
   });
 
   it('3910001 ("please try again later") is retried', () => {
     for (const err of [{ code: 3910001 }, { code: 100, error_subcode: 3910001 }]) {
-      const d = classifyGraphError({ ...err, message: "We're facing some trouble with your account. Please try again later." }, 400);
+      const d = classifyGraphError(
+        { ...err, message: "We're facing some trouble with your account. Please try again later." },
+        400,
+      );
       expect(d.category).toBe('TRANSIENT');
       expect(d.retryable).toBe(true);
     }

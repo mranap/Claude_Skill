@@ -37,7 +37,9 @@ describe('creative uploads: interrupted transfers and storage quota', () => {
       headers: {
         ...client.rawHeaders(url.pathname),
         'Content-Type': `multipart/form-data; boundary=${BOUNDARY}`,
-        ...(opts.declaredBytes ? { 'Content-Length': String(partHead.length + opts.declaredBytes + BOUNDARY.length + 8) } : {}),
+        ...(opts.declaredBytes
+          ? { 'Content-Length': String(partHead.length + opts.declaredBytes + BOUNDARY.length + 8) }
+          : {}),
       },
     });
     response = new Promise((resolve) => {
@@ -70,6 +72,13 @@ describe('creative uploads: interrupted transfers and storage quota', () => {
     expect(file.status).toBe('READY');
   });
 
+  it('answers 404 (not 500) when the stored file of a creative is missing', async () => {
+    const file = await uploadCreative(user.client, media.imageB, 'image/jpeg');
+    const row = await stack.prisma.creativeFile.findUniqueOrThrow({ where: { id: file.id } });
+    stack.s3.buckets.get(process.env.S3_BUCKET!)!.delete(row.storageKey);
+    expect((await user.client.get(`/api/creatives/${file.id}/file`)).status).toBe(404);
+  });
+
   it('refuses uploads beyond the remaining storage quota before and while streaming', async () => {
     expectStatus(await admin.patch(`/api/admin/users/${user.id}`, { storageQuotaMb: 1 }), 200);
     // Declared size larger than the remaining quota: refused before anything is written.
@@ -84,7 +93,10 @@ describe('creative uploads: interrupted transfers and storage quota', () => {
     chunked.finish();
     const res = await chunked.response;
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body).results[0]).toMatchObject({ ok: false, error: 'This file does not fit into your remaining storage.' });
+    expect(JSON.parse(res.body).results[0]).toMatchObject({
+      ok: false,
+      error: 'This file does not fit into your remaining storage.',
+    });
     expect(await tmpFiles()).toBe(0);
   });
 });

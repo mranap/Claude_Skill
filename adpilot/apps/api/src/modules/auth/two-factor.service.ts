@@ -50,7 +50,9 @@ export class TwoFactorService {
     if (!row.twoFactorPendingSecretEnc) throw AppError.validation('Start the setup again');
     const secret = this.encryption.decrypt(row.twoFactorPendingSecretEnc, Aad.totpPendingSecret(user.id));
     if (verifyTotp(secret, code) === null) {
-      throw AppError.validation('Invalid code', [{ path: 'code', message: 'The code does not match. Check the time on your phone.' }]);
+      throw AppError.validation('Invalid code', [
+        { path: 'code', message: 'The code does not match. Check the time on your phone.' },
+      ]);
     }
     const recoveryCodes = generateRecoveryCodes();
     await this.prisma.user.update({
@@ -79,11 +81,16 @@ export class TwoFactorService {
     const limit = await this.rateLimiter.hit('2fa-disable', user.id, 10, 15 * 60_000);
     if (!limit.allowed) throw AppError.rateLimited(Math.ceil(limit.retryAfterMs / 1000));
     const row = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    if (!row.twoFactorEnabled || !row.twoFactorSecretEnc) throw AppError.conflict('Two-factor authentication is not enabled');
+    if (!row.twoFactorEnabled || !row.twoFactorSecretEnc)
+      throw AppError.conflict('Two-factor authentication is not enabled');
     if (!(await this.hashing.verifyPassword(row.passwordHash, password))) {
-      throw AppError.validation('Password is incorrect', [{ path: 'password', message: 'Incorrect password' }]);
+      throw AppError.validation('Password is incorrect', [
+        { path: 'password', message: 'Incorrect password' },
+      ]);
     }
-    if (!(await this.auth.checkSecondFactor(user.id, row.twoFactorSecretEnc, row.twoFactorRecoveryHashes, code))) {
+    if (
+      !(await this.auth.checkSecondFactor(user.id, row.twoFactorSecretEnc, row.twoFactorRecoveryHashes, code))
+    ) {
       throw AppError.validation('Invalid code', [{ path: 'code', message: 'Invalid code' }]);
     }
     await this.prisma.$transaction(async (tx) => {
@@ -108,16 +115,23 @@ export class TwoFactorService {
 
   async regenerateRecoveryCodes(user: AuthUser, code: string): Promise<{ recoveryCodes: string[] }> {
     const row = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    if (!row.twoFactorEnabled || !row.twoFactorSecretEnc) throw AppError.conflict('Two-factor authentication is not enabled');
+    if (!row.twoFactorEnabled || !row.twoFactorSecretEnc)
+      throw AppError.conflict('Two-factor authentication is not enabled');
     if (!(await this.auth.checkSecondFactor(user.id, row.twoFactorSecretEnc, [], code))) {
-      throw AppError.validation('Invalid code', [{ path: 'code', message: 'Enter a code from your authenticator app' }]);
+      throw AppError.validation('Invalid code', [
+        { path: 'code', message: 'Enter a code from your authenticator app' },
+      ]);
     }
     const recoveryCodes = generateRecoveryCodes();
     await this.prisma.user.update({
       where: { id: user.id },
       data: { twoFactorRecoveryHashes: recoveryCodes.map((c) => this.hashing.sha256(c)) },
     });
-    await this.audit.log({ action: 'auth.2fa.recovery_codes_regenerated', actorUserId: user.id, subjectUserId: user.id });
+    await this.audit.log({
+      action: 'auth.2fa.recovery_codes_regenerated',
+      actorUserId: user.id,
+      subjectUserId: user.id,
+    });
     return { recoveryCodes };
   }
 }

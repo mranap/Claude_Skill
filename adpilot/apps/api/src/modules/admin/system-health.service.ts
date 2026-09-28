@@ -48,8 +48,18 @@ export class SystemHealthService {
       timed(() => this.telegramCheck()),
     ]);
     const checks: HealthCheck[] = [
-      { name: 'Database', status: db.error ? 'error' : 'ok', detail: db.error?.message ?? 'PostgreSQL reachable', latencyMs: db.ms },
-      { name: 'Redis', status: redis.error ? 'error' : 'ok', detail: redis.error?.message ?? 'Redis reachable', latencyMs: redis.ms },
+      {
+        name: 'Database',
+        status: db.error ? 'error' : 'ok',
+        detail: db.error?.message ?? 'PostgreSQL reachable',
+        latencyMs: db.ms,
+      },
+      {
+        name: 'Redis',
+        status: redis.error ? 'error' : 'ok',
+        detail: redis.error?.message ?? 'Redis reachable',
+        latencyMs: redis.ms,
+      },
       {
         name: 'Storage',
         status: storage.error || !storage.value?.ok ? 'error' : 'ok',
@@ -70,7 +80,11 @@ export class SystemHealthService {
       {
         name: 'Scheduler',
         status: scheduler.error ? 'error' : scheduler.value ? 'ok' : 'error',
-        detail: scheduler.error?.message ?? (scheduler.value ? `Leader: ${(JSON.parse(scheduler.value) as { host: string }).host}` : 'No scheduler heartbeat in the last minute'),
+        detail:
+          scheduler.error?.message ??
+          (scheduler.value
+            ? `Leader: ${(JSON.parse(scheduler.value) as { host: string }).host}`
+            : 'No scheduler heartbeat in the last minute'),
       },
       email.value ?? { name: 'Email (SMTP)', status: 'error', detail: email.error?.message ?? 'unknown' },
       tg.value ?? { name: 'Telegram bot', status: 'error', detail: tg.error?.message ?? 'unknown' },
@@ -82,7 +96,13 @@ export class SystemHealthService {
     const keys: string[] = [];
     let cursor = '0';
     do {
-      const [next, batch] = await this.redis.client.scan(cursor, 'MATCH', this.redis.key('workers', 'hb', '*'), 'COUNT', 100);
+      const [next, batch] = await this.redis.client.scan(
+        cursor,
+        'MATCH',
+        this.redis.key('workers', 'hb', '*'),
+        'COUNT',
+        100,
+      );
       cursor = next;
       keys.push(...batch);
     } while (cursor !== '0');
@@ -96,11 +116,17 @@ export class SystemHealthService {
     if (!s.enabled) return { name: 'Email (SMTP)', status: 'disabled', detail: 'SMTP is not enabled' };
     if (!deep) return { name: 'Email (SMTP)', status: 'ok', detail: `Configured: ${s.host}:${s.port}` };
     const res = await timed(() => this.smtp.verify());
-    return { name: 'Email (SMTP)', status: res.error ? 'error' : 'ok', detail: res.error?.message ?? 'SMTP connection verified', latencyMs: res.ms };
+    return {
+      name: 'Email (SMTP)',
+      status: res.error ? 'error' : 'ok',
+      detail: res.error?.message ?? 'SMTP connection verified',
+      latencyMs: res.ms,
+    };
   }
 
   private async telegramCheck(): Promise<HealthCheck> {
-    if (!(await this.telegram.isConfigured())) return { name: 'Telegram bot', status: 'disabled', detail: 'Telegram bot is not configured' };
+    if (!(await this.telegram.isConfigured()))
+      return { name: 'Telegram bot', status: 'disabled', detail: 'Telegram bot is not configured' };
     const res = await timed(() => this.telegram.getMe());
     return {
       name: 'Telegram bot',

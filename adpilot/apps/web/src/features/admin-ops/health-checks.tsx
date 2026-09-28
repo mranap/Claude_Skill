@@ -10,7 +10,10 @@ import { ErrorAlert } from '@/components/shared/error-alert';
 import { cn } from '@/lib/utils/cn';
 import { adminOpsApi, useHealth, type HealthCheck } from './api';
 
-const STATUS: Record<HealthCheck['status'], { label: string; icon: typeof CircleCheck; tone: string; badge: 'success' | 'warning' | 'danger' | 'muted' }> = {
+const STATUS: Record<
+  HealthCheck['status'],
+  { label: string; icon: typeof CircleCheck; tone: string; badge: 'success' | 'warning' | 'danger' | 'muted' }
+> = {
   ok: { label: 'OK', icon: CircleCheck, tone: 'text-success-fg', badge: 'success' },
   warning: { label: 'Warning', icon: TriangleAlert, tone: 'text-warning-fg', badge: 'warning' },
   error: { label: 'Down', icon: CircleAlert, tone: 'text-destructive-fg', badge: 'danger' },
@@ -42,7 +45,9 @@ export function HealthChecksCard({ className }: { className?: string }) {
             )
           ) : null}
         </CardTitle>
-        <CardDescription>Refreshed every 30 seconds.{deep.data ? ' Showing the deep check (SMTP login verified).' : ''}</CardDescription>
+        <CardDescription>
+          Refreshed every 30 seconds.{deep.data ? ' Showing the deep check (SMTP login verified).' : ''}
+        </CardDescription>
         <CardAction>
           <Button variant="outline" size="sm" onClick={() => deep.mutate()} loading={deep.isPending}>
             <Stethoscope />
@@ -51,7 +56,9 @@ export function HealthChecksCard({ className }: { className?: string }) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        {health.error && !checks ? <ErrorAlert error={health.error} onRetry={() => void health.refetch()} /> : null}
+        {health.error && !checks ? (
+          <ErrorAlert error={health.error} onRetry={() => void health.refetch()} />
+        ) : null}
         {deep.error ? <ErrorAlert error={deep.error} className="mb-3" /> : null}
         {!checks && !health.error ? (
           <div className="grid gap-2 sm:grid-cols-2">
@@ -67,7 +74,10 @@ export function HealthChecksCard({ className }: { className?: string }) {
               return (
                 <li
                   key={check.name}
-                  className={cn('flex items-start gap-3 rounded-lg border p-3', check.status === 'error' && 'border-destructive/40 bg-destructive/[0.04]')}
+                  className={cn(
+                    'flex items-start gap-3 rounded-lg border p-3',
+                    check.status === 'error' && 'border-destructive/40 bg-destructive/[0.04]',
+                  )}
                 >
                   <s.icon className={cn('mt-0.5 size-4 shrink-0', s.tone)} aria-hidden />
                   <div className="grid min-w-0 flex-1 gap-0.5">

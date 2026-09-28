@@ -28,7 +28,8 @@ export class BroadcastService {
 
   async create(actor: AuthUser, input: z.infer<typeof broadcastSchema>) {
     if (!input.channels.length && !input.inApp) throw AppError.validation('Select at least one channel');
-    if (input.audience === 'SELECTED' && !input.userIds.length) throw AppError.validation('Select at least one user');
+    if (input.audience === 'SELECTED' && !input.userIds.length)
+      throw AppError.validation('Select at least one user');
     const broadcast = await this.prisma.broadcast.create({
       data: {
         createdById: actor.id,
@@ -40,20 +41,34 @@ export class BroadcastService {
         userIds: input.audience === 'SELECTED' ? input.userIds : [],
       },
     });
-    await this.queue.add(QUEUES.MAINTENANCE, JOBS.BROADCAST, { broadcastId: broadcast.id }, { jobId: jobId('broadcast', broadcast.id), attempts: 3 });
+    await this.queue.add(
+      QUEUES.MAINTENANCE,
+      JOBS.BROADCAST,
+      { broadcastId: broadcast.id },
+      { jobId: jobId('broadcast', broadcast.id), attempts: 3 },
+    );
     await this.audit.log({
       action: 'admin.broadcast.created',
       actorUserId: actor.id,
       targetType: 'broadcast',
       targetId: broadcast.id,
-      metadata: { subject: input.subject, channels: input.channels, audience: input.audience, recipients: input.userIds.length },
+      metadata: {
+        subject: input.subject,
+        channels: input.channels,
+        audience: input.audience,
+        recipients: input.userIds.length,
+      },
     });
     return broadcast;
   }
 
   async list(page: number, pageSize: number) {
     const [items, total] = await Promise.all([
-      this.prisma.broadcast.findMany({ orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.broadcast.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
       this.prisma.broadcast.count(),
     ]);
     return { items, total, page, pageSize };
@@ -101,7 +116,10 @@ export class BroadcastService {
       });
     } catch (err) {
       this.logger.error('Broadcast failed', { err, broadcastId });
-      await this.prisma.broadcast.update({ where: { id: b.id }, data: { status: 'FAILED', error: String(err), recipientCount: count } });
+      await this.prisma.broadcast.update({
+        where: { id: b.id },
+        data: { status: 'FAILED', error: String(err), recipientCount: count },
+      });
       throw err;
     }
   }

@@ -20,7 +20,10 @@ export class FakeSmtp {
   readonly messages: CapturedMail[] = [];
   /** Next N messages are rejected with this reply (e.g. "451 4.3.0 Try again later"). */
   private rejectNext: { times: number; reply: string } | null = null;
-  private readonly waiters: { predicate: (m: CapturedMail) => boolean; resolve: (m: CapturedMail) => void }[] = [];
+  private readonly waiters: {
+    predicate: (m: CapturedMail) => boolean;
+    resolve: (m: CapturedMail) => void;
+  }[] = [];
 
   /** Called for every captured message (used by the standalone development mode). */
   onMessage: ((m: CapturedMail) => void) | null = null;
@@ -184,10 +187,17 @@ export class FakeSmtp {
 }
 
 function decodeMimeWords(value: string): string {
-  return value.replace(/=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi, (_, _charset: string, enc: string, data: string) =>
-    enc.toUpperCase() === 'B'
-      ? Buffer.from(data, 'base64').toString('utf8')
-      : Buffer.from(data.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/gi, (_m: string, h: string) => String.fromCharCode(parseInt(h, 16))), 'latin1').toString('utf8'),
+  return value.replace(
+    /=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi,
+    (_, _charset: string, enc: string, data: string) =>
+      enc.toUpperCase() === 'B'
+        ? Buffer.from(data, 'base64').toString('utf8')
+        : Buffer.from(
+            data
+              .replace(/_/g, ' ')
+              .replace(/=([0-9A-F]{2})/gi, (_m: string, h: string) => String.fromCharCode(parseInt(h, 16))),
+            'latin1',
+          ).toString('utf8'),
   );
 }
 
@@ -215,6 +225,12 @@ if (process.argv[1]?.endsWith('fake-smtp.ts')) {
   void smtp.startOn(port).then(() => console.log(`Mail catcher listening on 127.0.0.1:${port}`));
   smtp.onMessage = (m) => {
     const links = m.text.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
-    console.log(JSON.stringify({ to: m.to, subject: m.subject, links: [...new Set(links.map((l) => l.replace(/&amp;/g, '&')))] }, null, 2));
+    console.log(
+      JSON.stringify(
+        { to: m.to, subject: m.subject, links: [...new Set(links.map((l) => l.replace(/&amp;/g, '&')))] },
+        null,
+        2,
+      ),
+    );
   };
 }

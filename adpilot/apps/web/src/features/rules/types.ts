@@ -3,7 +3,8 @@ import type { ISODateString } from '@/lib/api/types';
 
 export type RuleTargetLevel = 'CAMPAIGN' | 'ADSET' | 'AD';
 export type RuleTimeRange = 'TODAY' | 'YESTERDAY' | 'LAST_N_HOURS' | 'LAST_N_DAYS';
-export type RuleAction = 'PAUSE' | 'START' | 'INCREASE_BUDGET' | 'DECREASE_BUDGET' | 'SET_BUDGET' | 'NOTIFY_ONLY';
+export type RuleAction =
+  'PAUSE' | 'START' | 'INCREASE_BUDGET' | 'DECREASE_BUDGET' | 'SET_BUDGET' | 'NOTIFY_ONLY';
 export type RuleExecutionResult = 'PENDING' | 'SUCCESS' | 'FAILED' | 'SKIPPED' | 'DRY_RUN' | 'NOTIFIED';
 
 /** GET /rules/:id (and list items with `stats7d`). Decimal columns arrive as strings. */
@@ -31,6 +32,8 @@ export interface RuleDto {
   checkIntervalMinutes: number;
   notify: boolean;
   nextRunAt: ISODateString | null;
+  /** Rule detail only: when "Run now" is allowed again. */
+  nextManualRunAt?: ISODateString | null;
   lastRunAt: ISODateString | null;
   lastRunStatus: string | null;
   lastRunError: string | null;

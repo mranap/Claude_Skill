@@ -40,7 +40,12 @@ export class TelegramPollerService implements OnApplicationBootstrap, OnModuleDe
     while (!this.stopped) {
       try {
         const s = await this.settings.get('telegram');
-        if (!this.scheduler.isLeader || !s.enabled || s.mode !== 'POLLING' || !(await this.bot.isConfigured())) {
+        if (
+          !this.scheduler.isLeader ||
+          !s.enabled ||
+          s.mode !== 'POLLING' ||
+          !(await this.bot.isConfigured())
+        ) {
           await sleep(10_000);
           continue;
         }
@@ -61,8 +66,15 @@ export class TelegramPollerService implements OnApplicationBootstrap, OnModuleDe
   async handleUpdates(updates: TelegramUpdate[]): Promise<void> {
     const offsetKey = this.redis.key('telegram', 'offset');
     for (const u of updates) {
-      const claimed = await this.redis.client.set(this.redis.key('telegram', 'update', u.update_id), '1', 'EX', HANDLED_TTL_S, 'NX');
-      if (claimed === 'OK') await this.links.handleUpdate(u).catch((err) => this.logger.error('Update handling failed', { err }));
+      const claimed = await this.redis.client.set(
+        this.redis.key('telegram', 'update', u.update_id),
+        '1',
+        'EX',
+        HANDLED_TTL_S,
+        'NX',
+      );
+      if (claimed === 'OK')
+        await this.links.handleUpdate(u).catch((err) => this.logger.error('Update handling failed', { err }));
       await this.redis.client.set(offsetKey, String(u.update_id + 1));
     }
   }

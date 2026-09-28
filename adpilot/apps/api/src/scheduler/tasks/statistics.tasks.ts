@@ -69,11 +69,20 @@ export class LaunchRecoveryTask implements SchedulerTask {
       take: 100,
     });
     if (!stale.length) return;
-    const bullJobs = await this.queue.queue(QUEUES.CAMPAIGN_LAUNCH).getJobs(['waiting', 'active', 'delayed', 'prioritized'], 0, 5000);
-    const pending = new Set(bullJobs.filter(Boolean).map((b) => (b.data as { launchJobId?: string }).launchJobId));
+    const bullJobs = await this.queue
+      .queue(QUEUES.CAMPAIGN_LAUNCH)
+      .getJobs(['waiting', 'active', 'delayed', 'prioritized'], 0, 5000);
+    const pending = new Set(
+      bullJobs.filter(Boolean).map((b) => (b.data as { launchJobId?: string }).launchJobId),
+    );
     for (const j of stale) {
       if (pending.has(j.id)) continue;
-      await this.queue.add(QUEUES.CAMPAIGN_LAUNCH, JOBS.CAMPAIGN_CREATE, { launchJobId: j.id, userId: j.userId }, { jobId: jobId('launch', j.id, 'recover', slot(new Date(), 15 * MINUTE)), attempts: 8 });
+      await this.queue.add(
+        QUEUES.CAMPAIGN_LAUNCH,
+        JOBS.CAMPAIGN_CREATE,
+        { launchJobId: j.id, userId: j.userId },
+        { jobId: jobId('launch', j.id, 'recover', slot(new Date(), 15 * MINUTE)), attempts: 8 },
+      );
     }
   }
 }

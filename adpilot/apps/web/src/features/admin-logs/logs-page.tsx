@@ -39,7 +39,9 @@ function TimeCell({ value }: { value: string }) {
   return (
     <div className="flex flex-col whitespace-nowrap">
       <span className="font-mono text-xs tabular-nums">{formatTime(value)}</span>
-      <span className="text-xs text-muted-foreground">{formatDateTime(value).split(',').slice(0, 2).join(',')}</span>
+      <span className="text-xs text-muted-foreground">
+        {formatDateTime(value).split(',').slice(0, 2).join(',')}
+      </span>
     </div>
   );
 }
@@ -63,7 +65,11 @@ const systemColumns: DataTableColumn<SystemLogDto>[] = [
       <div className="flex flex-col font-mono text-xs text-muted-foreground">
         {l.jobId ? <span>job {shortId(l.jobId, 6, 3)}</span> : null}
         {l.userId ? (
-          <Link href={`/admin/users/${l.userId}`} className="hover:text-foreground hover:underline" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/admin/users/${l.userId}`}
+            className="hover:text-foreground hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
             user {shortId(l.userId, 6, 3)}
           </Link>
         ) : null}
@@ -74,7 +80,11 @@ const systemColumns: DataTableColumn<SystemLogDto>[] = [
 ];
 
 function useLogSources() {
-  return useQuery({ queryKey: ['admin', 'logs', 'sources'], queryFn: adminLogsApi.sources, staleTime: 5 * 60_000 });
+  return useQuery({
+    queryKey: ['admin', 'logs', 'sources'],
+    queryFn: adminLogsApi.sources,
+    staleTime: 5 * 60_000,
+  });
 }
 
 function SystemLogsTab() {
@@ -103,7 +113,9 @@ function SystemLogsTab() {
       rowClassName={(l) => (l.level === 'ERROR' ? 'bg-destructive/[0.03]' : undefined)}
       renderExpanded={(l) => (
         <div className="grid gap-3 pt-1">
-          <p className="rounded-md border bg-card p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">{l.message}</p>
+          <p className="rounded-md border bg-card p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
+            {l.message}
+          </p>
           {l.context ? <JsonViewer value={l.context} maxHeightClass="max-h-72" /> : null}
           <KeyValueList
             className="max-w-xl"
@@ -134,7 +146,12 @@ function SystemLogsTab() {
                 ]}
               />
               {sources.data?.systemSources.length ? (
-                <FilterSelect state={table} filterKey="source" allLabel="All sources" options={sources.data.systemSources.map((v) => ({ value: v, label: v }))} />
+                <FilterSelect
+                  state={table}
+                  filterKey="source"
+                  allLabel="All sources"
+                  options={sources.data.systemSources.map((v) => ({ value: v, label: v }))}
+                />
               ) : (
                 <TextFilter state={table} filterKey="source" placeholder="Source (exact)" />
               )}
@@ -145,7 +162,12 @@ function SystemLogsTab() {
       }
       emptyState={
         table.hasActiveFilters ? undefined : (
-          <EmptyState icon={Server} title="No system logs" description="Warnings and errors from the API, workers and scheduler appear here." compact />
+          <EmptyState
+            icon={Server}
+            title="No system logs"
+            description="Warnings and errors from the API, workers and scheduler appear here."
+            compact
+          />
         )
       }
     />
@@ -170,7 +192,10 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
       l.userId ? (
         <Link
           href={`/admin/users/${l.userId}`}
-          className={cn('block max-w-[12rem] truncate text-xs hover:text-primary-fg hover:underline', !l.userEmail && 'font-mono')}
+          className={cn(
+            'block max-w-[12rem] truncate text-xs hover:text-primary-fg hover:underline',
+            !l.userEmail && 'font-mono',
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           {l.userEmail ?? shortId(l.userId, 6, 3)}
@@ -179,7 +204,11 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
         <span className="text-muted-foreground">—</span>
       ),
   },
-  { id: 'account', header: 'Account', cell: (l) => <span className="font-mono text-xs">{l.metaAccountId ?? '—'}</span> },
+  {
+    id: 'account',
+    header: 'Account',
+    cell: (l) => <span className="font-mono text-xs">{l.metaAccountId ?? '—'}</span>,
+  },
   {
     id: 'request',
     header: 'Request',
@@ -221,7 +250,11 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
     id: 'duration',
     header: 'Duration',
     align: 'right',
-    cell: (l) => <span className={cn('tabular-nums', l.durationMs > 5000 && 'text-warning-fg')}>{formatDurationMs(l.durationMs)}</span>,
+    cell: (l) => (
+      <span className={cn('tabular-nums', l.durationMs > 5000 && 'text-warning-fg')}>
+        {formatDurationMs(l.durationMs)}
+      </span>
+    ),
   },
   {
     id: 'retries',
@@ -230,7 +263,11 @@ const metaColumns: DataTableColumn<MetaApiLogDto>[] = [
     cell: (l) => (
       <span className={cn('tabular-nums', l.retryCount ? 'text-foreground' : 'text-muted-foreground')}>
         {l.retryCount}
-        {l.rateLimited ? <Badge variant="warning" size="sm" className="ml-1.5">RL</Badge> : null}
+        {l.rateLimited ? (
+          <Badge variant="warning" size="sm" className="ml-1.5">
+            RL
+          </Badge>
+        ) : null}
       </span>
     ),
   },
@@ -273,7 +310,9 @@ function MetaLogsTab() {
       error={logs.error}
       onRetry={() => void logs.refetch()}
       minWidth={1100}
-      rowClassName={(l) => (l.errorCode !== null || (l.httpStatus ?? 0) >= 400 ? 'bg-destructive/[0.03]' : undefined)}
+      rowClassName={(l) =>
+        l.errorCode !== null || (l.httpStatus ?? 0) >= 400 ? 'bg-destructive/[0.03]' : undefined
+      }
       renderExpanded={(l) => (
         <div className="grid gap-4 pt-1 lg:grid-cols-2">
           <KeyValueList
@@ -291,7 +330,11 @@ function MetaLogsTab() {
           />
           <div className="grid content-start gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">Usage headers</p>
-            {l.usage ? <JsonViewer value={l.usage} maxHeightClass="max-h-72" /> : <p className="text-sm text-muted-foreground">Not reported.</p>}
+            {l.usage ? (
+              <JsonViewer value={l.usage} maxHeightClass="max-h-72" />
+            ) : (
+              <p className="text-sm text-muted-foreground">Not reported.</p>
+            )}
           </div>
         </div>
       )}
@@ -303,7 +346,12 @@ function MetaLogsTab() {
             <>
               <ToggleFilter state={table} filterKey="onlyErrors" label="Only errors" />
               {sources.data?.metaCategories.length ? (
-                <FilterSelect state={table} filterKey="category" allLabel="All categories" options={sources.data.metaCategories.map((v) => ({ value: v, label: v }))} />
+                <FilterSelect
+                  state={table}
+                  filterKey="category"
+                  allLabel="All categories"
+                  options={sources.data.metaCategories.map((v) => ({ value: v, label: v }))}
+                />
               ) : (
                 <TextFilter state={table} filterKey="category" placeholder="Category" />
               )}
@@ -314,7 +362,12 @@ function MetaLogsTab() {
       }
       emptyState={
         table.hasActiveFilters ? undefined : (
-          <EmptyState icon={Globe} title="No Meta API calls yet" description="Every request to the Graph API is logged here with its usage headers." compact />
+          <EmptyState
+            icon={Globe}
+            title="No Meta API calls yet"
+            description="Every request to the Graph API is logged here with its usage headers."
+            compact
+          />
         )
       }
     />
@@ -328,11 +381,11 @@ export function LogsPage() {
 
   return (
     <>
-      <PageHeader title="Logs" description="Technical logs for troubleshooting. Sensitive values (tokens, secrets) are redacted before storage." />
-      <Tabs
-        value={tab}
-        onValueChange={(value) => replaceQuery(pathname, value === 'meta' ? 'tab=meta' : '')}
-      >
+      <PageHeader
+        title="Logs"
+        description="Technical logs for troubleshooting. Sensitive values (tokens, secrets) are redacted before storage."
+      />
+      <Tabs value={tab} onValueChange={(value) => replaceQuery(pathname, value === 'meta' ? 'tab=meta' : '')}>
         <TabsList className="mb-4">
           <TabsTrigger value="system">
             <ScrollText />

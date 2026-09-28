@@ -47,7 +47,9 @@ export function NotificationBell() {
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
           <div>
             <p className="text-sm font-semibold">Notifications</p>
-            <p className="text-xs text-muted-foreground">{count ? `${count} unread` : 'You’re all caught up'}</p>
+            <p className="text-xs text-muted-foreground">
+              {count ? `${count} unread` : 'You’re all caught up'}
+            </p>
           </div>
           <Button
             variant="ghost"
@@ -77,12 +79,16 @@ export function NotificationBell() {
                 <ErrorAlert error={latest.error} onRetry={() => void latest.refetch()} />
               </div>
             ) : latest.data?.items.length ? (
-              latest.data.items.map((n) => <NotificationItem key={n.id} notification={n} compact onOpen={handleOpen} />)
+              latest.data.items.map((n) => (
+                <NotificationItem key={n.id} notification={n} compact onOpen={handleOpen} />
+              ))
             ) : (
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                 <BellOff className="size-5 text-muted-foreground" />
                 <p className="text-sm font-medium">No notifications yet</p>
-                <p className="text-xs text-muted-foreground">Account, campaign and security events will show up here.</p>
+                <p className="text-xs text-muted-foreground">
+                  Account, campaign and security events will show up here.
+                </p>
               </div>
             )}
           </div>

@@ -60,7 +60,9 @@ export function addRow(acc: BaseCounters, row: CounterRow, keepReach: boolean): 
 }
 
 function money(v: Decimal, currency: string): string {
-  return v.toDecimalPlaces(currencyDecimals(currency), Decimal.ROUND_HALF_UP).toFixed(currencyDecimals(currency));
+  return v
+    .toDecimalPlaces(currencyDecimals(currency), Decimal.ROUND_HALF_UP)
+    .toFixed(currencyDecimals(currency));
 }
 
 /** Derived metrics exactly like Ads Manager's link-based columns (CTR (link), CPC (link), CPM). */

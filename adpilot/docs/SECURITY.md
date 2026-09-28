@@ -76,7 +76,7 @@ tenants' data.
   allows rotation: add a key, make it active, restart, run `node dist/cli/rotate-keys.js` (re-encrypts every
   secret with compare-and-set, safe while running), remove the old key.
 - **Never returned**: tokens are shown masked (`EAAB****7ds`); secret settings are write-only (`passwordSet:
-  true`); an empty input keeps a secret, only an explicit clear removes it. The SMTP password is only kept while
+true`); an empty input keeps a secret, only an explicit clear removes it. The SMTP password is only kept while
   host, port, encryption and user name stay the same (SMTP AUTH would otherwise send it to a new server).
   Settings are updated read-merge-write under a row lock, so concurrent edits never revert each other.
 - **Never logged**: structured logs pass through a sanitizer (tokens, `access_token=`, Bearer values, URL
@@ -125,11 +125,35 @@ tokens. Backups can be restored into an empty database with `pg_restore` (see DE
 
 ## 9. Review
 
-The code was reviewed specifically for race conditions, duplicate creation, retries, infinite loops, memory
-leaks, queue deadlocks, scheduler logic, time zones, permission checks, IDOR, SQL injection, XSS, CSRF, secret
-leakage, encryption, Meta API correctness, file validation, duplicate notifications, repeated rule execution
-and budget calculations. Findings and fixes are listed in the git history (commit messages describe each fix)
-and covered by regression tests in `apps/api/test`.
+After the implementation, the complete backend was reviewed in three independent passes. Each finding was
+traced to the code with a concrete failure scenario, re-checked before fixing, and fixed with a regression test
+where feasible (`apps/api/test`). No critical findings.
+
+| Review                         | Scope                                                                                              | High | Medium | Low | Outcome                   |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- | ---- | ------ | --- | ------------------------- |
+| Security                       | auth, sessions, CSRF, RBAC, IDOR, SQL injection, XSS, secrets, encryption, SSRF, files, deployment | 1    | 5      | 7   | all fixed                 |
+| Concurrency & reliability      | races, duplicates, retries, loops, leaks, deadlocks, scheduler, time zones, shutdown               | 2    | 7      | 13  | all fixed                 |
+| Meta API, money, notifications | Graph v26 fields and combinations, error codes, rate limits, budget math, rules, duplicate alerts  | 3    | 7      | 12  | all fixed but one (below) |
+
+Highlights of what changed:
+
+- **Security**: one-time links sealed while queued (an administrator could read them in the queue viewer);
+  per-source and per-user brute-force locks for passwords and 2FA codes; no privilege escalation through role
+  management or admin self-reset; proxy address policy enforced at connect time (DNS rebinding); aborted uploads
+  no longer leak disk space; tokens out of URLs and logs; SMTP password bound to its server; least-privilege
+  container environment; nonce-based CSP in the web app.
+- **Concurrency**: Meta sync retries no longer swallowed; status writes fenced by the token they were made with;
+  alerts written in the same transaction as the state change; launches, rules and schedulers hold renewed,
+  per-run leases; bounded waits for launches; recovery of stuck bulk actions, backups and deliveries; streaming
+  Insights storage.
+- **Meta and money**: budget rules can no longer move a budget the wrong way; hourly rules refuse metrics Meta
+  does not report by hour; an object-level permission error no longer suspends a whole profile; Business Use
+  Case limits enforced and never shortened; complete launch budget minimums (lifetime, 5× billing, bid caps,
+  campaign budget over all ad sets, spend cap); Instant Form creatives carry Meta's placeholder link; 28-day
+  Insights refresh for late conversions.
+
+Not changed: error code 341 stays a validation error — it appears neither in Meta's error reference nor in the
+Business SDK v26, so it could not be verified as a rate limit.
 
 ## 10. Reporting a vulnerability
 

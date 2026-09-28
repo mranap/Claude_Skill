@@ -50,7 +50,13 @@ export function ScheduleSection({ timezone }: { timezone?: string }) {
           label="Start"
           description="Empty = start as soon as the launch finishes."
           render={({ field, controlProps }) => (
-            <Input {...controlProps} type="datetime-local" value={toLocalInput(field.value)} onChange={(e) => field.onChange(fromLocalInput(e.target.value))} disabled={ui.disabled} />
+            <Input
+              {...controlProps}
+              type="datetime-local"
+              value={toLocalInput(field.value)}
+              onChange={(e) => field.onChange(fromLocalInput(e.target.value))}
+              disabled={ui.disabled}
+            />
           )}
         />
         <FormField
@@ -58,9 +64,19 @@ export function ScheduleSection({ timezone }: { timezone?: string }) {
           name="settings.schedule.endTime"
           label="End"
           required={type === 'LIFETIME'}
-          description={type === 'LIFETIME' ? 'Required for lifetime budgets (at least 1 hour after the start).' : 'Optional.'}
+          description={
+            type === 'LIFETIME'
+              ? 'Required for lifetime budgets (at least 1 hour after the start).'
+              : 'Optional.'
+          }
           render={({ field, controlProps }) => (
-            <Input {...controlProps} type="datetime-local" value={toLocalInput(field.value)} onChange={(e) => field.onChange(fromLocalInput(e.target.value))} disabled={ui.disabled} />
+            <Input
+              {...controlProps}
+              type="datetime-local"
+              value={toLocalInput(field.value)}
+              onChange={(e) => field.onChange(fromLocalInput(e.target.value))}
+              disabled={ui.disabled}
+            />
           )}
         />
       </div>
@@ -77,14 +93,22 @@ export function ConversionSection() {
   if (rule?.promotedObject !== 'PIXEL_EVENT') return null;
   const events = (rule.events?.length ? rule.events : [...CONVERSION_EVENTS]) as ConversionEvent[];
   return (
-    <SettingsSection id="conversion" title="Conversion tracking" description="The Pixel / dataset and the event this optimisation goal counts as a conversion.">
+    <SettingsSection
+      id="conversion"
+      title="Conversion tracking"
+      description="The Pixel / dataset and the event this optimisation goal counts as a conversion."
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           control={form.control}
           name="settings.conversion.pixelId"
           label="Pixel / dataset"
           required={ui.mode === 'launch'}
-          description={!ui.assetsAccountId ? 'Choose an ad account to pick one of its pixels, or enter the id.' : undefined}
+          description={
+            !ui.assetsAccountId
+              ? 'Choose an ad account to pick one of its pixels, or enter the id.'
+              : undefined
+          }
           render={({ field, controlProps }) =>
             ui.assetsAccountId && (pixels.data?.length ?? 0) > 0 ? (
               <SelectInput
@@ -93,10 +117,21 @@ export function ConversionSection() {
                 onChange={field.onChange}
                 disabled={ui.disabled}
                 placeholder="Choose a pixel"
-                options={(pixels.data ?? []).map((p) => ({ value: p.metaPixelId, label: p.name, description: `${p.metaPixelId}${p.isUnavailable ? ' · unavailable' : ''}` }))}
+                options={(pixels.data ?? []).map((p) => ({
+                  value: p.metaPixelId,
+                  label: p.name,
+                  description: `${p.metaPixelId}${p.isUnavailable ? ' · unavailable' : ''}`,
+                }))}
               />
             ) : (
-              <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} placeholder={pixels.isLoading ? 'Loading pixels…' : 'Pixel id'} inputMode="numeric" disabled={ui.disabled} />
+              <OptionalInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={pixels.isLoading ? 'Loading pixels…' : 'Pixel id'}
+                inputMode="numeric"
+                disabled={ui.disabled}
+              />
             )
           }
         />
@@ -106,7 +141,14 @@ export function ConversionSection() {
           label="Conversion event"
           required={ui.mode === 'launch'}
           render={({ field, controlProps }) => (
-            <SelectInput controlProps={controlProps} value={field.value} onChange={field.onChange} disabled={ui.disabled} placeholder="Choose an event" options={events.map((e) => ({ value: e, label: CONVERSION_EVENT_LABELS[e] }))} />
+            <SelectInput
+              controlProps={controlProps}
+              value={field.value}
+              onChange={field.onChange}
+              disabled={ui.disabled}
+              placeholder="Choose an event"
+              options={events.map((e) => ({ value: e, label: CONVERSION_EVENT_LABELS[e] }))}
+            />
           )}
         />
       </div>
@@ -121,14 +163,20 @@ export function IdentitySection() {
   const pageId = useWatch({ control: form.control, name: 'settings.identity.pageId' });
   const page = pages.data?.find((p) => p.metaPageId === pageId);
   return (
-    <SettingsSection id="identity" title="Identity" description="The Facebook Page (and optional Instagram account) the ads are published from.">
+    <SettingsSection
+      id="identity"
+      title="Identity"
+      description="The Facebook Page (and optional Instagram account) the ads are published from."
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           control={form.control}
           name="settings.identity.pageId"
           label="Facebook Page"
           required={ui.mode === 'launch'}
-          description={!ui.assetsAccountId ? 'Choose an ad account to pick a page, or enter the page id.' : undefined}
+          description={
+            !ui.assetsAccountId ? 'Choose an ad account to pick a page, or enter the page id.' : undefined
+          }
           render={({ field, controlProps }) =>
             ui.assetsAccountId && (pages.data?.length ?? 0) > 0 ? (
               <SelectInput
@@ -139,12 +187,25 @@ export function IdentitySection() {
                 onChange={(v) => {
                   field.onChange(v);
                   const next = pages.data?.find((p) => p.metaPageId === v);
-                  form.setValue('settings.identity.instagramUserId', next?.instagramUserId ?? undefined, { shouldDirty: true });
+                  form.setValue('settings.identity.instagramUserId', next?.instagramUserId ?? undefined, {
+                    shouldDirty: true,
+                  });
                 }}
-                options={(pages.data ?? []).map((p) => ({ value: p.metaPageId, label: p.name, description: `${p.metaPageId}${p.instagramUsername ? ` · @${p.instagramUsername}` : ''}` }))}
+                options={(pages.data ?? []).map((p) => ({
+                  value: p.metaPageId,
+                  label: p.name,
+                  description: `${p.metaPageId}${p.instagramUsername ? ` · @${p.instagramUsername}` : ''}`,
+                }))}
               />
             ) : (
-              <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} placeholder={pages.isLoading ? 'Loading pages…' : 'Page id'} inputMode="numeric" disabled={ui.disabled} />
+              <OptionalInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={pages.isLoading ? 'Loading pages…' : 'Page id'}
+                inputMode="numeric"
+                disabled={ui.disabled}
+              />
             )
           }
         />
@@ -152,7 +213,13 @@ export function IdentitySection() {
           control={form.control}
           name="settings.identity.instagramUserId"
           label="Instagram account"
-          description={page ? (page.instagramUserId ? undefined : 'This page has no linked Instagram account; Meta uses the page on Instagram.') : 'Empty = Meta uses the page for Instagram placements.'}
+          description={
+            page
+              ? page.instagramUserId
+                ? undefined
+                : 'This page has no linked Instagram account; Meta uses the page on Instagram.'
+              : 'Empty = Meta uses the page for Instagram placements.'
+          }
           render={({ field, controlProps }) =>
             page?.instagramUserId ? (
               <SelectInput
@@ -161,12 +228,22 @@ export function IdentitySection() {
                 disabled={ui.disabled}
                 onChange={(v) => field.onChange(v === 'PAGE' ? undefined : v)}
                 options={[
-                  { value: page.instagramUserId, label: `@${page.instagramUsername ?? page.instagramUserId}` },
+                  {
+                    value: page.instagramUserId,
+                    label: `@${page.instagramUsername ?? page.instagramUserId}`,
+                  },
                   { value: 'PAGE', label: 'Use the Facebook Page' },
                 ]}
               />
             ) : (
-              <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} placeholder="Instagram account id (optional)" inputMode="numeric" disabled={ui.disabled} />
+              <OptionalInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Instagram account id (optional)"
+                inputMode="numeric"
+                disabled={ui.disabled}
+              />
             )
           }
         />
@@ -180,7 +257,11 @@ export function AttributionSection() {
   const ui = useSettingsUi();
   const mode = useWatch({ control: form.control, name: 'settings.attribution.mode' });
   return (
-    <SettingsSection id="attribution" title="Attribution" description="How conversions are attributed to ads. Default sends no setting, so Meta applies its standard window.">
+    <SettingsSection
+      id="attribution"
+      title="Attribution"
+      description="How conversions are attributed to ads. Default sends no setting, so Meta applies its standard window."
+    >
       <FormField
         control={form.control}
         name="settings.attribution.mode"
@@ -258,10 +339,17 @@ export function AttributionSection() {
 }
 
 /** EU Digital Services Act: who benefits from and who pays for the ads. */
-export function DsaSection({ defaults }: { defaults?: { beneficiary: string | null; payor: string | null } }) {
+export function DsaSection({
+  defaults,
+}: {
+  defaults?: { beneficiary: string | null; payor: string | null };
+}) {
   const form = useSettingsForm();
   const ui = useSettingsUi();
-  const [countries, variants] = useWatch({ control: form.control, name: ['settings.targeting.countries', 'variants'] });
+  const [countries, variants] = useWatch({
+    control: form.control,
+    name: ['settings.targeting.countries', 'variants'],
+  });
   const all = [...(countries ?? []), ...(variants ?? []).flatMap((v) => v.countries ?? [])];
   const eu = targetsEu(all);
   return (
@@ -274,7 +362,10 @@ export function DsaSection({ defaults }: { defaults?: { beneficiary: string | nu
       {eu && !(defaults?.beneficiary && defaults?.payor) ? (
         <Alert variant="info">
           <AlertTitle>Required for this launch</AlertTitle>
-          <AlertDescription>At least one group targets an EU country{defaults ? ' and the ad account has no complete DSA defaults' : ''}. Fill in both fields.</AlertDescription>
+          <AlertDescription>
+            At least one group targets an EU country
+            {defaults ? ' and the ad account has no complete DSA defaults' : ''}. Fill in both fields.
+          </AlertDescription>
         </Alert>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -282,39 +373,81 @@ export function DsaSection({ defaults }: { defaults?: { beneficiary: string | nu
           control={form.control}
           name="settings.dsa.beneficiary"
           label="Beneficiary"
-          description={defaults?.beneficiary ? `Account default: ${defaults.beneficiary}` : 'The person or organisation that benefits from the ads.'}
-          render={({ field, controlProps }) => <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} maxLength={200} disabled={ui.disabled} />}
+          description={
+            defaults?.beneficiary
+              ? `Account default: ${defaults.beneficiary}`
+              : 'The person or organisation that benefits from the ads.'
+          }
+          render={({ field, controlProps }) => (
+            <OptionalInput
+              controlProps={controlProps}
+              value={field.value}
+              onChange={field.onChange}
+              maxLength={200}
+              disabled={ui.disabled}
+            />
+          )}
         />
         <FormField
           control={form.control}
           name="settings.dsa.payor"
           label="Payer"
-          description={defaults?.payor ? `Account default: ${defaults.payor}` : 'The person or organisation that pays for the ads.'}
-          render={({ field, controlProps }) => <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} maxLength={200} disabled={ui.disabled} />}
+          description={
+            defaults?.payor
+              ? `Account default: ${defaults.payor}`
+              : 'The person or organisation that pays for the ads.'
+          }
+          render={({ field, controlProps }) => (
+            <OptionalInput
+              controlProps={controlProps}
+              value={field.value}
+              onChange={field.onChange}
+              maxLength={200}
+              disabled={ui.disabled}
+            />
+          )}
         />
       </div>
     </SettingsSection>
   );
 }
 
-const CTA_OPTIONS = CALL_TO_ACTIONS.map((c) => ({ value: c, label: c === 'NO_BUTTON' ? 'No button' : humanize(c) }));
+const CTA_OPTIONS = CALL_TO_ACTIONS.map((c) => ({
+  value: c,
+  label: c === 'NO_BUTTON' ? 'No button' : humanize(c),
+}));
 
 export function CreativeOptionsSection() {
   const form = useSettingsForm();
   const ui = useSettingsUi();
   const { destination, rule } = useGoal();
   return (
-    <SettingsSection id="creative" title="Ad format & creative options" description="Defaults for every ad; texts, links and media are set per ad.">
+    <SettingsSection
+      id="creative"
+      title="Ad format & creative options"
+      description="Defaults for every ad; texts, links and media are set per ad."
+    >
       <FormField
         control={form.control}
         name="settings.creative.format"
         label="Format"
         description={rule?.requiresVideo ? 'ThruPlay optimisation requires video ads.' : undefined}
         render={({ field }) => (
-          <RadioGroup value={field.value ?? 'SINGLE_VIDEO'} onValueChange={field.onChange} className="grid gap-2 sm:grid-cols-3" disabled={ui.disabled} aria-label="Ad format">
+          <RadioGroup
+            value={field.value ?? 'SINGLE_VIDEO'}
+            onValueChange={field.onChange}
+            className="grid gap-2 sm:grid-cols-3"
+            disabled={ui.disabled}
+            aria-label="Ad format"
+          >
             <RadioCard value="SINGLE_IMAGE" title="Single image" disabled={rule?.requiresVideo} />
             <RadioCard value="SINGLE_VIDEO" title="Single video" />
-            <RadioCard value="CAROUSEL" title="Carousel" description="2–10 cards" disabled={rule?.requiresVideo} />
+            <RadioCard
+              value="CAROUSEL"
+              title="Carousel"
+              description="2–10 cards"
+              disabled={rule?.requiresVideo}
+            />
           </RadioGroup>
         )}
       />
@@ -323,7 +456,15 @@ export function CreativeOptionsSection() {
           control={form.control}
           name="settings.creative.callToAction"
           label="Call to action"
-          render={({ field, controlProps }) => <SelectInput controlProps={controlProps} value={field.value ?? 'LEARN_MORE'} onChange={field.onChange} options={CTA_OPTIONS} disabled={ui.disabled} />}
+          render={({ field, controlProps }) => (
+            <SelectInput
+              controlProps={controlProps}
+              value={field.value ?? 'LEARN_MORE'}
+              onChange={field.onChange}
+              options={CTA_OPTIONS}
+              disabled={ui.disabled}
+            />
+          )}
         />
         {destination === 'ON_AD' ? (
           <FormField
@@ -331,7 +472,16 @@ export function CreativeOptionsSection() {
             name="settings.creative.leadFormId"
             label="Instant form id"
             description="Default lead form of every ad (an ad can use its own)."
-            render={({ field, controlProps }) => <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} inputMode="numeric" placeholder="Lead form id" disabled={ui.disabled} />}
+            render={({ field, controlProps }) => (
+              <OptionalInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                inputMode="numeric"
+                placeholder="Lead form id"
+                disabled={ui.disabled}
+              />
+            )}
           />
         ) : null}
       </div>
@@ -343,13 +493,31 @@ export function CreativeOptionsSection() {
               name="settings.creative.urlParameters"
               label="URL parameters"
               description="Appended to every link, e.g. utm_source=facebook&utm_campaign={{campaign.name}}"
-              render={({ field, controlProps }) => <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} maxLength={1000} placeholder="utm_source=facebook" disabled={ui.disabled} />}
+              render={({ field, controlProps }) => (
+                <OptionalInput
+                  controlProps={controlProps}
+                  value={field.value}
+                  onChange={field.onChange}
+                  maxLength={1000}
+                  placeholder="utm_source=facebook"
+                  disabled={ui.disabled}
+                />
+              )}
             />
             <FormField
               control={form.control}
               name="settings.creative.displayLink"
               label="Display link"
-              render={({ field, controlProps }) => <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} maxLength={100} placeholder="example.com" disabled={ui.disabled} />}
+              render={({ field, controlProps }) => (
+                <OptionalInput
+                  controlProps={controlProps}
+                  value={field.value}
+                  onChange={field.onChange}
+                  maxLength={100}
+                  placeholder="example.com"
+                  disabled={ui.disabled}
+                />
+              )}
             />
           </div>
           <FormField
@@ -376,7 +544,14 @@ export function CreativeOptionsSection() {
             orientation="horizontal"
             label="Multi-advertiser ads"
             description="Allow the ads to appear alongside ads from other businesses."
-            render={({ field, controlProps }) => <Switch {...controlProps} checked={!!field.value} onCheckedChange={field.onChange} disabled={ui.disabled} />}
+            render={({ field, controlProps }) => (
+              <Switch
+                {...controlProps}
+                checked={!!field.value}
+                onCheckedChange={field.onChange}
+                disabled={ui.disabled}
+              />
+            )}
           />
         </>
       ) : null}
@@ -396,13 +571,19 @@ const PLACEHOLDERS: Record<string, string> = {
 };
 
 export function renderPreview(pattern: string, vars: Record<string, string>): string {
-  return pattern.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m).replace(/\s+/g, ' ').trim();
+  return pattern
+    .replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m)
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function NamingSection({ sampleName }: { sampleName?: string }) {
   const form = useSettingsForm();
   const ui = useSettingsUi();
-  const [naming, objective, firstVariant] = useWatch({ control: form.control, name: ['settings.naming', 'settings.objective', 'variants.0'] });
+  const [naming, objective, firstVariant] = useWatch({
+    control: form.control,
+    name: ['settings.naming', 'settings.objective', 'variants.0'],
+  });
   const vars = {
     name: sampleName || 'Spring sale',
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -434,8 +615,24 @@ export function NamingSection({ sampleName }: { sampleName?: string }) {
           control={form.control}
           name={f.name}
           label={f.label}
-          description={f.value ? <>Preview: <span className="font-medium text-foreground">{renderPreview(f.value, vars)}</span></> : undefined}
-          render={({ field, controlProps }) => <Input {...controlProps} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} maxLength={200} className="font-mono text-[13px]" disabled={ui.disabled} />}
+          description={
+            f.value ? (
+              <>
+                Preview: <span className="font-medium text-foreground">{renderPreview(f.value, vars)}</span>
+              </>
+            ) : undefined
+          }
+          render={({ field, controlProps }) => (
+            <Input
+              {...controlProps}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              maxLength={200}
+              className="font-mono text-[13px]"
+              disabled={ui.disabled}
+            />
+          )}
         />
       ))}
     </SettingsSection>
@@ -446,14 +643,25 @@ export function ActivationSection() {
   const form = useSettingsForm();
   const ui = useSettingsUi();
   return (
-    <SettingsSection id="activation" title="Activation" description="Everything is created paused first, so nothing spends before the whole structure exists.">
+    <SettingsSection
+      id="activation"
+      title="Activation"
+      description="Everything is created paused first, so nothing spends before the whole structure exists."
+    >
       <FormField
         control={form.control}
         name="settings.activateOnSuccess"
         orientation="horizontal"
         label="Activate after a successful launch"
         description="When on, the campaign, ad sets and ads are switched to active once every object was created and verified. When off, they stay paused for review in Ads Manager."
-        render={({ field, controlProps }) => <Switch {...controlProps} checked={!!field.value} onCheckedChange={field.onChange} disabled={ui.disabled} />}
+        render={({ field, controlProps }) => (
+          <Switch
+            {...controlProps}
+            checked={!!field.value}
+            onCheckedChange={field.onChange}
+            disabled={ui.disabled}
+          />
+        )}
       />
     </SettingsSection>
   );

@@ -8,7 +8,12 @@ export interface LocalRange {
 }
 
 /** Resolves a range key for one ad account time zone (Meta computes "today" in the account's time zone). */
-export function resolveRange(key: DateRangeKey, timezone: string, custom?: { from?: string; to?: string }, now = new Date()): LocalRange {
+export function resolveRange(
+  key: DateRangeKey,
+  timezone: string,
+  custom?: { from?: string; to?: string },
+  now = new Date(),
+): LocalRange {
   const zone = DateTime.fromJSDate(now).setZone(timezone).isValid ? timezone : 'UTC';
   const today = DateTime.fromJSDate(now).setZone(zone).startOf('day');
   const fmt = (d: DateTime) => d.toFormat('yyyy-MM-dd');

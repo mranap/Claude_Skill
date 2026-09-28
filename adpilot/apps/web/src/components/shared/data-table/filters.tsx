@@ -73,11 +73,23 @@ export function DateRangeFilter({
 }
 
 /** Boolean filter rendered as a small switch (`value` stored as "true"). */
-export function ToggleFilter({ state, filterKey, label }: { state: TableController; filterKey: string; label: string }) {
+export function ToggleFilter({
+  state,
+  filterKey,
+  label,
+}: {
+  state: TableController;
+  filterKey: string;
+  label: string;
+}) {
   const checked = state.filters[filterKey] === 'true';
   return (
     <label className="flex h-8 items-center gap-2 rounded-md border bg-field px-2.5 text-[13px]">
-      <Switch checked={checked} onCheckedChange={(v) => state.setFilter(filterKey, v ? 'true' : undefined)} className="scale-90" />
+      <Switch
+        checked={checked}
+        onCheckedChange={(v) => state.setFilter(filterKey, v ? 'true' : undefined)}
+        className="scale-90"
+      />
       {label}
     </label>
   );

@@ -127,23 +127,31 @@ export function useLocalTableState(options: TableStateOptions = {}): TableContro
   });
   const [state, setState] = useState<TableState>(initial);
 
-  const apply = useCallback((patch: Partial<Record<string, string | number | undefined>>, resetPage: boolean) => {
-    setState((prev) => {
-      const next: TableState = { ...prev, filters: { ...prev.filters } };
-      for (const [key, value] of Object.entries(patch)) {
-        if (key === 'page') next.page = Number(value) || 1;
-        else if (key === 'pageSize') next.pageSize = Number(value) || prev.pageSize;
-        else if (key === 'q') next.q = value === undefined ? '' : String(value);
-        else if (key === 'sort') next.sort = value === undefined ? defaultSort : String(value);
-        else next.filters[key] = value === undefined || value === '' ? undefined : String(value);
-      }
-      if (resetPage) next.page = 1;
-      return next;
-    });
-  }, [defaultSort]);
+  const apply = useCallback(
+    (patch: Partial<Record<string, string | number | undefined>>, resetPage: boolean) => {
+      setState((prev) => {
+        const next: TableState = { ...prev, filters: { ...prev.filters } };
+        for (const [key, value] of Object.entries(patch)) {
+          if (key === 'page') next.page = Number(value) || 1;
+          else if (key === 'pageSize') next.pageSize = Number(value) || prev.pageSize;
+          else if (key === 'q') next.q = value === undefined ? '' : String(value);
+          else if (key === 'sort') next.sort = value === undefined ? defaultSort : String(value);
+          else next.filters[key] = value === undefined || value === '' ? undefined : String(value);
+        }
+        if (resetPage) next.page = 1;
+        return next;
+      });
+    },
+    [defaultSort],
+  );
 
   const resetAll = useCallback(() => {
-    setState((prev) => ({ ...prev, page: 1, q: '', filters: Object.fromEntries(Object.keys(prev.filters).map((k) => [k, undefined])) }));
+    setState((prev) => ({
+      ...prev,
+      page: 1,
+      q: '',
+      filters: Object.fromEntries(Object.keys(prev.filters).map((k) => [k, undefined])),
+    }));
   }, []);
 
   return useMemo(() => buildController(state, apply, resetAll), [state, apply, resetAll]);

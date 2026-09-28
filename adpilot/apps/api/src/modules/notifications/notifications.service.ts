@@ -91,17 +91,34 @@ export class NotificationsService {
     try {
       // A PENDING delivery whose job already failed (e.g. the claim failed on every attempt) must run again.
       if (channel === 'EMAIL') {
-        await this.queue.addReplacingFinished(QUEUES.EMAIL, JOBS.EMAIL_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
+        await this.queue.addReplacingFinished(
+          QUEUES.EMAIL,
+          JOBS.EMAIL_SEND,
+          { kind: 'delivery', deliveryId },
+          { jobId: jobId('delivery', deliveryId) },
+        );
       } else {
-        await this.queue.addReplacingFinished(QUEUES.TELEGRAM, JOBS.TELEGRAM_SEND, { kind: 'delivery', deliveryId }, { jobId: jobId('delivery', deliveryId) });
+        await this.queue.addReplacingFinished(
+          QUEUES.TELEGRAM,
+          JOBS.TELEGRAM_SEND,
+          { kind: 'delivery', deliveryId },
+          { jobId: jobId('delivery', deliveryId) },
+        );
       }
     } catch (err) {
       // The outbox sweep (scheduler) retries PENDING deliveries whose job could not be queued.
-      this.logger.warn('Could not enqueue delivery; the outbox sweep will retry', { deliveryId, err: String(err) });
+      this.logger.warn('Could not enqueue delivery; the outbox sweep will retry', {
+        deliveryId,
+        err: String(err),
+      });
     }
   }
 
-  async channelsFor(userId: string, type: NotificationType, db: Prisma.TransactionClient = this.prisma): Promise<('EMAIL' | 'TELEGRAM')[]> {
+  async channelsFor(
+    userId: string,
+    type: NotificationType,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<('EMAIL' | 'TELEGRAM')[]> {
     const pref = await db.notificationPreference.findUnique({
       where: { userId_type: { userId, type } },
       select: { channel: true },
@@ -125,10 +142,17 @@ export class NotificationsService {
    */
   async notifyInTx(tx: Prisma.TransactionClient, input: NotifyInput): Promise<PendingNotification> {
     const channels = input.channels ?? (await this.channelsFor(input.userId, input.type, tx));
-    const [n] = await tx.notification.createManyAndReturn({ data: [this.notificationRow(input)], skipDuplicates: true, select: { id: true } });
+    const [n] = await tx.notification.createManyAndReturn({
+      data: [this.notificationRow(input)],
+      skipDuplicates: true,
+      select: { id: true },
+    });
     if (!n) {
       const existing = input.dedupeKey
-        ? await tx.notification.findUnique({ where: { userId_dedupeKey: { userId: input.userId, dedupeKey: input.dedupeKey } }, select: { id: true } })
+        ? await tx.notification.findUnique({
+            where: { userId_dedupeKey: { userId: input.userId, dedupeKey: input.dedupeKey } },
+            select: { id: true },
+          })
         : null;
       return { notificationId: existing?.id ?? '', created: false, deliveries: [] };
     }
@@ -160,13 +184,21 @@ export class NotificationsService {
     };
   }
 
-  async getPreferences(userId: string): Promise<{ type: NotificationType; channel: NotificationChannelPref }[]> {
+  async getPreferences(
+    userId: string,
+  ): Promise<{ type: NotificationType; channel: NotificationChannelPref }[]> {
     const rows = await this.prisma.notificationPreference.findMany({ where: { userId } });
     const map = new Map(rows.map((r) => [r.type, r.channel]));
-    return NOTIFICATION_TYPES.map((type) => ({ type, channel: map.get(type) ?? DEFAULT_NOTIFICATION_PREFS[type] }));
+    return NOTIFICATION_TYPES.map((type) => ({
+      type,
+      channel: map.get(type) ?? DEFAULT_NOTIFICATION_PREFS[type],
+    }));
   }
 
-  async setPreferences(userId: string, prefs: { type: NotificationType; channel: NotificationChannelPref }[]): Promise<void> {
+  async setPreferences(
+    userId: string,
+    prefs: { type: NotificationType; channel: NotificationChannelPref }[],
+  ): Promise<void> {
     await this.prisma.$transaction(
       prefs.map((p) =>
         this.prisma.notificationPreference.upsert({

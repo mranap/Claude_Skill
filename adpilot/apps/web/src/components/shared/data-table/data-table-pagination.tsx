@@ -15,10 +15,14 @@ export function DataTablePagination({ state, total }: { state: TableController; 
   return (
     <div className="flex flex-col-reverse items-center justify-between gap-3 border-t px-4 py-2.5 text-[13px] text-muted-foreground sm:flex-row">
       <p className="tabular-nums" aria-live="polite">
-        {total === 0 ? 'No results' : (
+        {total === 0 ? (
+          'No results'
+        ) : (
           <>
-            <span className="font-medium text-foreground">{formatNumber(from)}–{formatNumber(to)}</span> of{' '}
-            <span className="font-medium text-foreground">{formatNumber(total)}</span>
+            <span className="font-medium text-foreground">
+              {formatNumber(from)}–{formatNumber(to)}
+            </span>{' '}
+            of <span className="font-medium text-foreground">{formatNumber(total)}</span>
           </>
         )}
       </p>
@@ -42,16 +46,42 @@ export function DataTablePagination({ state, total }: { state: TableController; 
           Page {formatNumber(page)} of {formatNumber(pageCount)}
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon-xs" onClick={() => state.setPage(1)} disabled={page <= 1} aria-label="First page" className="hidden sm:inline-flex">
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => state.setPage(1)}
+            disabled={page <= 1}
+            aria-label="First page"
+            className="hidden sm:inline-flex"
+          >
             <ChevronsLeft />
           </Button>
-          <Button variant="outline" size="icon-xs" onClick={() => state.setPage(page - 1)} disabled={page <= 1} aria-label="Previous page">
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => state.setPage(page - 1)}
+            disabled={page <= 1}
+            aria-label="Previous page"
+          >
             <ChevronLeft />
           </Button>
-          <Button variant="outline" size="icon-xs" onClick={() => state.setPage(page + 1)} disabled={page >= pageCount} aria-label="Next page">
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => state.setPage(page + 1)}
+            disabled={page >= pageCount}
+            aria-label="Next page"
+          >
             <ChevronRight />
           </Button>
-          <Button variant="outline" size="icon-xs" onClick={() => state.setPage(pageCount)} disabled={page >= pageCount} aria-label="Last page" className="hidden sm:inline-flex">
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => state.setPage(pageCount)}
+            disabled={page >= pageCount}
+            aria-label="Last page"
+            className="hidden sm:inline-flex"
+          >
             <ChevronsRight />
           </Button>
         </div>

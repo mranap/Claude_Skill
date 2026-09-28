@@ -7,7 +7,8 @@ import { AppConfig } from '../../config/app-config';
 /** Telegram counts at most 4096 characters of message text (after entity parsing). */
 const MAX_MESSAGE_CHARS = 4096;
 
-export type TelegramFailureKind = 'NOT_CONFIGURED' | 'RATE_LIMITED' | 'TEMPORARY' | 'PERMANENT' | 'CHAT_UNAVAILABLE' | 'AMBIGUOUS';
+export type TelegramFailureKind =
+  'NOT_CONFIGURED' | 'RATE_LIMITED' | 'TEMPORARY' | 'PERMANENT' | 'CHAT_UNAVAILABLE' | 'AMBIGUOUS';
 
 export class TelegramSendError extends Error {
   constructor(
@@ -61,7 +62,12 @@ export class TelegramBotService {
     return token;
   }
 
-  async call<T>(method: string, payload: Record<string, unknown> = {}, timeoutMs = 20_000, tokenOverride?: string): Promise<T> {
+  async call<T>(
+    method: string,
+    payload: Record<string, unknown> = {},
+    timeoutMs = 20_000,
+    tokenOverride?: string,
+  ): Promise<T> {
     const token = tokenOverride ?? (await this.token());
     try {
       const res = await axios.post<{ ok: boolean; result: T; description?: string }>(
@@ -89,19 +95,32 @@ export class TelegramBotService {
   }
 
   async setWebhook(url: string, secretToken: string): Promise<void> {
-    await this.call('setWebhook', { url, secret_token: secretToken, allowed_updates: ['message'], drop_pending_updates: false });
+    await this.call('setWebhook', {
+      url,
+      secret_token: secretToken,
+      allowed_updates: ['message'],
+      drop_pending_updates: false,
+    });
   }
 
   async deleteWebhook(): Promise<void> {
     await this.call('deleteWebhook', { drop_pending_updates: false });
   }
 
-  async getWebhookInfo(): Promise<{ url: string; pending_update_count: number; last_error_message?: string }> {
+  async getWebhookInfo(): Promise<{
+    url: string;
+    pending_update_count: number;
+    last_error_message?: string;
+  }> {
     return this.call('getWebhookInfo');
   }
 
   async getUpdates(offset: number, timeoutSeconds: number): Promise<TelegramUpdate[]> {
-    return this.call('getUpdates', { offset, timeout: timeoutSeconds, allowed_updates: ['message'] }, (timeoutSeconds + 10) * 1000);
+    return this.call(
+      'getUpdates',
+      { offset, timeout: timeoutSeconds, allowed_updates: ['message'] },
+      (timeoutSeconds + 10) * 1000,
+    );
   }
 
   private classify(err: unknown): TelegramSendError {
@@ -110,7 +129,11 @@ export class TelegramBotService {
     const status = ax.response?.status;
     const description = ax.response?.data?.description ?? ax.message;
     if (status === 429) {
-      return new TelegramSendError('RATE_LIMITED', description, ax.response?.data?.parameters?.retry_after ?? 30);
+      return new TelegramSendError(
+        'RATE_LIMITED',
+        description,
+        ax.response?.data?.parameters?.retry_after ?? 30,
+      );
     }
     if (status === 403 || (status === 400 && /chat not found|user is deactivated/i.test(description))) {
       return new TelegramSendError('CHAT_UNAVAILABLE', description);
@@ -129,7 +152,10 @@ export class TelegramBotService {
 
 export function assertTelegramConfigured(configured: boolean): void {
   if (!configured) {
-    throw new AppError('INTEGRATION_NOT_CONFIGURED', 'The Telegram bot is not configured yet. Ask the administrator.');
+    throw new AppError(
+      'INTEGRATION_NOT_CONFIGURED',
+      'The Telegram bot is not configured yet. Ask the administrator.',
+    );
   }
 }
 
@@ -139,7 +165,11 @@ export function tgEscape(value: string): string {
 }
 
 function tgUnescape(value: string): string {
-  return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&');
 }
 
 /**

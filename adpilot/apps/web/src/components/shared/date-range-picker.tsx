@@ -38,7 +38,11 @@ export const DATE_RANGE_PRESETS: PresetDef[] = [
  * Resolves a preset to concrete dates. By default "Last N days" follows Meta Ads Manager semantics
  * (N complete days ending yesterday); pass `includeToday` for operational views such as logs.
  */
-export function resolvePreset(preset: Exclude<DateRangePreset, 'custom'>, includeToday = false, now = new Date()): { from: Date; to: Date } {
+export function resolvePreset(
+  preset: Exclude<DateRangePreset, 'custom'>,
+  includeToday = false,
+  now = new Date(),
+): { from: Date; to: Date } {
   if (preset === 'today') return { from: startOfDay(now), to: endOfDay(now) };
   if (preset === 'yesterday') {
     const y = subDays(now, 1);
@@ -51,7 +55,8 @@ export function resolvePreset(preset: Exclude<DateRangePreset, 'custom'>, includ
 
 export function formatRangeLabel(value: DateRangeValue | null | undefined, emptyLabel = 'Any time'): string {
   if (!value) return emptyLabel;
-  if (value.preset !== 'custom') return DATE_RANGE_PRESETS.find((p) => p.key === value.preset)?.label ?? emptyLabel;
+  if (value.preset !== 'custom')
+    return DATE_RANGE_PRESETS.find((p) => p.key === value.preset)?.label ?? emptyLabel;
   if (isSameDay(value.from, value.to)) return format(value.from, 'MMM d, yyyy');
   const sameYear = isSameYear(value.from, value.to);
   return `${format(value.from, sameYear ? 'MMM d' : 'MMM d, yyyy')} – ${format(value.to, 'MMM d, yyyy')}`;
@@ -102,7 +107,9 @@ export function DateRangePicker({
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={cn('justify-start font-normal', className)}>
           <CalendarDays className="text-muted-foreground" />
-          <span className={cn('truncate', !value && 'text-muted-foreground')}>{formatRangeLabel(value, emptyLabel)}</span>
+          <span className={cn('truncate', !value && 'text-muted-foreground')}>
+            {formatRangeLabel(value, emptyLabel)}
+          </span>
           <ChevronDown className="ml-auto text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -111,12 +118,22 @@ export function DateRangePicker({
           {/* On phones the preset row scrolls horizontally; `w-0 min-w-full` keeps it from widening the popover */}
           <div className="flex w-0 min-w-full gap-1 overflow-x-auto border-b p-2 sm:w-40 sm:min-w-0 sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0">
             {allowClear ? (
-              <PresetButton active={!value} onClick={() => { onChange(null); setOpen(false); }}>
+              <PresetButton
+                active={!value}
+                onClick={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+              >
                 {emptyLabel}
               </PresetButton>
             ) : null}
             {DATE_RANGE_PRESETS.map((preset) => (
-              <PresetButton key={preset.key} active={value?.preset === preset.key} onClick={() => selectPreset(preset.key)}>
+              <PresetButton
+                key={preset.key}
+                active={value?.preset === preset.key}
+                onClick={() => selectPreset(preset.key)}
+              >
                 {preset.label}
               </PresetButton>
             ))}
@@ -159,7 +176,15 @@ export function DateRangePicker({
   );
 }
 
-function PresetButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function PresetButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"

@@ -18,7 +18,10 @@ export function KeyValueList({ items, className }: { items: KeyValueItem[]; clas
       {items
         .filter((item) => !item.hidden)
         .map((item, index) => (
-          <div key={index} className="grid grid-cols-[minmax(7.5rem,38%)_1fr] items-start gap-4 py-2.5 first:pt-0 last:pb-0">
+          <div
+            key={index}
+            className="grid grid-cols-[minmax(7.5rem,38%)_1fr] items-start gap-4 py-2.5 first:pt-0 last:pb-0"
+          >
             <dt className="text-muted-foreground">{item.label}</dt>
             <dd
               className={cn(

@@ -39,7 +39,9 @@ function useWidth<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new ResizeObserver((entries) => setWidth(Math.floor(entries[0]?.contentRect.width ?? 0)));
+    const observer = new ResizeObserver((entries) =>
+      setWidth(Math.floor(entries[0]?.contentRect.width ?? 0)),
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -103,8 +105,21 @@ export function DailyChart({
         >
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} className="stroke-border" strokeDasharray={t === 0 ? undefined : '3 3'} />
-              <text x={PAD.left - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-muted-foreground text-[11px] tabular-nums">
+              <line
+                x1={PAD.left}
+                x2={width - PAD.right}
+                y1={y(t)}
+                y2={y(t)}
+                className="stroke-border"
+                strokeDasharray={t === 0 ? undefined : '3 3'}
+              />
+              <text
+                x={PAD.left - 8}
+                y={y(t)}
+                dy="0.32em"
+                textAnchor="end"
+                className="fill-muted-foreground text-[11px] tabular-nums"
+              >
                 {axisLabel(t)}
               </text>
             </g>
@@ -115,7 +130,15 @@ export function DailyChart({
             const h = Math.max(v > 0 ? 1.5 : 0, (v / top) * innerH);
             return (
               <g key={p.date}>
-                {active === i ? <rect x={PAD.left + i * slot} y={PAD.top} width={slot} height={innerH} className="fill-muted/70" /> : null}
+                {active === i ? (
+                  <rect
+                    x={PAD.left + i * slot}
+                    y={PAD.top}
+                    width={slot}
+                    height={innerH}
+                    className="fill-muted/70"
+                  />
+                ) : null}
                 <rect
                   x={x}
                   y={PAD.top + innerH - h}
@@ -126,7 +149,12 @@ export function DailyChart({
                   opacity={active === null || active === i ? 1 : 0.55}
                 />
                 {i % labelEvery === 0 ? (
-                  <text x={PAD.left + i * slot + slot / 2} y={height - 8} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+                  <text
+                    x={PAD.left + i * slot + slot / 2}
+                    y={height - 8}
+                    textAnchor="middle"
+                    className="fill-muted-foreground text-[11px]"
+                  >
                     {formatDay(p.date)}
                   </text>
                 ) : null}
@@ -136,14 +164,19 @@ export function DailyChart({
         </svg>
       ) : null}
       {empty && width > 0 ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center pb-6 pl-12 text-sm text-muted-foreground">{emptyText}</div>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center pb-6 pl-12 text-sm text-muted-foreground">
+          {emptyText}
+        </div>
       ) : null}
       {activePoint && width > 0 ? (
         <div
           role="status"
           className="pointer-events-none absolute top-1 z-10 rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md"
           style={{
-            left: Math.min(Math.max(PAD.left + (active ?? 0) * slot + slot / 2 - 60, 0), Math.max(0, width - 124)),
+            left: Math.min(
+              Math.max(PAD.left + (active ?? 0) * slot + slot / 2 - 60, 0),
+              Math.max(0, width - 124),
+            ),
             width: 120,
           }}
         >

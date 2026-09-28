@@ -34,7 +34,9 @@ export function getTimeZones(): string[] {
 /** "GMT+02:00" for the given zone at the given instant. */
 export function timeZoneOffset(timeZone: string, at: Date = new Date()): string {
   try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(at);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(
+      at,
+    );
     const name = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
     return name === 'GMT' ? 'GMT+00:00' : name;
   } catch {

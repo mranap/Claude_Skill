@@ -39,7 +39,12 @@ export class TokenCheckTask implements SchedulerTask {
     // The UPDATE above claims each profile once, so every claim gets its own job id: a per-hour id would drop a
     // check pulled forward within the same hour (the finished job of the earlier check keeps that id).
     for (const r of rows) {
-      await this.queue.add(QUEUES.META_SYNC, JOBS.TOKEN_CHECK, { profileId: r.id, userId: r.userId }, { jobId: jobId('token', r.id, randomUUID()), attempts: 3 });
+      await this.queue.add(
+        QUEUES.META_SYNC,
+        JOBS.TOKEN_CHECK,
+        { profileId: r.id, userId: r.userId },
+        { jobId: jobId('token', r.id, randomUUID()), attempts: 3 },
+      );
     }
   }
 }
@@ -69,7 +74,12 @@ export class AssetSyncTask implements SchedulerTask {
       RETURNING id, "userId"`;
     const s = slot(new Date(), 60 * MINUTE);
     for (const r of rows) {
-      await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId: r.id, userId: r.userId, reason: 'scheduled' }, { jobId: jobId('meta-sync', r.id, s) });
+      await this.queue.add(
+        QUEUES.META_SYNC,
+        JOBS.META_SYNC,
+        { profileId: r.id, userId: r.userId, reason: 'scheduled' },
+        { jobId: jobId('meta-sync', r.id, s) },
+      );
     }
   }
 }

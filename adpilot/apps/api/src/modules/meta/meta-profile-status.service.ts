@@ -26,7 +26,11 @@ export class MetaProfileStatusService {
     private readonly activity: ActivityService,
   ) {}
 
-  async applyInspection(profileId: string, inspection: TokenInspection, tokenFingerprint?: string): Promise<void> {
+  async applyInspection(
+    profileId: string,
+    inspection: TokenInspection,
+    tokenFingerprint?: string,
+  ): Promise<void> {
     const status: MetaProfileStatus = inspection.status === 'ERROR' ? 'ERROR' : inspection.status;
     const applied = await this.prisma.metaProfile.updateMany({
       where: { id: profileId, ...(tokenFingerprint ? { tokenFingerprint } : {}) },
@@ -39,7 +43,9 @@ export class MetaProfileStatusService {
               tokenType: inspection.tokenType ?? 'UNKNOWN',
               tokenAppId: inspection.appId ?? undefined,
               tokenExpiresAt: inspection.expiresAt ? new Date(inspection.expiresAt) : null,
-              dataAccessExpiresAt: inspection.dataAccessExpiresAt ? new Date(inspection.dataAccessExpiresAt) : null,
+              dataAccessExpiresAt: inspection.dataAccessExpiresAt
+                ? new Date(inspection.dataAccessExpiresAt)
+                : null,
               metaUserId: inspection.metaUserId ?? undefined,
               metaUserName: inspection.metaUserName ?? undefined,
             }
@@ -57,9 +63,14 @@ export class MetaProfileStatusService {
     if (status) {
       const recorded = await this.prisma.metaProfile.updateMany({
         where: { id: profileId, ...forToken },
-        data: { lastValidationError: err.details.friendlyMessage, lastErrorCode: err.metaCode ?? null, lastValidatedAt: new Date() },
+        data: {
+          lastValidationError: err.details.friendlyMessage,
+          lastErrorCode: err.metaCode ?? null,
+          lastValidatedAt: new Date(),
+        },
       });
-      if (recorded.count === 1) await this.transition(profileId, status, err.details.friendlyMessage, tokenFingerprint);
+      if (recorded.count === 1)
+        await this.transition(profileId, status, err.details.friendlyMessage, tokenFingerprint);
       return;
     }
     if (err.category === 'PERMISSION') {
@@ -69,15 +80,26 @@ export class MetaProfileStatusService {
         where: {
           id: profileId,
           ...forToken,
-          OR: [{ lastValidatedAt: null }, { lastValidatedAt: { lt: new Date(Date.now() - PERMISSION_RECHECK_MS) } }],
+          OR: [
+            { lastValidatedAt: null },
+            { lastValidatedAt: { lt: new Date(Date.now() - PERMISSION_RECHECK_MS) } },
+          ],
         },
         data: { nextTokenCheckAt: new Date() },
       });
     }
   }
 
-  async transition(profileId: string, next: MetaProfileStatus, message: string, tokenFingerprint?: string): Promise<boolean> {
-    const current = await this.prisma.metaProfile.findUnique({ where: { id: profileId }, select: { status: true, userId: true, name: true, tokenFingerprint: true } });
+  async transition(
+    profileId: string,
+    next: MetaProfileStatus,
+    message: string,
+    tokenFingerprint?: string,
+  ): Promise<boolean> {
+    const current = await this.prisma.metaProfile.findUnique({
+      where: { id: profileId },
+      select: { status: true, userId: true, name: true, tokenFingerprint: true },
+    });
     if (!current || current.status === next) return false;
     if (tokenFingerprint && current.tokenFingerprint !== tokenFingerprint) return false;
     const alert = next === 'EXPIRED' || next === 'INVALID' || next === 'PERMISSION_REVOKED';

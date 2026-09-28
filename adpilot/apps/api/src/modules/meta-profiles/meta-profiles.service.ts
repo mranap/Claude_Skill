@@ -78,7 +78,10 @@ export class MetaProfilesService {
 
   /** Ownership-checked lookup — every profile access goes through here (no IDOR). */
   async findOwned(userId: string, id: string): Promise<ProfileRow> {
-    const row = await this.prisma.metaProfile.findFirst({ where: { id, userId, deletedAt: null }, include: PROFILE_INCLUDE });
+    const row = await this.prisma.metaProfile.findFirst({
+      where: { id, userId, deletedAt: null },
+      include: PROFILE_INCLUDE,
+    });
     if (!row) throw AppError.notFound('Meta profile');
     return row;
   }
@@ -93,14 +96,20 @@ export class MetaProfilesService {
   async create(userId: string, input: CreateInput) {
     if (input.proxy) await this.connections.assertProxyAllowed(input.proxy.host);
     const fingerprint = this.hashing.fingerprint(input.accessToken);
-    const duplicate = await this.prisma.metaProfile.findFirst({ where: { userId, tokenFingerprint: fingerprint, deletedAt: null }, select: { name: true } });
-    if (duplicate) throw AppError.conflict(`This token is already connected in the profile "${duplicate.name}"`);
+    const duplicate = await this.prisma.metaProfile.findFirst({
+      where: { userId, tokenFingerprint: fingerprint, deletedAt: null },
+      select: { name: true },
+    });
+    if (duplicate)
+      throw AppError.conflict(`This token is already connected in the profile "${duplicate.name}"`);
 
     const profileId = randomUUID();
     const proxyId = input.proxy ? randomUUID() : null;
     await this.prisma.$transaction(async (tx) => {
       if (input.proxy && proxyId) {
-        await tx.proxy.create({ data: this.proxyData(userId, proxyId, input.proxy) as Prisma.ProxyUncheckedCreateInput });
+        await tx.proxy.create({
+          data: this.proxyData(userId, proxyId, input.proxy) as Prisma.ProxyUncheckedCreateInput,
+        });
       }
       await tx.metaProfile.create({
         data: {
@@ -112,7 +121,9 @@ export class MetaProfilesService {
           tokenMask: maskSecret(input.accessToken),
           tokenFingerprint: fingerprint,
           appId: input.appId ?? null,
-          appSecretEnc: input.appSecret ? this.encryption.encrypt(input.appSecret, Aad.metaAppSecret(profileId)) : null,
+          appSecretEnc: input.appSecret
+            ? this.encryption.encrypt(input.appSecret, Aad.metaAppSecret(profileId))
+            : null,
           proxyId,
           nextTokenCheckAt: new Date(Date.now() + 12 * 3600_000),
         },
@@ -124,7 +135,12 @@ export class MetaProfilesService {
       subjectUserId: userId,
       targetType: 'meta_profile',
       targetId: profileId,
-      metadata: { name: input.name, proxy: input.proxy ? { type: input.proxy.type, host: input.proxy.host, port: input.proxy.port } : null },
+      metadata: {
+        name: input.name,
+        proxy: input.proxy
+          ? { type: input.proxy.type, host: input.proxy.host, port: input.proxy.port }
+          : null,
+      },
     });
 
     const inspection = await this.validate(userId, profileId);
@@ -146,7 +162,8 @@ export class MetaProfilesService {
         where: { userId, tokenFingerprint: fingerprint, deletedAt: null, id: { not: id } },
         select: { name: true },
       });
-      if (duplicate) throw AppError.conflict(`This token is already connected in the profile "${duplicate.name}"`);
+      if (duplicate)
+        throw AppError.conflict(`This token is already connected in the profile "${duplicate.name}"`);
       Object.assign(data, {
         tokenEnc: this.encryption.encrypt(input.accessToken, Aad.metaToken(id)),
         tokenMask: maskSecret(input.accessToken),
@@ -163,7 +180,9 @@ export class MetaProfilesService {
       audited.push('appId');
     }
     if (input.appSecret !== undefined) {
-      data.appSecretEnc = input.appSecret ? this.encryption.encrypt(input.appSecret, Aad.metaAppSecret(id)) : null;
+      data.appSecretEnc = input.appSecret
+        ? this.encryption.encrypt(input.appSecret, Aad.metaAppSecret(id))
+        : null;
       audited.push('appSecret');
     }
     if (input.proxy !== undefined) {
@@ -177,7 +196,9 @@ export class MetaProfilesService {
         });
       } else {
         const proxyId = randomUUID();
-        await this.prisma.proxy.create({ data: this.proxyData(userId, proxyId, input.proxy) as Prisma.ProxyUncheckedCreateInput });
+        await this.prisma.proxy.create({
+          data: this.proxyData(userId, proxyId, input.proxy) as Prisma.ProxyUncheckedCreateInput,
+        });
         data.proxy = { connect: { id: proxyId } };
       }
     }
@@ -186,7 +207,12 @@ export class MetaProfilesService {
 
     for (const field of audited) {
       await this.audit.log({
-        action: field === 'token' ? 'meta_profile.token_updated' : field === 'proxy' ? 'meta_profile.proxy_updated' : 'meta_profile.app_updated',
+        action:
+          field === 'token'
+            ? 'meta_profile.token_updated'
+            : field === 'proxy'
+              ? 'meta_profile.proxy_updated'
+              : 'meta_profile.app_updated',
         actorUserId: userId,
         subjectUserId: userId,
         targetType: 'meta_profile',
@@ -210,12 +236,26 @@ export class MetaProfilesService {
     await this.prisma.$transaction([
       this.prisma.metaProfile.update({
         where: { id },
-        data: { tokenEnc: null, appSecretEnc: null, tokenMask: '[deleted]', isEnabled: false, deletedAt: new Date(), proxyId: null },
+        data: {
+          tokenEnc: null,
+          appSecretEnc: null,
+          tokenMask: '[deleted]',
+          isEnabled: false,
+          deletedAt: new Date(),
+          proxyId: null,
+        },
       }),
       this.prisma.adAccount.updateMany({ where: { profileId: id }, data: { isConnected: false } }),
     ]);
     if (current.proxyId) await this.deleteProxyIfUnused(current.proxyId);
-    await this.audit.log({ action: 'meta_profile.deleted', actorUserId: userId, subjectUserId: userId, targetType: 'meta_profile', targetId: id, metadata: { name: current.name } });
+    await this.audit.log({
+      action: 'meta_profile.deleted',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'meta_profile',
+      targetId: id,
+      metadata: { name: current.name },
+    });
   }
 
   // ───────────── validation & tests ─────────────
@@ -228,7 +268,10 @@ export class MetaProfilesService {
   }
 
   /** Test token/proxy BEFORE saving: nothing is persisted, the token is only kept in memory. */
-  async testUnsaved(userId: string, input: TestInput): Promise<{ token?: TokenInspection; proxy?: ProxyTestResult }> {
+  async testUnsaved(
+    userId: string,
+    input: TestInput,
+  ): Promise<{ token?: TokenInspection; proxy?: ProxyTestResult }> {
     const out: { token?: TokenInspection; proxy?: ProxyTestResult } = {};
     if (input.proxy) {
       const blocked = await this.connections.proxyPolicyViolation(input.proxy.host);
@@ -237,7 +280,9 @@ export class MetaProfilesService {
       if (!out.proxy.ok) return out;
     }
     if (input.accessToken) {
-      out.token = await this.inspector.inspect(await this.connections.forTest(userId, { ...input, accessToken: input.accessToken }));
+      out.token = await this.inspector.inspect(
+        await this.connections.forTest(userId, { ...input, accessToken: input.accessToken }),
+      );
     }
     return out;
   }
@@ -246,22 +291,40 @@ export class MetaProfilesService {
     const profile = await this.findOwned(userId, id);
     if (!profile.proxy) return { ok: true, message: 'No proxy configured: direct connection is used.' };
     const blocked = await this.connections.proxyPolicyViolation(profile.proxy.host);
-    const result = blocked ? { ok: false, message: blocked } : await this.inspector.testProxy(await this.connections.proxyConfigFor(profile.proxy));
+    const result = blocked
+      ? { ok: false, message: blocked }
+      : await this.inspector.testProxy(await this.connections.proxyConfigFor(profile.proxy));
     await this.prisma.proxy.update({
       where: { id: profile.proxy.id },
-      data: { lastTestAt: new Date(), lastTestOk: result.ok, lastTestError: result.ok ? null : result.message, lastTestLatencyMs: result.latencyMs ?? null },
+      data: {
+        lastTestAt: new Date(),
+        lastTestOk: result.ok,
+        lastTestError: result.ok ? null : result.message,
+        lastTestLatencyMs: result.latencyMs ?? null,
+      },
     });
     return result;
   }
 
-  async requestSync(userId: string, id: string, reason: 'manual' | 'scheduled' | 'created'): Promise<{ queued: boolean }> {
+  async requestSync(
+    userId: string,
+    id: string,
+    reason: 'manual' | 'scheduled' | 'created',
+  ): Promise<{ queued: boolean }> {
     const profile = await this.findOwned(userId, id);
     if (profile.status !== 'ACTIVE' && reason !== 'created') {
-      throw AppError.conflict(`The profile token is ${META_PROFILE_STATUS_LABELS[profile.status].toLowerCase()}; fix the token first`);
+      throw AppError.conflict(
+        `The profile token is ${META_PROFILE_STATUS_LABELS[profile.status].toLowerCase()}; fix the token first`,
+      );
     }
     await this.prisma.metaProfile.update({ where: { id }, data: { syncStatus: 'QUEUED' } });
     // Unique job per request: the worker coalesces redundant syncs (see MetaSyncProcessor).
-    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId: id, userId, reason }, { jobId: jobId('meta-sync', id, randomUUID()) });
+    await this.queue.add(
+      QUEUES.META_SYNC,
+      JOBS.META_SYNC,
+      { profileId: id, userId, reason },
+      { jobId: jobId('meta-sync', id, randomUUID()) },
+    );
     return { queued: true };
   }
 
@@ -278,7 +341,8 @@ export class MetaProfilesService {
       lastTestError: null,
     };
     if (!isUpdate) Object.assign(base, { id: proxyId, userId });
-    if (p.password !== undefined) base.passwordEnc = p.password ? this.encryption.encrypt(p.password, Aad.proxyPassword(proxyId)) : null;
+    if (p.password !== undefined)
+      base.passwordEnc = p.password ? this.encryption.encrypt(p.password, Aad.proxyPassword(proxyId)) : null;
     return base;
   }
 

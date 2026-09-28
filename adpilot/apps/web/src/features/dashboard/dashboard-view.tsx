@@ -62,7 +62,14 @@ interface DashboardDto {
   metrics: MetricsDto[];
   primaryCurrency: string;
   series: StatsSeriesPoint[];
-  alerts: { kind: 'AD_ACCOUNT' | 'META_PROFILE'; id: string; name: string; status: string; tone: StatusTone; message: string | null }[];
+  alerts: {
+    kind: 'AD_ACCOUNT' | 'META_PROFILE';
+    id: string;
+    name: string;
+    status: string;
+    tone: StatusTone;
+    message: string | null;
+  }[];
   recentEvents: (ActivityEventDto & { createdAt: ISODateString })[];
 }
 
@@ -94,7 +101,9 @@ function describeRange(data: DashboardDto | undefined): string | null {
   const same = ranges.every((r) => r.since === ranges[0]!.since && r.until === ranges[0]!.until);
   if (!same) return 'Dates follow each ad account’s time zone';
   const r = ranges[0]!;
-  return r.since === r.until ? formatDay(r.since, 'EEE, MMM d') : `${formatDay(r.since)} – ${formatDay(r.until)}`;
+  return r.since === r.until
+    ? formatDay(r.since, 'EEE, MMM d')
+    : `${formatDay(r.since)} – ${formatDay(r.until)}`;
 }
 
 export function DashboardView() {
@@ -112,13 +121,19 @@ export function DashboardView() {
     refetchInterval: 5 * 60_000,
   });
   const data = dashboard.data;
-  const setupNeeded = !canStats || (data ? data.cards.metaProfiles.total === 0 || data.cards.adAccounts.connected === 0 : false);
+  const setupNeeded =
+    !canStats ||
+    (data ? data.cards.metaProfiles.total === 0 || data.cards.adAccounts.connected === 0 : false);
 
   return (
     <>
       <PageHeader
         title={`${greeting(new Date(now).getHours())}, ${firstName}`}
-        description={canStats ? 'Spend, results and alerts across your connected ad accounts.' : 'Here’s an overview of your advertising workspace.'}
+        description={
+          canStats
+            ? 'Spend, results and alerts across your connected ad accounts.'
+            : 'Here’s an overview of your advertising workspace.'
+        }
         actions={
           canStats ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -129,27 +144,41 @@ export function DashboardView() {
       />
       {canStats ? (
         <>
-          {dashboard.error && !data ? <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} className="mb-4" /> : null}
+          {dashboard.error && !data ? (
+            <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} className="mb-4" />
+          ) : null}
           {data ? (
             <p className="-mt-3 mb-4 text-xs text-muted-foreground">
               {data.range.label}
               {describeRange(data) ? ` · ${describeRange(data)}` : ''} · in each ad account’s time zone
             </p>
           ) : null}
-          <div className={cn('grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4', dashboard.isFetching && data && 'opacity-80 transition-opacity')}>
+          <div
+            className={cn(
+              'grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4',
+              dashboard.isFetching && data && 'opacity-80 transition-opacity',
+            )}
+          >
             <StatCard
               label="Spend"
               icon={Wallet}
               loading={dashboard.isLoading}
               value={<MoneyValue items={data?.cards.spend ?? []} />}
-              hint={otherCurrencies(data?.cards.spend ?? []) ?? (data?.cards.spend.length ? data.cards.spend[0]!.currency : 'No delivery')}
+              hint={
+                otherCurrencies(data?.cards.spend ?? []) ??
+                (data?.cards.spend.length ? data.cards.spend[0]!.currency : 'No delivery')
+              }
             />
             <StatCard
               label="Leads"
               icon={Users}
               loading={dashboard.isLoading}
               value={formatCount(data?.cards.leads ?? 0)}
-              hint={data?.cards.cpl.length ? `CPL ${data.cards.cpl.map((c) => formatAmount(c.value, c.currency)).join(' · ')}` : 'No leads yet'}
+              hint={
+                data?.cards.cpl.length
+                  ? `CPL ${data.cards.cpl.map((c) => formatAmount(c.value, c.currency)).join(' · ')}`
+                  : 'No leads yet'
+              }
             />
             <StatCard
               label="Active campaigns"
@@ -197,13 +226,17 @@ export function DashboardView() {
             <Card className="xl:col-span-2">
               <CardHeader>
                 <CardTitle>Recent activity</CardTitle>
-                <CardDescription>Launches, status and budget changes, rule actions and Meta events.</CardDescription>
+                <CardDescription>
+                  Launches, status and budget changes, rule actions and Meta events.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {data?.recentEvents.length ? (
                   <ActivityTimeline events={data.recentEvents} />
                 ) : (
-                  <p className="text-sm text-muted-foreground">{dashboard.isLoading ? 'Loading…' : 'Nothing happened yet.'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {dashboard.isLoading ? 'Loading…' : 'Nothing happened yet.'}
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -261,7 +294,13 @@ function AlertsCard({ data, loading }: { data: DashboardDto | undefined; loading
                 <TriangleAlert className="size-4 shrink-0 text-warning-fg" aria-hidden />
               )}
               <span className="truncate text-sm font-medium">{a.name}</span>
-              <StatusBadge status={a.status} label={a.status} tone={toneToVariant(a.tone)} size="sm" className="ml-auto shrink-0" />
+              <StatusBadge
+                status={a.status}
+                label={a.status}
+                tone={toneToVariant(a.tone)}
+                size="sm"
+                className="ml-auto shrink-0"
+              />
             </span>
             <span className="text-xs text-muted-foreground">
               {a.kind === 'AD_ACCOUNT' ? 'Ad account' : 'Meta profile'}
@@ -271,7 +310,8 @@ function AlertsCard({ data, loading }: { data: DashboardDto | undefined; loading
         ))}
         {data?.cards.apiErrors24h ? (
           <p className="pt-1 text-xs text-muted-foreground">
-            {data.cards.apiErrors24h} Meta API {data.cards.apiErrors24h === 1 ? 'call' : 'calls'} failed in the last 24 hours.
+            {data.cards.apiErrors24h} Meta API {data.cards.apiErrors24h === 1 ? 'call' : 'calls'} failed in
+            the last 24 hours.
           </p>
         ) : null}
       </CardContent>
@@ -279,7 +319,21 @@ function AlertsCard({ data, loading }: { data: DashboardDto | undefined; loading
   );
 }
 
-function Step({ index, title, description, href, cta, done = false }: { index: number; title: string; description: string; href: string; cta: string; done?: boolean }) {
+function Step({
+  index,
+  title,
+  description,
+  href,
+  cta,
+  done = false,
+}: {
+  index: number;
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+  done?: boolean;
+}) {
   return (
     <li className="flex items-start gap-3.5 py-3.5 first:pt-0 last:pb-0">
       <span
@@ -319,14 +373,40 @@ function GettingStarted({ data }: { data: DashboardDto | undefined }) {
       <CardContent>
         <ol className="divide-y">
           {can('app.meta_profiles.manage') ? (
-            <Step index={1} title="Connect a Meta profile" description="Add an access token (and optionally a proxy) — tokens are encrypted at rest." href="/meta-profiles" cta="Connect" done={hasProfile} />
+            <Step
+              index={1}
+              title="Connect a Meta profile"
+              description="Add an access token (and optionally a proxy) — tokens are encrypted at rest."
+              href="/meta-profiles"
+              cta="Connect"
+              done={hasProfile}
+            />
           ) : null}
-          <Step index={2} title="Connect ad accounts" description="Pick the ad accounts you want to manage and see their status and balance." href="/ad-accounts" cta="Open" done={hasAccount} />
+          <Step
+            index={2}
+            title="Connect ad accounts"
+            description="Pick the ad accounts you want to manage and see their status and balance."
+            href="/ad-accounts"
+            cta="Open"
+            done={hasAccount}
+          />
           {can('app.creatives.manage') ? (
-            <Step index={3} title="Upload creatives" description="Images and videos are validated against Meta’s limits before upload." href="/creatives" cta="Upload" />
+            <Step
+              index={3}
+              title="Upload creatives"
+              description="Images and videos are validated against Meta’s limits before upload."
+              href="/creatives"
+              cta="Upload"
+            />
           ) : null}
           {can('app.campaigns.launch') ? (
-            <Step index={4} title="Launch a campaign" description="Build campaigns, ad sets and ads with the step-by-step launch wizard." href="/launch" cta="Launch" />
+            <Step
+              index={4}
+              title="Launch a campaign"
+              description="Build campaigns, ad sets and ads with the step-by-step launch wizard."
+              href="/launch"
+              cta="Launch"
+            />
           ) : null}
         </ol>
       </CardContent>
@@ -337,7 +417,8 @@ function GettingStarted({ data }: { data: DashboardDto | undefined }) {
 function Recommendations() {
   const { user, can } = useAuth();
   const unread = useUnreadCount();
-  const items: { icon: React.ReactNode; title: string; description: string; href: string; cta: string }[] = [];
+  const items: { icon: React.ReactNode; title: string; description: string; href: string; cta: string }[] =
+    [];
   if (!user.twoFactorEnabled) {
     items.push({
       icon: <ShieldCheck className="size-4" />,
@@ -349,8 +430,12 @@ function Recommendations() {
   }
   items.push({
     icon: <Bell className="size-4" />,
-    title: unread.data ? `${unread.data} unread notification${unread.data === 1 ? '' : 's'}` : 'Get alerts in Telegram',
-    description: unread.data ? 'Rejected ads, stopped campaigns and token problems.' : 'Rejected ads, stopped campaigns and token problems — instantly.',
+    title: unread.data
+      ? `${unread.data} unread notification${unread.data === 1 ? '' : 's'}`
+      : 'Get alerts in Telegram',
+    description: unread.data
+      ? 'Rejected ads, stopped campaigns and token problems.'
+      : 'Rejected ads, stopped campaigns and token problems — instantly.',
     href: unread.data ? '/notifications' : '/settings/notifications',
     cta: unread.data ? 'Open' : 'Set up',
   });
@@ -375,12 +460,19 @@ function Recommendations() {
             href={item.href}
             className="group flex items-start gap-3 rounded-lg border p-3 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring/50"
           >
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-fg">{item.icon}</span>
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-fg">
+              {item.icon}
+            </span>
             <span className="min-w-0 flex-1">
               <span className="text-sm font-medium">{item.title}</span>
-              <span className="mt-0.5 block text-[13px] leading-relaxed text-muted-foreground">{item.description}</span>
+              <span className="mt-0.5 block text-[13px] leading-relaxed text-muted-foreground">
+                {item.description}
+              </span>
             </span>
-            <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+            <ArrowRight
+              className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
           </Link>
         ))}
       </CardContent>

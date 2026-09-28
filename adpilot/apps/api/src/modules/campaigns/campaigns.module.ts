@@ -10,7 +10,13 @@ import { InsightsSyncService } from '../statistics/insights-sync.service';
 @Global()
 @Module({
   controllers: [CampaignsController, StatisticsController],
-  providers: [CampaignsService, BulkActionsService, EntityActionsService, StatisticsService, InsightsSyncService],
+  providers: [
+    CampaignsService,
+    BulkActionsService,
+    EntityActionsService,
+    StatisticsService,
+    InsightsSyncService,
+  ],
   exports: [EntityActionsService, BulkActionsService, InsightsSyncService],
 })
 export class CampaignsModule {}

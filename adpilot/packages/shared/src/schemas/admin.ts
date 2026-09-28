@@ -17,7 +17,10 @@ export const adminCreateUserSchema = z
     password: passwordSchema.optional(),
     timezone: z.string().trim().max(64).optional(),
   })
-  .refine((v) => v.mode === 'invite' || !!v.password, { message: 'Password is required', path: ['password'] });
+  .refine((v) => v.mode === 'invite' || !!v.password, {
+    message: 'Password is required',
+    path: ['password'],
+  });
 
 export const adminUpdateUserSchema = z.object({
   name: z.string().trim().max(100).nullable().optional(),

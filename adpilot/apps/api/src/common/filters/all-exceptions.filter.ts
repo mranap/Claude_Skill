@@ -25,7 +25,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // Deliberate application errors are expected outcomes (maintenance mode, an unreachable proxy); only
       // server-side ones are worth a line, and never with a stack trace. Maintenance 503s are not logged.
       if (status >= 500 && exception.code !== 'MAINTENANCE') {
-        this.logger.warn('Request failed', { code: exception.code, message: exception.message, path: req.path, method: req.method });
+        this.logger.warn('Request failed', {
+          code: exception.code,
+          message: exception.message,
+          path: req.path,
+          method: req.method,
+        });
       }
     } else if (status >= 500) {
       this.logger.error('Unhandled error', { err: exception, path: req.path, method: req.method });
@@ -88,19 +93,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : typeof (response as { message?: unknown }).message === 'string'
             ? (response as { message: string }).message
             : exception.message;
-      return { status, body: { error: { code, message: status >= 500 ? 'Internal server error' : message }, requestId } };
+      return {
+        status,
+        body: { error: { code, message: status >= 500 ? 'Internal server error' : message }, requestId },
+      };
     }
     const maybeBodyParser = exception as { type?: string; status?: number };
     if (maybeBodyParser?.type === 'entity.too.large') {
-      return { status: 413, body: { error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' }, requestId } };
+      return {
+        status: 413,
+        body: { error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' }, requestId },
+      };
     }
     if (maybeBodyParser?.type === 'entity.parse.failed') {
-      return { status: 400, body: { error: { code: 'BAD_REQUEST', message: 'Malformed JSON body' }, requestId } };
+      return {
+        status: 400,
+        body: { error: { code: 'BAD_REQUEST', message: 'Malformed JSON body' }, requestId },
+      };
     }
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       body: {
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again or contact support.' },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Something went wrong. Please try again or contact support.',
+        },
         requestId,
       },
     };

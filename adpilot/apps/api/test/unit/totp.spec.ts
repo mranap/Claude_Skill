@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { base32Decode, base32Encode, generateRecoveryCodes, generateTotpSecret, hotp, otpauthUrl, verifyTotp } from '../../src/modules/auth/totp';
+import {
+  base32Decode,
+  base32Encode,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hotp,
+  otpauthUrl,
+  verifyTotp,
+} from '../../src/modules/auth/totp';
 
 describe('TOTP (RFC 6238)', () => {
   const rfcKey = Buffer.from('12345678901234567890');

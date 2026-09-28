@@ -35,14 +35,31 @@ export class AdAccountsService {
       userId,
       profile: { deletedAt: null },
       ...(q.profileId ? { profileId: q.profileId } : {}),
-      ...(q.connected === 'true' ? { isConnected: true } : q.connected === 'false' ? { isConnected: false } : {}),
+      ...(q.connected === 'true'
+        ? { isConnected: true }
+        : q.connected === 'false'
+          ? { isConnected: false }
+          : {}),
       ...(q.status ? { statusKey: q.status as AdAccount['statusKey'] } : {}),
       ...(q.q
-        ? { OR: [{ name: { contains: q.q, mode: 'insensitive' } }, { metaAccountId: { contains: q.q.replace(/^act_/, '') } }, { metaBusinessName: { contains: q.q, mode: 'insensitive' } }] }
+        ? {
+            OR: [
+              { name: { contains: q.q, mode: 'insensitive' } },
+              { metaAccountId: { contains: q.q.replace(/^act_/, '') } },
+              { metaBusinessName: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
         : {}),
     };
     const [field, dir] = (q.sort ?? 'name:asc').split(':') as [string, 'asc' | 'desc'];
-    const sortable = new Set(['name', 'statusKey', 'lastStatusCheckAt', 'createdAt', 'currency', 'amountSpent']);
+    const sortable = new Set([
+      'name',
+      'statusKey',
+      'lastStatusCheckAt',
+      'createdAt',
+      'currency',
+      'amountSpent',
+    ]);
     const [rows, total] = await Promise.all([
       this.prisma.adAccount.findMany({
         where,
@@ -81,9 +98,10 @@ export class AdAccountsService {
     if (input.statusCheckIntervalMinutes !== undefined) {
       const { allowedIntervalsMinutes } = await this.settings.get('accountChecks');
       if (!allowedIntervalsMinutes.includes(input.statusCheckIntervalMinutes)) {
-        throw AppError.validation(`Allowed check intervals: ${allowedIntervalsMinutes.map((m) => (m % 60 === 0 ? `${m / 60} h` : `${m} min`)).join(', ')}`, [
-          { path: 'statusCheckIntervalMinutes', message: 'This interval is not allowed' },
-        ]);
+        throw AppError.validation(
+          `Allowed check intervals: ${allowedIntervalsMinutes.map((m) => (m % 60 === 0 ? `${m / 60} h` : `${m} min`)).join(', ')}`,
+          [{ path: 'statusCheckIntervalMinutes', message: 'This interval is not allowed' }],
+        );
       }
       data.statusCheckIntervalMinutes = input.statusCheckIntervalMinutes;
       data.nextStatusCheckAt = new Date(Date.now() + input.statusCheckIntervalMinutes * 60_000);
@@ -92,7 +110,10 @@ export class AdAccountsService {
       const { minSyncIntervalMinutes } = await this.settings.get('statistics');
       if (input.statsSyncIntervalMinutes < minSyncIntervalMinutes) {
         throw AppError.validation(`Minimum statistics sync interval is ${minSyncIntervalMinutes} minutes.`, [
-          { path: 'statsSyncIntervalMinutes', message: `Minimum statistics sync interval is ${minSyncIntervalMinutes} minutes.` },
+          {
+            path: 'statsSyncIntervalMinutes',
+            message: `Minimum statistics sync interval is ${minSyncIntervalMinutes} minutes.`,
+          },
         ]);
       }
       data.statsSyncIntervalMinutes = input.statsSyncIntervalMinutes;
@@ -103,18 +124,40 @@ export class AdAccountsService {
       Object.assign(data, this.connectionChange(input.isConnected));
     }
     await this.prisma.adAccount.update({ where: { id }, data });
-    await this.audit.log({ action: 'ad_account.settings_updated', actorUserId: userId, subjectUserId: userId, targetType: 'ad_account', targetId: id, metadata: input });
-    if (input.isConnected === true && !account.isConnected) await this.afterConnect(userId, [id], account.profileId);
+    await this.audit.log({
+      action: 'ad_account.settings_updated',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'ad_account',
+      targetId: id,
+      metadata: input,
+    });
+    if (input.isConnected === true && !account.isConnected)
+      await this.afterConnect(userId, [id], account.profileId);
     return this.get(userId, id);
   }
 
   async bulkConnect(userId: string, profileId: string, connect: string[], disconnect: string[]) {
-    const profile = await this.prisma.metaProfile.findFirst({ where: { id: profileId, userId, deletedAt: null } });
+    const profile = await this.prisma.metaProfile.findFirst({
+      where: { id: profileId, userId, deletedAt: null },
+    });
     if (!profile) throw AppError.notFound('Meta profile');
-    const toConnect = await this.prisma.adAccount.findMany({ where: { profileId, userId, metaAccountId: { in: connect }, isConnected: false }, select: { id: true } });
-    for (const a of toConnect) await this.prisma.adAccount.update({ where: { id: a.id }, data: this.connectionChange(true) });
-    const disc = await this.prisma.adAccount.updateMany({ where: { profileId, userId, metaAccountId: { in: disconnect }, isConnected: true }, data: { isConnected: false } });
-    if (toConnect.length) await this.afterConnect(userId, toConnect.map((a) => a.id), profileId);
+    const toConnect = await this.prisma.adAccount.findMany({
+      where: { profileId, userId, metaAccountId: { in: connect }, isConnected: false },
+      select: { id: true },
+    });
+    for (const a of toConnect)
+      await this.prisma.adAccount.update({ where: { id: a.id }, data: this.connectionChange(true) });
+    const disc = await this.prisma.adAccount.updateMany({
+      where: { profileId, userId, metaAccountId: { in: disconnect }, isConnected: true },
+      data: { isConnected: false },
+    });
+    if (toConnect.length)
+      await this.afterConnect(
+        userId,
+        toConnect.map((a) => a.id),
+        profileId,
+      );
     await this.audit.log({
       action: 'ad_account.connection_changed',
       actorUserId: userId,
@@ -136,8 +179,13 @@ export class AdAccountsService {
       data: { lastStatusCheckAt: new Date() },
     });
     if (claimed.count !== 1) {
-      const wait = Math.ceil(((account.lastStatusCheckAt?.getTime() ?? 0) + MANUAL_STATUS_CHECK_COOLDOWN_MS - Date.now()) / 1000);
-      throw AppError.cooldown(`The status was checked moments ago. Try again in ${Math.max(wait, 1)} s.`, Math.max(wait, 1));
+      const wait = Math.ceil(
+        ((account.lastStatusCheckAt?.getTime() ?? 0) + MANUAL_STATUS_CHECK_COOLDOWN_MS - Date.now()) / 1000,
+      );
+      throw AppError.cooldown(
+        `The status was checked moments ago. Try again in ${Math.max(wait, 1)} s.`,
+        Math.max(wait, 1),
+      );
     }
     await this.queue.add(
       QUEUES.ACCOUNT_STATUS,
@@ -150,7 +198,11 @@ export class AdAccountsService {
 
   async statusHistory(userId: string, id: string) {
     await this.findOwned(userId, id);
-    return this.prisma.accountStatusHistory.findMany({ where: { adAccountId: id }, orderBy: { detectedAt: 'desc' }, take: 100 });
+    return this.prisma.accountStatusHistory.findMany({
+      where: { adAccountId: id },
+      orderBy: { detectedAt: 'desc' },
+      take: 100,
+    });
   }
 
   async pixels(userId: string, id: string) {
@@ -165,7 +217,10 @@ export class AdAccountsService {
 
   async pages(userId: string, id: string) {
     const account = await this.findOwned(userId, id);
-    return this.prisma.page.findMany({ where: { profileId: account.profileId, userId }, orderBy: { name: 'asc' } });
+    return this.prisma.page.findMany({
+      where: { profileId: account.profileId, userId },
+      orderBy: { name: 'asc' },
+    });
   }
 
   private connectionChange(connect: boolean): Prisma.AdAccountUpdateInput {
@@ -181,7 +236,12 @@ export class AdAccountsService {
   /** Pixels/audiences/pages for newly connected accounts are fetched by an asset sync. */
   private async afterConnect(userId: string, _accountIds: string[], profileId: string) {
     // Unique job per request: the worker coalesces redundant syncs (see MetaSyncProcessor).
-    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId, userId, reason: 'manual' }, { jobId: jobId('meta-sync', profileId, randomUUID()) });
+    await this.queue.add(
+      QUEUES.META_SYNC,
+      JOBS.META_SYNC,
+      { profileId, userId, reason: 'manual' },
+      { jobId: jobId('meta-sync', profileId, randomUUID()) },
+    );
   }
 
   toDto(r: AdAccount & { profile: { id: string; name: string; status: string } }) {

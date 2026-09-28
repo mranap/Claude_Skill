@@ -12,7 +12,15 @@ import { EntitySyncService } from '../campaigns/entity-sync.service';
 @Global()
 @Module({
   controllers: [TemplatesController, LaunchesController, DraftsController],
-  providers: [TemplatesService, LaunchesService, DraftsService, LaunchValidatorService, PlanBuilderService, LaunchExecutorService, EntitySyncService],
+  providers: [
+    TemplatesService,
+    LaunchesService,
+    DraftsService,
+    LaunchValidatorService,
+    PlanBuilderService,
+    LaunchExecutorService,
+    EntitySyncService,
+  ],
   exports: [LaunchExecutorService, EntitySyncService, TemplatesService],
 })
 export class LaunchesModule {}

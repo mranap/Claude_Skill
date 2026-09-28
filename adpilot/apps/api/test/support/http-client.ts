@@ -54,7 +54,12 @@ export class ApiClient {
   /** Headers a browser would send, for raw requests the fetch-based helpers cannot make (e.g. aborted uploads). */
   rawHeaders(path: string): Record<string, string> {
     const csrf = this.cookie('ap_csrf');
-    return { Cookie: this.cookieHeader(path), Origin: this.origin, 'User-Agent': this.userAgent, ...(csrf ? { 'X-CSRF-Token': csrf } : {}) };
+    return {
+      Cookie: this.cookieHeader(path),
+      Origin: this.origin,
+      'User-Agent': this.userAgent,
+      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
+    };
   }
 
   private cookieHeader(path: string): string {
@@ -150,7 +155,9 @@ export class ApiClient {
 /** Throws with the response body when the status is not the expected one (readable test failures). */
 export function expectStatus<T>(res: ApiResponse<T>, status: number): ApiResponse<T> {
   if (res.status !== status) {
-    throw new Error(`Expected HTTP ${status} but got ${res.status}: ${typeof res.body === 'string' ? res.body : JSON.stringify(res.body)}`);
+    throw new Error(
+      `Expected HTTP ${status} but got ${res.status}: ${typeof res.body === 'string' ? res.body : JSON.stringify(res.body)}`,
+    );
   }
   return res;
 }

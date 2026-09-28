@@ -17,7 +17,8 @@ export class AutoRulesProcessor implements QueueProcessor {
     try {
       return await this.engine.run(job.data.ruleId, { manual: job.data.slot.startsWith('manual') });
     } catch (err) {
-      if (err instanceof MetaApiError && err.category === 'RATE_LIMIT') return deferJob(job, token, err.details.retryAfterMs ?? 60_000);
+      if (err instanceof MetaApiError && err.category === 'RATE_LIMIT')
+        return deferJob(job, token, err.details.retryAfterMs ?? 60_000);
       throw err;
     }
   }

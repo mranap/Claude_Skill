@@ -33,18 +33,66 @@ export const AD_ACCOUNT_STATUS_BY_CODE: Record<number, AdAccountStatusKey> = {
 export type StatusTone = 'success' | 'danger' | 'warning' | 'neutral' | 'info';
 
 /** Simplified display groups requested by the product: Active / Disabled / Pending / Unsettled / Closed / Unknown. */
-export const AD_ACCOUNT_STATUS_DISPLAY: Record<AdAccountStatusKey, { label: string; group: string; tone: StatusTone; description: string }> = {
+export const AD_ACCOUNT_STATUS_DISPLAY: Record<
+  AdAccountStatusKey,
+  { label: string; group: string; tone: StatusTone; description: string }
+> = {
   ACTIVE: { label: 'Active', group: 'Active', tone: 'success', description: 'The account can run ads.' },
-  DISABLED: { label: 'Disabled', group: 'Disabled', tone: 'danger', description: 'Meta disabled the account. See the disable reason and Account Quality.' },
-  UNSETTLED: { label: 'Unsettled', group: 'Unsettled', tone: 'warning', description: 'There is an outstanding balance. Settle the payment to resume delivery.' },
-  PENDING_RISK_REVIEW: { label: 'Pending risk review', group: 'Pending', tone: 'warning', description: 'Meta is reviewing the account.' },
-  PENDING_SETTLEMENT: { label: 'Pending settlement', group: 'Pending', tone: 'warning', description: 'A payment is being processed.' },
-  IN_GRACE_PERIOD: { label: 'Grace period', group: 'Pending', tone: 'warning', description: 'Payment problem; ads still run for a limited time.' },
-  PENDING_CLOSURE: { label: 'Pending closure', group: 'Closed', tone: 'neutral', description: 'The account is being closed.' },
+  DISABLED: {
+    label: 'Disabled',
+    group: 'Disabled',
+    tone: 'danger',
+    description: 'Meta disabled the account. See the disable reason and Account Quality.',
+  },
+  UNSETTLED: {
+    label: 'Unsettled',
+    group: 'Unsettled',
+    tone: 'warning',
+    description: 'There is an outstanding balance. Settle the payment to resume delivery.',
+  },
+  PENDING_RISK_REVIEW: {
+    label: 'Pending risk review',
+    group: 'Pending',
+    tone: 'warning',
+    description: 'Meta is reviewing the account.',
+  },
+  PENDING_SETTLEMENT: {
+    label: 'Pending settlement',
+    group: 'Pending',
+    tone: 'warning',
+    description: 'A payment is being processed.',
+  },
+  IN_GRACE_PERIOD: {
+    label: 'Grace period',
+    group: 'Pending',
+    tone: 'warning',
+    description: 'Payment problem; ads still run for a limited time.',
+  },
+  PENDING_CLOSURE: {
+    label: 'Pending closure',
+    group: 'Closed',
+    tone: 'neutral',
+    description: 'The account is being closed.',
+  },
   CLOSED: { label: 'Closed', group: 'Closed', tone: 'neutral', description: 'The account is closed.' },
-  ANY_ACTIVE: { label: 'Active', group: 'Active', tone: 'success', description: 'Active (aggregate status).' },
-  ANY_CLOSED: { label: 'Closed', group: 'Closed', tone: 'neutral', description: 'Closed (aggregate status).' },
-  UNKNOWN: { label: 'Unknown', group: 'Unknown', tone: 'neutral', description: 'The status could not be determined yet.' },
+  ANY_ACTIVE: {
+    label: 'Active',
+    group: 'Active',
+    tone: 'success',
+    description: 'Active (aggregate status).',
+  },
+  ANY_CLOSED: {
+    label: 'Closed',
+    group: 'Closed',
+    tone: 'neutral',
+    description: 'Closed (aggregate status).',
+  },
+  UNKNOWN: {
+    label: 'Unknown',
+    group: 'Unknown',
+    tone: 'neutral',
+    description: 'The status could not be determined yet.',
+  },
 };
 
 export function adAccountStatusKey(code: number | null | undefined): AdAccountStatusKey {

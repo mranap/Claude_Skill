@@ -41,7 +41,11 @@ import { isPrivilegedRole, useAdminUsers, useRoles } from './hooks';
 const FILTERS = ['status', 'roleId'] as const;
 
 function Count({ value }: { value: number }) {
-  return <span className={value ? 'tabular-nums' : 'text-muted-foreground tabular-nums'}>{formatNumber(value)}</span>;
+  return (
+    <span className={value ? 'tabular-nums' : 'text-muted-foreground tabular-nums'}>
+      {formatNumber(value)}
+    </span>
+  );
 }
 
 type BulkAction = { kind: 'block' | 'unblock'; users: AdminUserListItem[]; clear: () => void };
@@ -57,7 +61,9 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [bulk, setBulk] = useState<BulkAction | null>(null);
   const [blockReason, setBlockReason] = useState('');
-  const [rowAction, setRowAction] = useState<{ kind: 'block' | 'unblock'; user: AdminUserListItem } | null>(null);
+  const [rowAction, setRowAction] = useState<{ kind: 'block' | 'unblock'; user: AdminUserListItem } | null>(
+    null,
+  );
 
   const canBlock = can('admin.users.block');
 
@@ -95,7 +101,9 @@ export function UsersPage() {
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">
               {u.name || u.email.split('@')[0]}
-              {u.id === me.id ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span> : null}
+              {u.id === me.id ? (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>
+              ) : null}
             </p>
             <p className="truncate text-xs text-muted-foreground">{u.email}</p>
           </div>
@@ -105,9 +113,7 @@ export function UsersPage() {
     {
       id: 'role',
       header: 'Role',
-      cell: (u) => (
-        <Badge variant={isPrivilegedRole(u.role) ? 'default' : 'secondary'}>{u.role.name}</Badge>
-      ),
+      cell: (u) => <Badge variant={isPrivilegedRole(u.role) ? 'default' : 'secondary'}>{u.role.name}</Badge>,
     },
     {
       id: 'status',
@@ -119,7 +125,9 @@ export function UsersPage() {
           <div className="flex flex-wrap items-center gap-1">
             <StatusBadge status={u.status} />
             {locked ? (
-              <SimpleTooltip content={`Too many failed sign-ins; locked until ${formatDateTime(u.lockedUntil)}`}>
+              <SimpleTooltip
+                content={`Too many failed sign-ins; locked until ${formatDateTime(u.lockedUntil)}`}
+              >
                 <Badge variant="warning" size="sm">
                   Locked
                 </Badge>
@@ -146,19 +154,38 @@ export function UsersPage() {
             <ShieldCheck className="mx-auto size-4 text-success-fg" aria-label="2FA enabled" />
           </SimpleTooltip>
         ) : (
-          <span className="text-muted-foreground" aria-label="2FA disabled">—</span>
+          <span className="text-muted-foreground" aria-label="2FA disabled">
+            —
+          </span>
         ),
     },
-    { id: 'profiles', header: 'Profiles', align: 'right', cell: (u) => <Count value={u.usage.metaProfiles} /> },
-    { id: 'adAccounts', header: 'Ad accts', align: 'right', cell: (u) => <Count value={u.usage.adAccounts} /> },
-    { id: 'campaigns', header: 'Campaigns', align: 'right', cell: (u) => <Count value={u.usage.campaigns} /> },
+    {
+      id: 'profiles',
+      header: 'Profiles',
+      align: 'right',
+      cell: (u) => <Count value={u.usage.metaProfiles} />,
+    },
+    {
+      id: 'adAccounts',
+      header: 'Ad accts',
+      align: 'right',
+      cell: (u) => <Count value={u.usage.adAccounts} />,
+    },
+    {
+      id: 'campaigns',
+      header: 'Campaigns',
+      align: 'right',
+      cell: (u) => <Count value={u.usage.campaigns} />,
+    },
     { id: 'files', header: 'Files', align: 'right', cell: (u) => <Count value={u.usage.files} /> },
     {
       id: 'storage',
       header: 'Storage',
       align: 'right',
       cell: (u) => (
-        <span className={u.usage.storageBytes === '0' ? 'text-muted-foreground tabular-nums' : 'tabular-nums'}>
+        <span
+          className={u.usage.storageBytes === '0' ? 'text-muted-foreground tabular-nums' : 'tabular-nums'}
+        >
           {formatBytes(u.usage.storageBytes)}
         </span>
       ),
@@ -173,7 +200,11 @@ export function UsersPage() {
       id: 'created',
       header: 'Created',
       sortField: 'createdAt',
-      cell: (u) => <span className="whitespace-nowrap text-muted-foreground tabular-nums">{formatDate(u.createdAt)}</span>,
+      cell: (u) => (
+        <span className="whitespace-nowrap text-muted-foreground tabular-nums">
+          {formatDate(u.createdAt)}
+        </span>
+      ),
     },
     {
       id: 'actions',
@@ -210,7 +241,10 @@ export function UsersPage() {
                     Unblock
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem variant="destructive" onSelect={() => setRowAction({ kind: 'block', user: u })}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setRowAction({ kind: 'block', user: u })}
+                  >
                     <Ban />
                     Block
                   </DropdownMenuItem>
@@ -256,11 +290,19 @@ export function UsersPage() {
         minWidth={1080}
         bulkActions={({ selected, clear }) => (
           <>
-            <Button size="xs" variant="outline" onClick={() => setBulk({ kind: 'block', users: selected, clear })}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setBulk({ kind: 'block', users: selected, clear })}
+            >
               <Ban />
               Block
             </Button>
-            <Button size="xs" variant="outline" onClick={() => setBulk({ kind: 'unblock', users: selected, clear })}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setBulk({ kind: 'unblock', users: selected, clear })}
+            >
               <UserCheck />
               Unblock
             </Button>
@@ -283,7 +325,13 @@ export function UsersPage() {
                     { value: 'DELETED', label: 'Deleted' },
                   ]}
                 />
-                <FilterSelect state={table} filterKey="roleId" allLabel="All roles" aria-label="Role" options={roleOptions} />
+                <FilterSelect
+                  state={table}
+                  filterKey="roleId"
+                  allLabel="All roles"
+                  aria-label="Role"
+                  options={roleOptions}
+                />
               </>
             }
           />
@@ -318,7 +366,11 @@ export function UsersPage() {
             setBlockReason('');
           }
         }}
-        title={bulk?.kind === 'block' ? `Block ${bulk.users.length} user${bulk.users.length === 1 ? '' : 's'}?` : `Unblock ${bulk?.users.length ?? 0} user${bulk?.users.length === 1 ? '' : 's'}?`}
+        title={
+          bulk?.kind === 'block'
+            ? `Block ${bulk.users.length} user${bulk.users.length === 1 ? '' : 's'}?`
+            : `Unblock ${bulk?.users.length ?? 0} user${bulk?.users.length === 1 ? '' : 's'}?`
+        }
         description={
           bulk?.kind === 'block'
             ? 'Blocked users are signed out everywhere and cannot sign in until they are unblocked.'
@@ -347,7 +399,11 @@ export function UsersPage() {
             setBlockReason('');
           }
         }}
-        title={rowAction?.kind === 'block' ? `Block ${rowAction.user.email}?` : `Unblock ${rowAction?.user.email ?? ''}?`}
+        title={
+          rowAction?.kind === 'block'
+            ? `Block ${rowAction.user.email}?`
+            : `Unblock ${rowAction?.user.email ?? ''}?`
+        }
         description={
           rowAction?.kind === 'block'
             ? 'The user is signed out everywhere and cannot sign in until unblocked.'
@@ -357,7 +413,8 @@ export function UsersPage() {
         destructive={rowAction?.kind === 'block'}
         onConfirm={async () => {
           if (!rowAction) return;
-          if (rowAction.kind === 'block') await adminUsersApi.block(rowAction.user.id, blockReason.trim() || undefined);
+          if (rowAction.kind === 'block')
+            await adminUsersApi.block(rowAction.user.id, blockReason.trim() || undefined);
           else await adminUsersApi.unblock(rowAction.user.id);
           toast.success(rowAction.kind === 'block' ? 'User blocked' : 'User unblocked');
           await queryClient.invalidateQueries({ queryKey: queryKeys.admin.users.all });

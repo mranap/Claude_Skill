@@ -68,9 +68,14 @@ export class AdminSettingsController {
 
   @Put(':key')
   @RequirePermissions('admin.settings.view')
-  async update(@CurrentUser() user: AuthUser, @Param('key') rawKey: string, @Body(zod(updateSchema)) body: z.infer<typeof updateSchema>) {
+  async update(
+    @CurrentUser() user: AuthUser,
+    @Param('key') rawKey: string,
+    @Body(zod(updateSchema)) body: z.infer<typeof updateSchema>,
+  ) {
     const key = this.assertKey(rawKey);
-    if (!hasPermission(user.roleKey, user.permissions, SETTING_PERMISSIONS[key] as PermissionKey)) throw AppError.forbidden();
+    if (!hasPermission(user.roleKey, user.permissions, SETTING_PERMISSIONS[key] as PermissionKey))
+      throw AppError.forbidden();
     const allowedSecrets = SECRET_SETTING_FIELDS[key] ?? [];
     const unknownSecret = Object.keys(body.secrets).find((f) => !allowedSecrets.includes(f));
     if (unknownSecret) throw AppError.validation(`Unknown secret field "${unknownSecret}"`);
@@ -80,9 +85,13 @@ export class AdminSettingsController {
     if (key === 'telegram') await this.prepareTelegram(values, secrets);
 
     const updated = await this.settings.update(key, values, secrets, user.id);
-    if (key === 'telegram') await this.applyTelegramMode().catch((err: Error) => {
-      throw new AppError('BAD_REQUEST', `Settings saved, but the webhook could not be configured: ${err.message}`);
-    });
+    if (key === 'telegram')
+      await this.applyTelegramMode().catch((err: Error) => {
+        throw new AppError(
+          'BAD_REQUEST',
+          `Settings saved, but the webhook could not be configured: ${err.message}`,
+        );
+      });
     await this.audit.log({
       action: 'admin.settings.updated',
       actorUserId: user.id,
@@ -107,7 +116,10 @@ export class AdminSettingsController {
   @Post('smtp/test')
   @HttpCode(200)
   @RequirePermissions('admin.smtp.manage')
-  async testSmtp(@CurrentUser() user: AuthUser, @Body(zod(smtpTestSchema)) body: z.infer<typeof smtpTestSchema>) {
+  async testSmtp(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(smtpTestSchema)) body: z.infer<typeof smtpTestSchema>,
+  ) {
     const to = body.to ?? user.email;
     const platformName = (await this.settings.get('general')).platformName;
     try {
@@ -129,7 +141,10 @@ export class AdminSettingsController {
     const conn = await this.prisma.telegramConnection.findUnique({ where: { userId: user.id } });
     let sentToYou = false;
     if (conn?.isActive) {
-      await this.telegram.sendMessage(conn.chatId, `✅ <b>${tgEscape(me.first_name)}</b> is configured correctly.`);
+      await this.telegram.sendMessage(
+        conn.chatId,
+        `✅ <b>${tgEscape(me.first_name)}</b> is configured correctly.`,
+      );
       sentToYou = true;
     }
     const webhook = await this.telegram.getWebhookInfo().catch(() => null);
@@ -154,7 +169,8 @@ export class AdminSettingsController {
     delete secrets.webhookSecret;
     const newToken = secrets.botToken;
     if (typeof newToken === 'string' && newToken) {
-      if (!/^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(newToken)) throw AppError.validation('This does not look like a bot token');
+      if (!/^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(newToken))
+        throw AppError.validation('This does not look like a bot token');
       const me = await this.telegram.getMe(newToken).catch(() => {
         throw AppError.validation('Telegram rejected this bot token');
       });
@@ -171,7 +187,8 @@ export class AdminSettingsController {
     if (s.mode === 'WEBHOOK') {
       const secret = await this.settings.getSecret('telegram', 'webhookSecret');
       if (!secret) throw new Error('Webhook secret missing');
-      if (!this.config.appUrl.startsWith('https://')) throw new Error('Webhook mode requires APP_URL with https://');
+      if (!this.config.appUrl.startsWith('https://'))
+        throw new Error('Webhook mode requires APP_URL with https://');
       await this.telegram.setWebhook(`${this.config.appUrl}/api/telegram/webhook`, secret);
     } else {
       await this.telegram.deleteWebhook();

@@ -1,6 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
-import { ruleCreateSchema, ruleExecutionsQuerySchema, ruleListQuerySchema, ruleUpdateSchema } from '@adpilot/shared';
+import {
+  ruleCreateSchema,
+  ruleExecutionsQuerySchema,
+  ruleListQuerySchema,
+  ruleUpdateSchema,
+} from '@adpilot/shared';
 import { CurrentUser, RateLimit, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { RulesService } from './rules.service';
@@ -14,12 +30,18 @@ export class RulesController {
   constructor(private readonly rules: RulesService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query(zod(ruleListQuerySchema)) q: z.infer<typeof ruleListQuerySchema>) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(ruleListQuerySchema)) q: z.infer<typeof ruleListQuerySchema>,
+  ) {
     return this.rules.list(user.id, q);
   }
 
   @Get('executions')
-  executions(@CurrentUser() user: AuthUser, @Query(zod(ruleExecutionsQuerySchema)) q: z.infer<typeof ruleExecutionsQuerySchema>) {
+  executions(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(ruleExecutionsQuerySchema)) q: z.infer<typeof ruleExecutionsQuerySchema>,
+  ) {
     return this.rules.executions(user.id, q);
   }
 
@@ -34,7 +56,11 @@ export class RulesController {
   }
 
   @Put(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Body(zod(ruleUpdateSchema)) body: z.infer<typeof ruleUpdateSchema>) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(ruleUpdateSchema)) body: z.infer<typeof ruleUpdateSchema>,
+  ) {
     return this.rules.update(user.id, id, body);
   }
 

@@ -22,7 +22,14 @@ const jobsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
-const cleanSchema = z.object({ state: z.enum(['completed', 'failed']), olderThanHours: z.number().int().min(0).max(24 * 90) });
+const cleanSchema = z.object({
+  state: z.enum(['completed', 'failed']),
+  olderThanHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 90),
+});
 
 /** Operations: dashboard counters, health, queues/jobs, workers, rate limits, storage, backups. */
 @Controller('admin')
@@ -42,16 +49,39 @@ export class AdminOpsController {
   @RequirePermissions('admin.dashboard.view')
   async dashboard() {
     const since24h = new Date(Date.now() - 86400_000);
-    const [users, profiles, adAccounts, connectedAccounts, campaigns, files, launches24h, failedLaunches24h, apiErrors24h, rateLimited24h, workerErrors24h] = await Promise.all([
+    const [
+      users,
+      profiles,
+      adAccounts,
+      connectedAccounts,
+      campaigns,
+      files,
+      launches24h,
+      failedLaunches24h,
+      apiErrors24h,
+      rateLimited24h,
+      workerErrors24h,
+    ] = await Promise.all([
       this.prisma.user.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.metaProfile.groupBy({ by: ['status'], where: { deletedAt: null }, _count: { _all: true } }),
       this.prisma.adAccount.count(),
       this.prisma.adAccount.count({ where: { isConnected: true } }),
       this.prisma.campaign.count({ where: { isDeleted: false } }),
-      this.prisma.creativeFile.aggregate({ where: { deletedAt: null }, _count: { _all: true }, _sum: { sizeBytes: true } }),
+      this.prisma.creativeFile.aggregate({
+        where: { deletedAt: null },
+        _count: { _all: true },
+        _sum: { sizeBytes: true },
+      }),
       this.prisma.launchJob.count({ where: { createdAt: { gte: since24h } } }),
-      this.prisma.launchJob.count({ where: { createdAt: { gte: since24h }, status: { in: ['FAILED', 'PARTIAL_FAILURE'] } } }),
-      this.prisma.metaApiLog.count({ where: { createdAt: { gte: since24h }, OR: [{ errorCode: { not: null } }, { httpStatus: { gte: 400 } }] } }),
+      this.prisma.launchJob.count({
+        where: { createdAt: { gte: since24h }, status: { in: ['FAILED', 'PARTIAL_FAILURE'] } },
+      }),
+      this.prisma.metaApiLog.count({
+        where: {
+          createdAt: { gte: since24h },
+          OR: [{ errorCode: { not: null } }, { httpStatus: { gte: 400 } }],
+        },
+      }),
       this.prisma.metaApiLog.count({ where: { createdAt: { gte: since24h }, rateLimited: true } }),
       this.prisma.systemLog.count({ where: { createdAt: { gte: since24h }, level: 'ERROR' } }),
     ]);
@@ -117,7 +147,12 @@ export class AdminOpsController {
     const job = await this.queues.queue(this.assertQueue(name)).getJob(id);
     if (!job) throw AppError.notFound('Job');
     await job.retry('failed');
-    await this.audit.log({ action: 'admin.queue.job_retried', actorUserId: user.id, targetType: 'job', targetId: `${name}/${id}` });
+    await this.audit.log({
+      action: 'admin.queue.job_retried',
+      actorUserId: user.id,
+      targetType: 'job',
+      targetId: `${name}/${id}`,
+    });
     return { ok: true };
   }
 
@@ -127,7 +162,12 @@ export class AdminOpsController {
     const job = await this.queues.queue(this.assertQueue(name)).getJob(id);
     if (!job) throw AppError.notFound('Job');
     await job.remove();
-    await this.audit.log({ action: 'admin.queue.job_removed', actorUserId: user.id, targetType: 'job', targetId: `${name}/${id}` });
+    await this.audit.log({
+      action: 'admin.queue.job_removed',
+      actorUserId: user.id,
+      targetType: 'job',
+      targetId: `${name}/${id}`,
+    });
     return { ok: true };
   }
 
@@ -136,7 +176,12 @@ export class AdminOpsController {
   @RequirePermissions('admin.workers.manage')
   async pause(@CurrentUser() user: AuthUser, @Param('name') name: string) {
     await this.queues.queue(this.assertQueue(name)).pause();
-    await this.audit.log({ action: 'admin.queue.paused', actorUserId: user.id, targetType: 'queue', targetId: name });
+    await this.audit.log({
+      action: 'admin.queue.paused',
+      actorUserId: user.id,
+      targetType: 'queue',
+      targetId: name,
+    });
     return { ok: true };
   }
 
@@ -145,44 +190,119 @@ export class AdminOpsController {
   @RequirePermissions('admin.workers.manage')
   async resume(@CurrentUser() user: AuthUser, @Param('name') name: string) {
     await this.queues.queue(this.assertQueue(name)).resume();
-    await this.audit.log({ action: 'admin.queue.resumed', actorUserId: user.id, targetType: 'queue', targetId: name });
+    await this.audit.log({
+      action: 'admin.queue.resumed',
+      actorUserId: user.id,
+      targetType: 'queue',
+      targetId: name,
+    });
     return { ok: true };
   }
 
   @Post('queues/:name/clean')
   @HttpCode(200)
   @RequirePermissions('admin.workers.manage')
-  async clean(@CurrentUser() user: AuthUser, @Param('name') name: string, @Body(zod(cleanSchema)) body: z.infer<typeof cleanSchema>) {
-    const removed = await this.queues.queue(this.assertQueue(name)).clean(body.olderThanHours * 3600_000, 10_000, body.state);
-    await this.audit.log({ action: 'admin.queue.cleaned', actorUserId: user.id, targetType: 'queue', targetId: name, metadata: { ...body, removed: removed.length } });
+  async clean(
+    @CurrentUser() user: AuthUser,
+    @Param('name') name: string,
+    @Body(zod(cleanSchema)) body: z.infer<typeof cleanSchema>,
+  ) {
+    const removed = await this.queues
+      .queue(this.assertQueue(name))
+      .clean(body.olderThanHours * 3600_000, 10_000, body.state);
+    await this.audit.log({
+      action: 'admin.queue.cleaned',
+      actorUserId: user.id,
+      targetType: 'queue',
+      targetId: name,
+      metadata: { ...body, removed: removed.length },
+    });
     return { removed: removed.length };
   }
 
   @Get('workers')
   @RequirePermissions('admin.workers.view')
   async workers() {
-    const [workers, schedulerRaw] = await Promise.all([this.health.workerHeartbeats(), this.redis.client.get(this.redis.key('scheduler', 'hb'))]);
+    const [workers, schedulerRaw] = await Promise.all([
+      this.health.workerHeartbeats(),
+      this.redis.client.get(this.redis.key('scheduler', 'hb')),
+    ]);
     return { workers, scheduler: schedulerRaw ? JSON.parse(schedulerRaw) : null };
   }
 
   @Get('meta-rate-limits')
   @RequirePermissions('admin.workers.view')
-  rateLimitSnapshot() {
-    return this.rateLimits.snapshot();
+  async rateLimitSnapshot() {
+    const scopes = await this.rateLimits.snapshot();
+    // Keys look like `acct:<ad account id>[:insights]`, `buc:<ad account id>:<use case>`, `tok:<profile id>`,
+    // `app:<app>` or `obj:<object id>:<category>`: name the ad accounts and profiles they refer to.
+    const parts = scopes.map((s) => s.key.split(':'));
+    const accountIds = [...new Set(parts.filter((p) => p[0] === 'acct' || p[0] === 'buc').map((p) => p[1]))];
+    const profileIds = [...new Set(parts.filter((p) => p[0] === 'tok').map((p) => p[1]))].filter((id) =>
+      /^[0-9a-f-]{36}$/.test(id),
+    );
+    const [accounts, profiles] = await Promise.all([
+      accountIds.length
+        ? this.prisma.adAccount.findMany({
+            where: { metaAccountId: { in: accountIds } },
+            select: { metaAccountId: true, name: true, user: { select: { email: true } } },
+          })
+        : [],
+      profileIds.length
+        ? this.prisma.metaProfile.findMany({
+            where: { id: { in: profileIds } },
+            select: { id: true, name: true, user: { select: { email: true } } },
+          })
+        : [],
+    ]);
+    const accountLabel = new Map(
+      accounts.map((a) => [a.metaAccountId, `${a.name} (act_${a.metaAccountId}, ${a.user.email})`]),
+    );
+    const profileLabel = new Map(profiles.map((p) => [p.id, `Meta profile "${p.name}" (${p.user.email})`]));
+    return scopes.map((s, i) => {
+      const [kind, id, extra] = parts[i];
+      const label =
+        kind === 'acct'
+          ? `Ad account ${accountLabel.get(id) ?? `act_${id}`}${extra === 'insights' ? ' — Insights' : ''}`
+          : kind === 'buc'
+            ? `Business use case "${extra ?? '?'}" of ${accountLabel.get(id) ?? `act_${id}`}`
+            : kind === 'tok'
+              ? (profileLabel.get(id) ?? 'Meta profile (deleted)')
+              : kind === 'app'
+                ? 'App (all profiles using it)'
+                : kind === 'obj'
+                  ? `Object ${id} (${extra ?? 'changes'})`
+                  : s.key;
+      return { ...s, scope: kind, label };
+    });
   }
 
   @Get('storage')
   @RequirePermissions('admin.storage.manage')
   async storageStats() {
     const [byType, topUsers, check] = await Promise.all([
-      this.prisma.creativeFile.groupBy({ by: ['type'], where: { deletedAt: null }, _count: { _all: true }, _sum: { sizeBytes: true } }),
-      this.prisma.user.findMany({ where: { storageUsedBytes: { gt: 0 } }, orderBy: { storageUsedBytes: 'desc' }, take: 10, select: { id: true, email: true, storageUsedBytes: true, storageQuotaBytes: true } }),
+      this.prisma.creativeFile.groupBy({
+        by: ['type'],
+        where: { deletedAt: null },
+        _count: { _all: true },
+        _sum: { sizeBytes: true },
+      }),
+      this.prisma.user.findMany({
+        where: { storageUsedBytes: { gt: 0 } },
+        orderBy: { storageUsedBytes: 'desc' },
+        take: 10,
+        select: { id: true, email: true, storageUsedBytes: true, storageQuotaBytes: true },
+      }),
       this.storage.check(),
     ]);
     return {
       bucket: this.storage.bucket,
       check,
-      byType: byType.map((t) => ({ type: t.type, count: t._count._all, bytes: (t._sum.sizeBytes ?? 0n).toString() })),
+      byType: byType.map((t) => ({
+        type: t.type,
+        count: t._count._all,
+        bytes: (t._sum.sizeBytes ?? 0n).toString(),
+      })),
       topUsers,
     };
   }
@@ -198,7 +318,12 @@ export class AdminOpsController {
   @RequirePermissions('admin.backups.manage')
   async runBackup(@CurrentUser() user: AuthUser) {
     const res = await this.backups.request(user.id);
-    await this.audit.log({ action: 'admin.backup.requested', actorUserId: user.id, targetType: 'backup', targetId: res.id });
+    await this.audit.log({
+      action: 'admin.backup.requested',
+      actorUserId: user.id,
+      targetType: 'backup',
+      targetId: res.id,
+    });
     return res;
   }
 
@@ -221,7 +346,15 @@ export class AdminOpsController {
       this.queues.all().map(async ({ name, queue }) => ({
         name,
         paused: await queue.isPaused(),
-        counts: await queue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed', 'paused', 'prioritized'),
+        counts: await queue.getJobCounts(
+          'waiting',
+          'active',
+          'completed',
+          'failed',
+          'delayed',
+          'paused',
+          'prioritized',
+        ),
       })),
     );
   }
@@ -235,7 +368,10 @@ function jobDataForAdmin(data: unknown): unknown {
   if (!data || typeof data !== 'object') return sanitize(data);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-    out[key] = ['html', 'text', 'sealed'].includes(key) && typeof value === 'string' ? `[${value.length} characters]` : value;
+    out[key] =
+      ['html', 'text', 'sealed'].includes(key) && typeof value === 'string'
+        ? `[${value.length} characters]`
+        : value;
   }
   return sanitize(out);
 }

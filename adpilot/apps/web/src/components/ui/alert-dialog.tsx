@@ -38,9 +38,15 @@ export function AlertDialogContent({
   );
 }
 
-export function AlertDialogTitle({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
+export function AlertDialogTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
   return (
-    <AlertDialogPrimitive.Title className={cn('text-base font-semibold tracking-tight', className)} {...props} />
+    <AlertDialogPrimitive.Title
+      className={cn('text-base font-semibold tracking-tight', className)}
+      {...props}
+    />
   );
 }
 

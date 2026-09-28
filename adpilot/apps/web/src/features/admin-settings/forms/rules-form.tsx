@@ -9,9 +9,18 @@ import { pickSchemaValues, useSaveSettings } from '../api';
 import { managePermission } from '../categories';
 import { FieldGrid, SettingsFormCard } from '../settings-form-card';
 
-export function RulesSettingsForm({ values, readOnly }: { values: AdminSettingGroup<'rules'>; readOnly: boolean }) {
+export function RulesSettingsForm({
+  values,
+  readOnly,
+}: {
+  values: AdminSettingGroup<'rules'>;
+  readOnly: boolean;
+}) {
   const save = useSaveSettings('rules');
-  const form = useForm({ resolver: zodResolver(rulesSettingsSchema), values: pickSchemaValues(rulesSettingsSchema.shape, values) });
+  const form = useForm({
+    resolver: zodResolver(rulesSettingsSchema),
+    values: pickSchemaValues(rulesSettingsSchema.shape, values),
+  });
 
   return (
     <SettingsFormCard
@@ -32,7 +41,13 @@ export function RulesSettingsForm({ values, readOnly }: { values: AdminSettingGr
           max={1440}
           description="Rules rely on synced statistics; the default is 35 minutes."
         />
-        <NumberField control={form.control} name="maxRulesPerUser" label="Rules per user" min={1} max={1000} />
+        <NumberField
+          control={form.control}
+          name="maxRulesPerUser"
+          label="Rules per user"
+          min={1}
+          max={1000}
+        />
         <NumberField
           control={form.control}
           name="maxEntitiesPerEvaluation"

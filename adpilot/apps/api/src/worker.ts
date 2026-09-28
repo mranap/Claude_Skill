@@ -10,10 +10,16 @@ async function bootstrap(): Promise<void> {
   const env = loadEnv();
   const app = await NestFactory.createApplicationContext(WorkerModule, { logger: new NestPinoLogger() });
   app.enableShutdownHooks();
-  getRootLogger().info({ queues: env.WORKER_QUEUES, metaApiVersion: env.META_GRAPH_API_VERSION }, 'Worker started');
+  getRootLogger().info(
+    { queues: env.WORKER_QUEUES, metaApiVersion: env.META_GRAPH_API_VERSION },
+    'Worker started',
+  );
 }
 
 bootstrap().catch((err: unknown) => {
-  getRootLogger().fatal({ err: err instanceof Error ? { message: err.message, stack: err.stack } : err }, 'Worker failed to start');
+  getRootLogger().fatal(
+    { err: err instanceof Error ? { message: err.message, stack: err.stack } : err },
+    'Worker failed to start',
+  );
   process.exit(1);
 });

@@ -50,12 +50,25 @@ export class StorageService {
   }
 
   async uploadBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
-    const upload = new Upload({ client: this.client, params: { Bucket: this.bucket, Key: key, Body: body, ContentType: contentType } });
+    const upload = new Upload({
+      client: this.client,
+      params: { Bucket: this.bucket, Key: key, Body: body, ContentType: contentType },
+    });
     await upload.done();
   }
 
-  async getStream(key: string, range?: string): Promise<{ body: Readable; contentLength?: number; contentRange?: string; contentType?: string }> {
-    const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: range }));
+  async getStream(
+    key: string,
+    range?: string,
+  ): Promise<{ body: Readable; contentLength?: number; contentRange?: string; contentType?: string }> {
+    const res = await this.client
+      .send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: range }))
+      .catch((err: unknown) => {
+        const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+        throw e?.name === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404
+          ? new ObjectNotFoundError(key)
+          : err;
+      });
     return {
       body: res.Body as Readable,
       contentLength: res.ContentLength,
@@ -93,5 +106,13 @@ export class StorageService {
     } catch {
       await this.client.send(new CreateBucketCommand({ Bucket: bucket })).catch(() => undefined);
     }
+  }
+}
+
+/** The object does not exist in the bucket (deleted, or lost by the storage provider). */
+export class ObjectNotFoundError extends Error {
+  constructor(readonly key: string) {
+    super('The file does not exist in storage');
+    this.name = 'ObjectNotFoundError';
   }
 }

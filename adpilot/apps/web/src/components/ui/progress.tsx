@@ -17,13 +17,19 @@ export function Progress({
   tone = 'default',
   indeterminate = false,
   ...props
-}: React.ComponentProps<typeof ProgressPrimitive.Root> & { tone?: keyof typeof TONES; indeterminate?: boolean }) {
+}: React.ComponentProps<typeof ProgressPrimitive.Root> & {
+  tone?: keyof typeof TONES;
+  indeterminate?: boolean;
+}) {
   const pct = Math.max(0, Math.min(100, value ?? 0));
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
       value={indeterminate ? null : pct}
-      className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/[0.08]', className)}
+      className={cn(
+        'relative h-1.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/[0.08]',
+        className,
+      )}
       {...props}
     >
       <ProgressPrimitive.Indicator

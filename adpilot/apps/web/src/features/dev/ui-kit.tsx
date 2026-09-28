@@ -105,14 +105,26 @@ export function UiKit() {
 
         <Section title="Badges & status">
           <div className="flex flex-wrap gap-2">
-            {(['default', 'secondary', 'outline', 'success', 'warning', 'danger', 'info', 'muted'] as const).map((v) => (
+            {(
+              ['default', 'secondary', 'outline', 'success', 'warning', 'danger', 'info', 'muted'] as const
+            ).map((v) => (
               <Badge key={v} variant={v}>
                 {v}
               </Badge>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {['ACTIVE', 'BLOCKED', 'PENDING', 'RUNNING', 'COMPLETED', 'PARTIAL_FAILURE', 'FAILED', 'EXPIRED', 'UNCHECKED'].map((s) => (
+            {[
+              'ACTIVE',
+              'BLOCKED',
+              'PENDING',
+              'RUNNING',
+              'COMPLETED',
+              'PARTIAL_FAILURE',
+              'FAILED',
+              'EXPIRED',
+              'UNCHECKED',
+            ].map((s) => (
               <StatusBadge key={s} status={s} />
             ))}
           </div>
@@ -131,7 +143,9 @@ export function UiKit() {
             <div className="grid gap-2">
               <Label htmlFor="kit-money">Daily budget (string decimal)</Label>
               <MoneyInput id="kit-money" value={money} onValueChange={setMoney} currency="USD" />
-              <p className="text-xs text-muted-foreground">Minor units sent to the API: {decimalToMinorUnits(money || '0')}</p>
+              <p className="text-xs text-muted-foreground">
+                Minor units sent to the API: {decimalToMinorUnits(money || '0')}
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="kit-password">Password</Label>
@@ -210,8 +224,18 @@ export function UiKit() {
 
         <Section title="Stat cards">
           <div className="grid gap-3 sm:grid-cols-2">
-            <StatCard label="Spend" value="$12,480.20" icon={Wallet} delta={{ value: 12.4, label: 'vs. previous 7 days' }} />
-            <StatCard label="Cost per result" value="$3.12" icon={ChartColumn} delta={{ value: 8.1, positiveIsGood: false, label: 'vs. previous 7 days' }} />
+            <StatCard
+              label="Spend"
+              value="$12,480.20"
+              icon={Wallet}
+              delta={{ value: 12.4, label: 'vs. previous 7 days' }}
+            />
+            <StatCard
+              label="Cost per result"
+              value="$3.12"
+              icon={ChartColumn}
+              delta={{ value: 8.1, positiveIsGood: false, label: 'vs. previous 7 days' }}
+            />
             <StatCard label="Clicks" value="18,204" icon={MousePointerClick} delta={{ value: 0 }} />
             <StatCard label="Loading" value="—" icon={Bell} loading />
           </div>
@@ -241,7 +265,16 @@ export function UiKit() {
               { label: 'Time zone', value: 'America/New_York' },
             ]}
           />
-          <JsonViewer value={{ call_count: 28, total_cputime: 12, total_time: 9, estimated_time_to_regain_access: 0, ok: true, note: null }} />
+          <JsonViewer
+            value={{
+              call_count: 28,
+              total_cputime: 12,
+              total_time: 9,
+              estimated_time_to_regain_access: 0,
+              ok: true,
+              note: null,
+            }}
+          />
         </Section>
 
         <Section title="Disclosure & overlays">
@@ -260,7 +293,9 @@ export function UiKit() {
           <Accordion type="single" collapsible>
             <AccordionItem value="a">
               <AccordionTrigger>What does “Advantage+ placements” mean?</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground">Meta decides where ads are shown to get the best results.</AccordionContent>
+              <AccordionContent className="text-muted-foreground">
+                Meta decides where ads are shown to get the best results.
+              </AccordionContent>
             </AccordionItem>
           </Accordion>
           <div className="flex flex-wrap gap-2">
@@ -271,7 +306,12 @@ export function UiKit() {
               Type-to-confirm dialog
             </Button>
           </div>
-          <EmptyState icon={Bell} title="Empty state" description="Used by tables and lists without data." compact />
+          <EmptyState
+            icon={Bell}
+            title="Empty state"
+            description="Used by tables and lists without data."
+            compact
+          />
         </Section>
       </div>
       <ConfirmDialog

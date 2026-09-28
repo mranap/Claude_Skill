@@ -52,9 +52,14 @@ export function useMarkAllRead() {
   return useMutation({
     mutationFn: notificationsApi.markAllRead,
     onSuccess: (res) => {
-      toast.success(res.updated ? `Marked ${res.updated} notification${res.updated === 1 ? '' : 's'} as read` : 'Everything is already read');
+      toast.success(
+        res.updated
+          ? `Marked ${res.updated} notification${res.updated === 1 ? '' : 's'} as read`
+          : 'Everything is already read',
+      );
     },
-    onError: (err) => toast.error('Could not mark notifications as read', { description: getErrorMessage(err) }),
+    onError: (err) =>
+      toast.error('Could not mark notifications as read', { description: getErrorMessage(err) }),
     onSettled: invalidate,
   });
 }

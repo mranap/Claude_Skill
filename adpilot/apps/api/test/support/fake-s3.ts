@@ -17,7 +17,10 @@ export class FakeS3 {
   private server!: http.Server;
   port = 0;
   readonly buckets = new Map<string, Map<string, StoredObject>>();
-  private readonly uploads = new Map<string, { bucket: string; key: string; parts: Map<number, Buffer>; contentType: string }>();
+  private readonly uploads = new Map<
+    string,
+    { bucket: string; key: string; parts: Map<number, Buffer>; contentType: string }
+  >();
 
   get endpoint(): string {
     return `http://127.0.0.1:${this.port}`;
@@ -78,8 +81,17 @@ export class FakeS3 {
     // Multipart uploads
     if (method === 'POST' && url.searchParams.has('uploads')) {
       const uploadId = randomUUID();
-      this.uploads.set(uploadId, { bucket, key, parts: new Map(), contentType: String(req.headers['content-type'] ?? 'application/octet-stream') });
-      return this.xml(res, 200, `<InitiateMultipartUploadResult><Bucket>${bucket}</Bucket><Key>${key}</Key><UploadId>${uploadId}</UploadId></InitiateMultipartUploadResult>`);
+      this.uploads.set(uploadId, {
+        bucket,
+        key,
+        parts: new Map(),
+        contentType: String(req.headers['content-type'] ?? 'application/octet-stream'),
+      });
+      return this.xml(
+        res,
+        200,
+        `<InitiateMultipartUploadResult><Bucket>${bucket}</Bucket><Key>${key}</Key><UploadId>${uploadId}</UploadId></InitiateMultipartUploadResult>`,
+      );
     }
     const uploadId = url.searchParams.get('uploadId');
     if (uploadId) {
@@ -98,7 +110,11 @@ export class FakeS3 {
         const etag = `"${createHash('md5').update(body).digest('hex')}-${up.parts.size}"`;
         store.set(key, { body, contentType: up.contentType, etag });
         this.uploads.delete(uploadId);
-        return this.xml(res, 200, `<CompleteMultipartUploadResult><Bucket>${bucket}</Bucket><Key>${key}</Key><ETag>${etag}</ETag></CompleteMultipartUploadResult>`);
+        return this.xml(
+          res,
+          200,
+          `<CompleteMultipartUploadResult><Bucket>${bucket}</Bucket><Key>${key}</Key><ETag>${etag}</ETag></CompleteMultipartUploadResult>`,
+        );
       }
       if (method === 'DELETE') {
         this.uploads.delete(uploadId);
@@ -110,7 +126,11 @@ export class FakeS3 {
     if (method === 'PUT') {
       const body = await this.read(req);
       const etag = `"${createHash('md5').update(body).digest('hex')}"`;
-      store.set(key, { body, contentType: String(req.headers['content-type'] ?? 'application/octet-stream'), etag });
+      store.set(key, {
+        body,
+        contentType: String(req.headers['content-type'] ?? 'application/octet-stream'),
+        etag,
+      });
       res.setHeader('ETag', etag);
       res.statusCode = 200;
       return void res.end();
@@ -133,7 +153,8 @@ export class FakeS3 {
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
     if (range) {
       const start = range[1] ? Number(range[1]) : Math.max(0, obj.body.length - Number(range[2]));
-      const end = range[1] && range[2] ? Math.min(Number(range[2]), obj.body.length - 1) : obj.body.length - 1;
+      const end =
+        range[1] && range[2] ? Math.min(Number(range[2]), obj.body.length - 1) : obj.body.length - 1;
       const slice = obj.body.subarray(start, end + 1);
       res.statusCode = 206;
       res.setHeader('Content-Range', `bytes ${start}-${end}/${obj.body.length}`);
@@ -150,7 +171,8 @@ export class FakeS3 {
 if (process.argv[1]?.endsWith('fake-s3.ts')) {
   const s3 = new FakeS3();
   void s3.start(Number(process.argv[2] ?? 9000)).then(() => {
-    for (const b of (process.env.FAKE_S3_BUCKETS ?? 'adpilot-media,adpilot-backups').split(',')) s3.buckets.set(b, new Map());
+    for (const b of (process.env.FAKE_S3_BUCKETS ?? 'adpilot-media,adpilot-backups').split(','))
+      s3.buckets.set(b, new Map());
     console.log(`Fake S3 listening on ${s3.endpoint}`);
   });
 }

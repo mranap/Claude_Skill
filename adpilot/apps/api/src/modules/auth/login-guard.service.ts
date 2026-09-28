@@ -72,8 +72,23 @@ export class LoginGuardService {
     return Number(await this.redis.client.eval(LOCK_SCRIPT, 1, key, field));
   }
 
-  private async fail(key: string, countField: string, lockField: string, max: number, lockMs: number): Promise<boolean> {
-    const locked = await this.redis.client.eval(FAIL_SCRIPT, 1, key, countField, lockField, String(max), String(lockMs), String(Math.max(FAILURE_MEMORY_MS, lockMs)));
+  private async fail(
+    key: string,
+    countField: string,
+    lockField: string,
+    max: number,
+    lockMs: number,
+  ): Promise<boolean> {
+    const locked = await this.redis.client.eval(
+      FAIL_SCRIPT,
+      1,
+      key,
+      countField,
+      lockField,
+      String(max),
+      String(lockMs),
+      String(Math.max(FAILURE_MEMORY_MS, lockMs)),
+    );
     return locked === 1;
   }
 
@@ -130,6 +145,9 @@ export class LoginGuardService {
 
   /** Lifts the second-factor lock (password reset, administrator unlock or 2FA reset). */
   async clearSecondFactor(userId: string): Promise<void> {
-    await this.redis.client.del(this.redis.key('auth', 'mfa-fail', userId), this.redis.key('auth', 'mfa-lock', userId));
+    await this.redis.client.del(
+      this.redis.key('auth', 'mfa-fail', userId),
+      this.redis.key('auth', 'mfa-lock', userId),
+    );
   }
 }

@@ -26,7 +26,9 @@ export function SecuritySettings() {
       <Card>
         <CardHeader>
           <CardTitle>Password</CardTitle>
-          <CardDescription>Use at least 10 characters with letters and a digit. Changing it signs out your other sessions.</CardDescription>
+          <CardDescription>
+            Use at least 10 characters with letters and a digit. Changing it signs out your other sessions.
+          </CardDescription>
         </CardHeader>
         <CardContent className="max-w-md">
           <ChangePasswordForm
@@ -62,7 +64,9 @@ function SessionsCard() {
     <Card>
       <CardHeader>
         <CardTitle>Active sessions</CardTitle>
-        <CardDescription>Devices currently signed in to your account. Sign out any session you don’t recognise.</CardDescription>
+        <CardDescription>
+          Devices currently signed in to your account. Sign out any session you don’t recognise.
+        </CardDescription>
         <CardAction>
           <Button variant="outline" size="sm" disabled={!others} onClick={() => setConfirmOthers(true)}>
             <LogOut />
@@ -80,7 +84,11 @@ function SessionsCard() {
         ) : sessions.error ? (
           <ErrorAlert error={sessions.error} onRetry={() => void sessions.refetch()} />
         ) : (
-          <SessionList sessions={sessions.data} onRevoke={setTarget} revokingId={revoke.isPending ? revoke.variables : null} />
+          <SessionList
+            sessions={sessions.data}
+            onRevoke={setTarget}
+            revokingId={revoke.isPending ? revoke.variables : null}
+          />
         )}
       </CardContent>
 

@@ -55,6 +55,9 @@ export function SheetTitle({ className, ...props }: React.ComponentProps<typeof 
   return <SheetPrimitive.Title className={cn('text-base font-semibold', className)} {...props} />;
 }
 
-export function SheetDescription({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Description>) {
+export function SheetDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Description>) {
   return <SheetPrimitive.Description className={cn('text-sm text-muted-foreground', className)} {...props} />;
 }

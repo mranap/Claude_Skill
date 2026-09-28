@@ -71,20 +71,43 @@ describe('authentication & sessions', () => {
     for (let s = 0; s < 5; s++) {
       const bot = await stack.client().init();
       bot.forwardedFor = `203.0.113.${50 + s}`;
-      for (let i = 0; i < 5; i++) await bot.post('/api/auth/login', { email: user.email, password: `guess-${s}-${i}` });
+      for (let i = 0; i < 5; i++)
+        await bot.post('/api/auth/login', { email: user.email, password: `guess-${s}-${i}` });
     }
     const row = await stack.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(row.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
     const again = stack.client();
     again.forwardedFor = '198.51.100.20';
     expect((await again.login(user.email, user.password)).status).toBe(423);
-    expect(await stack.prisma.auditLog.findFirst({ where: { action: 'auth.account.locked', subjectUserId: user.id } })).not.toBeNull();
-    expect(await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' } })).not.toBeNull();
+    expect(
+      await stack.prisma.auditLog.findFirst({
+        where: { action: 'auth.account.locked', subjectUserId: user.id },
+      }),
+    ).not.toBeNull();
+    expect(
+      await stack.prisma.notification.findFirst({
+        where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' },
+      }),
+    ).not.toBeNull();
 
     // A password reset (proof of mailbox control) lifts the lock at once.
-    expectStatus(await stack.client().init().then((c) => c.post('/api/auth/password/forgot', { email: user.email })), 202);
+    expectStatus(
+      await stack
+        .client()
+        .init()
+        .then((c) => c.post('/api/auth/password/forgot', { email: user.email })),
+      202,
+    );
     const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
-    expectStatus(await (await stack.client().init()).post('/api/auth/password/reset', { token: tokenFrom(linkFrom(mail, '/reset-password')), password: 'Unlocked-Passw0rd' }), 200);
+    expectStatus(
+      await (
+        await stack.client().init()
+      ).post('/api/auth/password/reset', {
+        token: tokenFrom(linkFrom(mail, '/reset-password')),
+        password: 'Unlocked-Passw0rd',
+      }),
+      200,
+    );
     const fresh = stack.client();
     fresh.forwardedFor = '203.0.113.10';
     expectStatus(await fresh.login(user.email, 'Unlocked-Passw0rd'), 200);
@@ -102,8 +125,14 @@ describe('authentication & sessions', () => {
     }
     expect((await c.login(user.email, user.password)).status).toBe(423);
     // The second factor stays locked on the settings endpoints too, even with a correct code.
-    expect((await user.client.post('/api/account/2fa/recovery-codes', { code: totpNow(setup.secret) })).status).toBe(423);
-    expect(await stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' } })).not.toBeNull();
+    expect(
+      (await user.client.post('/api/account/2fa/recovery-codes', { code: totpNow(setup.secret) })).status,
+    ).toBe(423);
+    expect(
+      await stack.prisma.notification.findFirst({
+        where: { userId: user.id, type: 'SECURITY_ALERT', title: 'Sign-in to your account was locked' },
+      }),
+    ).not.toBeNull();
   });
 
   it('a password change cancels pending e-mail-change and reset links', async () => {
@@ -111,9 +140,18 @@ describe('authentication & sessions', () => {
     const newEmail = `moved.${Date.now()}@adpilot.test`;
     expectStatus(await user.client.post('/api/account/email', { newEmail, password: user.password }), 202);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(newEmail));
-    expectStatus(await user.client.post('/api/account/password', { currentPassword: user.password, newPassword: 'Changed-Passw0rd-2' }), 200);
+    expectStatus(
+      await user.client.post('/api/account/password', {
+        currentPassword: user.password,
+        newPassword: 'Changed-Passw0rd-2',
+      }),
+      200,
+    );
     const anon = await stack.client().init();
-    expect((await anon.post('/api/auth/email/confirm', { token: tokenFrom(linkFrom(mail, '/confirm-email')) })).status).toBe(400);
+    expect(
+      (await anon.post('/api/auth/email/confirm', { token: tokenFrom(linkFrom(mail, '/confirm-email')) }))
+        .status,
+    ).toBe(400);
     expect((await stack.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).email).toBe(user.email);
   });
 
@@ -132,7 +170,12 @@ describe('authentication & sessions', () => {
   it('forces a temporary password to be changed before anything else', async () => {
     const email = `temp.${Date.now()}@adpilot.test`;
     expectStatus(
-      await admin.post('/api/admin/users', { email, roleId: await stack.roleId('USER'), mode: 'password', password: 'Temporary123x' }),
+      await admin.post('/api/admin/users', {
+        email,
+        roleId: await stack.roleId('USER'),
+        mode: 'password',
+        password: 'Temporary123x',
+      }),
       201,
     );
     const c = stack.client();
@@ -140,7 +183,13 @@ describe('authentication & sessions', () => {
     const blocked = await c.get('/api/meta-profiles');
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
-    expectStatus(await c.post('/api/account/password', { currentPassword: 'Temporary123x', newPassword: 'Brandnew123x' }), 200);
+    expectStatus(
+      await c.post('/api/account/password', {
+        currentPassword: 'Temporary123x',
+        newPassword: 'Brandnew123x',
+      }),
+      200,
+    );
     expectStatus(await c.get('/api/meta-profiles'), 200);
   });
 
@@ -159,8 +208,14 @@ describe('authentication & sessions', () => {
     expectStatus(await tab.post('/api/auth/refresh'), 200);
 
     // After the grace window the previous token is treated as stolen: the whole session is revoked.
-    const session = await stack.prisma.session.findFirstOrThrow({ where: { userId: user.id, revokedAt: null }, orderBy: { createdAt: 'desc' } });
-    await stack.prisma.session.update({ where: { id: session.id }, data: { rotatedAt: new Date(Date.now() - 5 * 60_000) } });
+    const session = await stack.prisma.session.findFirstOrThrow({
+      where: { userId: user.id, revokedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    await stack.prisma.session.update({
+      where: { id: session.id },
+      data: { rotatedAt: new Date(Date.now() - 5 * 60_000) },
+    });
     const thief = stack.client();
     thief.restoreCookies(before);
     expect((await thief.post('/api/auth/refresh')).status).toBe(401);
@@ -177,7 +232,11 @@ describe('authentication & sessions', () => {
     expect(noToken.status).toBe(403);
     expect(noToken.body.error.code).toBe('CSRF_INVALID');
     user.client.sendCsrf = true;
-    const badOrigin = await user.client.patch('/api/account/profile', { name: 'X' }, { Origin: 'https://evil.example' });
+    const badOrigin = await user.client.patch(
+      '/api/account/profile',
+      { name: 'X' },
+      { Origin: 'https://evil.example' },
+    );
     expect(badOrigin.status).toBe(403);
     expectStatus(await user.client.patch('/api/account/profile', { name: 'Valid' }), 200);
   });
@@ -214,7 +273,9 @@ describe('authentication & sessions', () => {
     const token = tokenFrom(linkFrom(mail, '/reset-password'));
     expect(stack.smtp.to('ghost@adpilot.test')).toHaveLength(0);
 
-    expect(expectStatus(await anon.post('/api/auth/password/reset/validate', { token }), 200).body.valid).toBe(true);
+    expect(
+      expectStatus(await anon.post('/api/auth/password/reset/validate', { token }), 200).body.valid,
+    ).toBe(true);
     expectStatus(await anon.post('/api/auth/password/reset', { token, password: 'ResetPassw0rd!' }), 200);
     const reuse = await anon.post('/api/auth/password/reset', { token, password: 'AnotherPassw0rd!' });
     expect(reuse.status).toBe(400);
@@ -228,8 +289,13 @@ describe('authentication & sessions', () => {
     expectStatus(await anon.post('/api/auth/password/forgot', { email: user.email }), 202);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
     const token = tokenFrom(linkFrom(mail, '/reset-password'));
-    await stack.prisma.passwordResetToken.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
-    expect((await anon.post('/api/auth/password/reset', { token, password: 'ResetPassw0rd!' })).status).toBe(400);
+    await stack.prisma.passwordResetToken.updateMany({
+      where: { userId: user.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    expect((await anon.post('/api/auth/password/reset', { token, password: 'ResetPassw0rd!' })).status).toBe(
+      400,
+    );
   });
 
   it('two-factor authentication: enable, login with TOTP, single-use recovery codes', async () => {
@@ -237,7 +303,10 @@ describe('authentication & sessions', () => {
     const setup = expectStatus(await user.client.post('/api/account/2fa/setup'), 200).body;
     expect(setup.otpauthUrl).toContain('otpauth://totp/');
     expect((await user.client.post('/api/account/2fa/enable', { code: '000000' })).status).toBe(400);
-    const { recoveryCodes } = expectStatus(await user.client.post('/api/account/2fa/enable', { code: totpNow(setup.secret) }), 200).body;
+    const { recoveryCodes } = expectStatus(
+      await user.client.post('/api/account/2fa/enable', { code: totpNow(setup.secret) }),
+      200,
+    ).body;
     expect(recoveryCodes).toHaveLength(10);
     const stored = await stack.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(stored.twoFactorSecretEnc).toMatch(/^enc1:/);
@@ -248,7 +317,10 @@ describe('authentication & sessions', () => {
     expect(step1.status).toBe('MFA_REQUIRED');
     expect(c.cookie('ap_at')).toBeUndefined();
     expect((await c.post('/api/auth/login/2fa', { ticket: step1.ticket, code: '123456' })).status).toBe(401);
-    expectStatus(await c.post('/api/auth/login/2fa', { ticket: step1.ticket, code: totpNow(setup.secret) }), 200);
+    expectStatus(
+      await c.post('/api/auth/login/2fa', { ticket: step1.ticket, code: totpNow(setup.secret) }),
+      200,
+    );
     expectStatus(await c.get('/api/auth/me'), 200);
 
     // Recovery code works once.
@@ -275,7 +347,10 @@ describe('authentication & sessions', () => {
     const c = await stack.client().init();
     let limited: ApiResponse | null = null;
     for (let i = 0; i < 6 && !limited; i++) {
-      const res = await c.post('/api/auth/login', { email: `rl${i}@adpilot.test`, password: 'irrelevant-pass1' });
+      const res = await c.post('/api/auth/login', {
+        email: `rl${i}@adpilot.test`,
+        password: 'irrelevant-pass1',
+      });
       if (res.status === 429) limited = res;
     }
     expect(limited).not.toBeNull();

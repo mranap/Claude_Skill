@@ -39,10 +39,27 @@ export const WIZARD_STEPS: WizardStep[] = [
 export const REVIEW_STEP = 7;
 export const LAUNCH_STEP = 8;
 
-const CAMPAIGN_KEYS = ['objective', 'destination', 'optimizationGoal', 'billingEvent', 'specialAdCategories', 'specialAdCategoryCountries', 'budget'];
+const CAMPAIGN_KEYS = [
+  'objective',
+  'destination',
+  'optimizationGoal',
+  'billingEvent',
+  'specialAdCategories',
+  'specialAdCategoryCountries',
+  'budget',
+];
 const ADSET_KEYS = ['targeting', 'placements', 'schedule', 'conversion', 'identity', 'attribution'];
 const NAMING_KEYS = ['naming', 'dsa', 'activateOnSuccess'];
-const GROUP_KEYS = new Set(['key', 'label', 'countries', 'locales', 'budgetAmount', 'ageMin', 'ageMax', 'genders']);
+const GROUP_KEYS = new Set([
+  'key',
+  'label',
+  'countries',
+  'locales',
+  'budgetAmount',
+  'ageMin',
+  'ageMax',
+  'genders',
+]);
 
 /** Maps a validation path (client or server) to the wizard step where the field lives. */
 export function stepOfPath(path: string): number {
@@ -96,7 +113,9 @@ export function issuesByStep(issues: ValidationIssue[]): Map<number, ValidationI
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 /** Form values from a stored draft (drafts may be partial: missing parts get the defaults). */
@@ -106,7 +125,12 @@ export function valuesFromDraft(draft: LaunchDraftDto): WizardValues {
   const defaults = defaultSettings();
   return {
     version: 1,
-    name: typeof config.name === 'string' && config.name ? config.name : draft.name === 'Untitled launch' ? '' : draft.name,
+    name:
+      typeof config.name === 'string' && config.name
+        ? config.name
+        : draft.name === 'Untitled launch'
+          ? ''
+          : draft.name,
     profileId: draft.profileId ?? (typeof config.profileId === 'string' ? config.profileId : ''),
     adAccountId: draft.adAccountId ?? (typeof config.adAccountId === 'string' ? config.adAccountId : ''),
     templateId: draft.templateId ?? (typeof config.templateId === 'string' ? config.templateId : undefined),

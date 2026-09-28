@@ -41,6 +41,10 @@ export interface StatsSyncInfo {
   lastStatsSyncAt: ISODateString | null;
   status: SyncStatus;
   lastManualRefreshAt: ISODateString | null;
+  /** When a manual refresh is allowed again for this account (the server enforces it). */
+  nextManualRefreshAt?: ISODateString | null;
+  timezoneName?: string;
+  error?: string | null;
 }
 
 export interface StatsTableResponse extends Paginated<StatsRow> {

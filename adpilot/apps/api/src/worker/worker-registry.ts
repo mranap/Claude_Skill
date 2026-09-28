@@ -16,7 +16,13 @@ import { BulkActionsProcessor } from './processors/bulk-actions.processor';
 import { AutoRulesProcessor } from './processors/auto-rules.processor';
 
 /** Domain modules whose services the processors need. */
-export const WORKER_FEATURE_MODULES: Type<unknown>[] = [AdminModule, CreativesModule, LaunchesModule, CampaignsModule, RulesModule];
+export const WORKER_FEATURE_MODULES: Type<unknown>[] = [
+  AdminModule,
+  CreativesModule,
+  LaunchesModule,
+  CampaignsModule,
+  RulesModule,
+];
 
 /** One processor per queue. */
 export const WORKER_PROCESSORS: Type<unknown>[] = [

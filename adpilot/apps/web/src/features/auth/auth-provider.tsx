@@ -72,7 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () =>
       onApiEvent((event) => {
         if (event.type === 'unauthenticated') goToLogin();
-        else if (event.type === 'password-change-required') void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+        else if (event.type === 'password-change-required')
+          void queryClient.invalidateQueries({ queryKey: queryKeys.me });
         else if (event.type === 'maintenance') setMaintenanceMessage(event.message);
       }),
     [goToLogin, queryClient],

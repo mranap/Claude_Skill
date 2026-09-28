@@ -8,7 +8,10 @@ import { base32Decode, hotp } from '../../src/modules/auth/totp';
 import { TestStack } from '../support/harness';
 import { expectStatus } from '../support/http-client';
 
-const service = (keys: string, active: string) => new EncryptionService({ env: { ENCRYPTION_KEYS: keys, ENCRYPTION_ACTIVE_KEY_ID: active } } as unknown as AppConfig);
+const service = (keys: string, active: string) =>
+  new EncryptionService({
+    env: { ENCRYPTION_KEYS: keys, ENCRYPTION_ACTIVE_KEY_ID: active },
+  } as unknown as AppConfig);
 
 describe('encryption key rotation', () => {
   const stack = new TestStack();
@@ -32,7 +35,12 @@ describe('encryption key rotation', () => {
       201,
     );
     const setup = expectStatus(await user.client.post('/api/account/2fa/setup'), 200).body;
-    expectStatus(await user.client.post('/api/account/2fa/enable', { code: hotp(base32Decode(setup.secret), Math.floor(Date.now() / 30_000)) }), 200);
+    expectStatus(
+      await user.client.post('/api/account/2fa/enable', {
+        code: hotp(base32Decode(setup.secret), Math.floor(Date.now() / 30_000)),
+      }),
+      200,
+    );
   });
   afterAll(() => stack.stop());
 
@@ -43,19 +51,35 @@ describe('encryption key rotation', () => {
     const prisma = createCliPrisma();
     try {
       const report = await rotateEncryptedData(prisma, rotating);
-      expect(report).toEqual({ metaTokens: 1, metaAppSecrets: 1, proxyPasswords: 1, totpSecrets: 1, settingSecrets: 1 });
-      expect(await rotateEncryptedData(prisma, rotating)).toEqual({ metaTokens: 0, metaAppSecrets: 0, proxyPasswords: 0, totpSecrets: 0, settingSecrets: 0 });
+      expect(report).toEqual({
+        metaTokens: 1,
+        metaAppSecrets: 1,
+        proxyPasswords: 1,
+        totpSecrets: 1,
+        settingSecrets: 1,
+      });
+      expect(await rotateEncryptedData(prisma, rotating)).toEqual({
+        metaTokens: 0,
+        metaAppSecrets: 0,
+        proxyPasswords: 0,
+        totpSecrets: 0,
+        settingSecrets: 0,
+      });
 
       // The old key can now be removed: everything decrypts with the new key alone.
       const onlyNew = service(`t2:${newKey}`, 't2');
       const profile = await prisma.metaProfile.findFirstOrThrow({ include: { proxy: true } });
       expect(onlyNew.decrypt(profile.tokenEnc!, Aad.metaToken(profile.id))).toBe(token);
       expect(onlyNew.decrypt(profile.appSecretEnc!, Aad.metaAppSecret(profile.id))).toBe('a'.repeat(32));
-      expect(onlyNew.decrypt(profile.proxy!.passwordEnc!, Aad.proxyPassword(profile.proxy!.id))).toBe('proxy-pass');
+      expect(onlyNew.decrypt(profile.proxy!.passwordEnc!, Aad.proxyPassword(profile.proxy!.id))).toBe(
+        'proxy-pass',
+      );
       const user = await prisma.user.findFirstOrThrow({ where: { twoFactorEnabled: true } });
       expect(onlyNew.decrypt(user.twoFactorSecretEnc!, Aad.totpSecret(user.id))).toMatch(/^[A-Z2-7]+$/);
       const smtp = await prisma.systemSetting.findUniqueOrThrow({ where: { key: 'smtp' } });
-      expect(onlyNew.decrypt((smtp.value as { password: string }).password, Aad.setting('smtp.password'))).toBe('smtp-test-password');
+      expect(
+        onlyNew.decrypt((smtp.value as { password: string }).password, Aad.setting('smtp.password')),
+      ).toBe('smtp-test-password');
     } finally {
       await prisma.$disconnect();
     }

@@ -33,7 +33,12 @@ export class AutoRulesTask implements SchedulerTask {
       // The job id comes from the claim (every claim moves nextRunAt), not from the minute: a run the engine
       // deferred by a few seconds can be claimed again within the same minute, and BullMQ would drop a second
       // job with the id of the finished one.
-      await this.queue.add(QUEUES.AUTO_RULES, JOBS.AUTO_RULE_CHECK, { ruleId: r.id, userId: r.userId, slot: s }, { jobId: jobId('rule', r.id, r.nextRunAt.getTime()), attempts: 3 });
+      await this.queue.add(
+        QUEUES.AUTO_RULES,
+        JOBS.AUTO_RULE_CHECK,
+        { ruleId: r.id, userId: r.userId, slot: s },
+        { jobId: jobId('rule', r.id, r.nextRunAt.getTime()), attempts: 3 },
+      );
     }
   }
 }

@@ -22,7 +22,13 @@ import { ErrorAlert } from '@/components/shared/error-alert';
 import { PageHeader } from '@/components/shared/page-header';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { EFFECTIVE_STATUS_OPTIONS, EffectiveStatusBadge } from '@/components/product/status';
-import { parseStatsRange, statsRangeParams, statsRangePatch, StatsRangePicker, type StatsRange } from '@/components/product/stats-range-picker';
+import {
+  parseStatsRange,
+  statsRangeParams,
+  statsRangePatch,
+  StatsRangePicker,
+  type StatsRange,
+} from '@/components/product/stats-range-picker';
 import { useAuth } from '@/features/auth/auth-context';
 import { countryOptions, describeCountries } from '@/lib/utils/countries';
 import { minorToDecimal } from '@/lib/utils/money';
@@ -60,7 +66,8 @@ function entityBudget(row: StatsRow): BudgetDto | null {
   const lifetime = row.entity?.lifetimeBudget;
   const currency = row.metrics.currency;
   if (daily && daily !== '0') return { type: 'DAILY', amount: minorToDecimal(daily, currency) ?? '0' };
-  if (lifetime && lifetime !== '0') return { type: 'LIFETIME', amount: minorToDecimal(lifetime, currency) ?? '0' };
+  if (lifetime && lifetime !== '0')
+    return { type: 'LIFETIME', amount: minorToDecimal(lifetime, currency) ?? '0' };
   return null;
 }
 
@@ -70,7 +77,8 @@ function useFilterController(table: TableController): TableController {
     () => ({
       ...table,
       hasActiveFilters: !!table.q || FILTER_KEYS.some((k) => !!table.filters[k]),
-      reset: () => table.setFilters({ q: undefined, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])) }),
+      reset: () =>
+        table.setFilters({ q: undefined, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])) }),
     }),
     [table],
   );
@@ -81,13 +89,21 @@ export function CampaignsPage() {
   const canManage = can('app.campaigns.manage');
   const table = useUrlTableState({ filterKeys: ['level', 'range', 'from', 'to', ...FILTER_KEYS] });
   const state = useFilterController(table);
-  const level = (['ADSET', 'AD'].includes(table.filters.level ?? '') ? table.filters.level : 'CAMPAIGN') as StatsLevel;
+  const level = (
+    ['ADSET', 'AD'].includes(table.filters.level ?? '') ? table.filters.level : 'CAMPAIGN'
+  ) as StatsLevel;
   const range = parseStatsRange(table.filters.range, table.filters.from, table.filters.to, 'today');
   const [bulkRequest, setBulkRequest] = useState<BulkRequest | null>(null);
   const [operation, setOperation] = useState<BulkOperationDto | null>(null);
 
   const setLevel = (next: StatsLevel) =>
-    table.setFilters({ level: next === 'CAMPAIGN' ? undefined : next, sort: undefined, status: undefined, templateId: undefined, country: undefined });
+    table.setFilters({
+      level: next === 'CAMPAIGN' ? undefined : next,
+      sort: undefined,
+      status: undefined,
+      templateId: undefined,
+      country: undefined,
+    });
   const setRange = (next: StatsRange) => table.setFilters(statsRangePatch(next));
 
   return (
@@ -119,11 +135,24 @@ export function CampaignsPage() {
         />
         <StatsRangePicker value={range} onChange={setRange} />
       </div>
-      {operation ? <BulkOperationBanner key={operation.id} operation={operation} onDismiss={() => setOperation(null)} className="mb-3" /> : null}
+      {operation ? (
+        <BulkOperationBanner
+          key={operation.id}
+          operation={operation}
+          onDismiss={() => setOperation(null)}
+          className="mb-3"
+        />
+      ) : null}
       {level === 'CAMPAIGN' ? (
         <CampaignTable state={state} range={range} canManage={canManage} onBulk={setBulkRequest} />
       ) : (
-        <ObjectTable level={level} state={state} range={range} canManage={canManage} onBulk={setBulkRequest} />
+        <ObjectTable
+          level={level}
+          state={state}
+          range={range}
+          canManage={canManage}
+          onBulk={setBulkRequest}
+        />
       )}
       {bulkRequest ? (
         <BulkStatusDialog
@@ -139,7 +168,17 @@ export function CampaignsPage() {
   );
 }
 
-function BulkButtons({ level, selected, onBulk, clear }: { level: EntityActionLevel; selected: { id: string; name: string }[]; onBulk: (r: BulkRequest) => void; clear: () => void }) {
+function BulkButtons({
+  level,
+  selected,
+  onBulk,
+  clear,
+}: {
+  level: EntityActionLevel;
+  selected: { id: string; name: string }[];
+  onBulk: (r: BulkRequest) => void;
+  clear: () => void;
+}) {
   const run = (status: 'ACTIVE' | 'PAUSED') => {
     onBulk({ level, status, targets: selected });
     clear();
@@ -172,7 +211,13 @@ function AccountFilter({ state }: { state: TableController }) {
 }
 
 function CountryFilter({ state }: { state: TableController }) {
-  const options = useMemo(() => [{ value: ALL, label: 'Any country' }, ...countryOptions().map((c) => ({ value: c.code, label: c.name, hint: c.code, keywords: [c.code] }))], []);
+  const options = useMemo(
+    () => [
+      { value: ALL, label: 'Any country' },
+      ...countryOptions().map((c) => ({ value: c.code, label: c.name, hint: c.code, keywords: [c.code] })),
+    ],
+    [],
+  );
   return (
     <Combobox
       value={state.filters.country ?? ALL}
@@ -197,7 +242,11 @@ function CampaignTable({
   canManage: boolean;
   onBulk: (r: BulkRequest) => void;
 }) {
-  const params: Record<string, string | number> = { page: state.page, pageSize: state.pageSize, ...statsRangeParams(range) };
+  const params: Record<string, string | number> = {
+    page: state.page,
+    pageSize: state.pageSize,
+    ...statsRangeParams(range),
+  };
   if (state.q) params.q = state.q;
   if (state.sort) params.sort = state.sort;
   for (const key of FILTER_KEYS) if (state.filters[key]) params[key] = state.filters[key]!;
@@ -228,7 +277,10 @@ function CampaignTable({
       interactive: true,
       cell: (c) => (
         <div className="flex items-center gap-2">
-          <StatusToggle entity={{ level: 'CAMPAIGN', id: c.id, name: c.name, status: c.status, currency: c.currency }} canManage={canManage} />
+          <StatusToggle
+            entity={{ level: 'CAMPAIGN', id: c.id, name: c.name, status: c.status, currency: c.currency }}
+            canManage={canManage}
+          />
           <EffectiveStatusBadge status={c.effectiveStatus} />
         </div>
       ),
@@ -238,7 +290,19 @@ function CampaignTable({
       header: 'Budget',
       align: 'right',
       interactive: true,
-      cell: (c) => <BudgetCell entity={{ level: 'CAMPAIGN', id: c.id, name: c.name, status: c.status, currency: c.currency, budget: c.budget }} canManage={canManage} />,
+      cell: (c) => (
+        <BudgetCell
+          entity={{
+            level: 'CAMPAIGN',
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            currency: c.currency,
+            budget: c.budget,
+          }}
+          canManage={canManage}
+        />
+      ),
     },
     {
       id: 'account',
@@ -252,7 +316,11 @@ function CampaignTable({
         </div>
       ),
     },
-    ...metricColumns<CampaignListItem>(['spend', 'leads', 'cpl', 'ctr', 'cpc', 'impressions'], (c) => c.metrics, CAMPAIGN_SORT),
+    ...metricColumns<CampaignListItem>(
+      ['spend', 'leads', 'cpl', 'ctr', 'cpc', 'impressions'],
+      (c) => c.metrics,
+      CAMPAIGN_SORT,
+    ),
     {
       id: 'updated',
       header: 'Updated',
@@ -275,7 +343,12 @@ function CampaignTable({
       onRetry={() => void campaigns.refetch()}
       selectable={canManage}
       bulkActions={({ selected, clear }) => (
-        <BulkButtons level="CAMPAIGN" selected={selected.map((c) => ({ id: c.id, name: c.name }))} onBulk={onBulk} clear={clear} />
+        <BulkButtons
+          level="CAMPAIGN"
+          selected={selected.map((c) => ({ id: c.id, name: c.name }))}
+          onBulk={onBulk}
+          clear={clear}
+        />
       )}
       renderExpanded={(c) => <CampaignChildren campaign={c} range={range} canManage={canManage} />}
       minWidth={1320}
@@ -286,9 +359,20 @@ function CampaignTable({
           filters={
             <>
               <AccountFilter state={state} />
-              <FilterSelect state={state} filterKey="status" allLabel="Any delivery" options={EFFECTIVE_STATUS_OPTIONS} aria-label="Delivery status" />
+              <FilterSelect
+                state={state}
+                filterKey="status"
+                allLabel="Any delivery"
+                options={EFFECTIVE_STATUS_OPTIONS}
+                aria-label="Delivery status"
+              />
               {(templates.data?.items.length ?? 0) > 0 ? (
-                <FilterSelect state={state} filterKey="templateId" allLabel="Any template" options={(templates.data?.items ?? []).map((t) => ({ value: t.id, label: t.name }))} />
+                <FilterSelect
+                  state={state}
+                  filterKey="templateId"
+                  allLabel="Any template"
+                  options={(templates.data?.items ?? []).map((t) => ({ value: t.id, label: t.name }))}
+                />
               ) : null}
               <CountryFilter state={state} />
             </>
@@ -297,7 +381,16 @@ function CampaignTable({
       }
       emptyState={
         state.hasActiveFilters ? (
-          <EmptyState compact icon={Megaphone} title="No campaigns match the filters" action={<Button variant="outline" size="sm" onClick={state.reset}>Reset filters</Button>} />
+          <EmptyState
+            compact
+            icon={Megaphone}
+            title="No campaigns match the filters"
+            action={
+              <Button variant="outline" size="sm" onClick={state.reset}>
+                Reset filters
+              </Button>
+            }
+          />
         ) : (
           <EmptyState
             icon={Megaphone}
@@ -319,7 +412,15 @@ function CampaignTable({
 }
 
 /** Expanded campaign row: its ad sets and their ads (from the campaign detail). */
-function CampaignChildren({ campaign, range, canManage }: { campaign: CampaignListItem; range: StatsRange; canManage: boolean }) {
+function CampaignChildren({
+  campaign,
+  range,
+  canManage,
+}: {
+  campaign: CampaignListItem;
+  range: StatsRange;
+  canManage: boolean;
+}) {
   const detail = useCampaign(campaign.id, statsRangeParams(range));
   if (detail.isLoading) {
     return (
@@ -334,7 +435,9 @@ function CampaignChildren({ campaign, range, canManage }: { campaign: CampaignLi
   if (!data) return null;
   return (
     <div className="grid gap-2 pt-1">
-      {data.adSets.length === 0 ? <p className="py-2 text-sm text-muted-foreground">This campaign has no ad sets.</p> : null}
+      {data.adSets.length === 0 ? (
+        <p className="py-2 text-sm text-muted-foreground">This campaign has no ad sets.</p>
+      ) : null}
       {data.adSets.map((set) => {
         const ads = data.ads.filter((a) => a.adSetId === set.id);
         return (
@@ -342,31 +445,68 @@ function CampaignChildren({ campaign, range, canManage }: { campaign: CampaignLi
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
               <div className="grid w-72 min-w-0 gap-0.5">
                 <span className="text-xs text-muted-foreground">Ad set</span>
-                <Link href={`/campaigns/${campaign.id}?adset=${set.id}`} className="truncate text-sm font-medium hover:underline">
+                <Link
+                  href={`/campaigns/${campaign.id}?adset=${set.id}`}
+                  className="truncate text-sm font-medium hover:underline"
+                >
                   {set.name}
                 </Link>
               </div>
               <div className="flex w-44 items-center gap-2">
-                <StatusToggle entity={{ level: 'ADSET', id: set.id, name: set.name, status: set.status, currency: data.currency }} canManage={canManage} />
+                <StatusToggle
+                  entity={{
+                    level: 'ADSET',
+                    id: set.id,
+                    name: set.name,
+                    status: set.status,
+                    currency: data.currency,
+                  }}
+                  canManage={canManage}
+                />
                 <EffectiveStatusBadge status={set.effectiveStatus} size="sm" />
               </div>
               <div className="w-28">
-                <BudgetCell entity={{ level: 'ADSET', id: set.id, name: set.name, status: set.status, currency: data.currency, budget: set.budget }} canManage={canManage} />
+                <BudgetCell
+                  entity={{
+                    level: 'ADSET',
+                    id: set.id,
+                    name: set.name,
+                    status: set.status,
+                    currency: data.currency,
+                    budget: set.budget,
+                  }}
+                  canManage={canManage}
+                />
               </div>
               <ChildMetrics metrics={set.metrics} />
             </div>
             {ads.length ? (
               <ul className="border-t">
                 {ads.map((ad) => (
-                  <li key={ad.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3 py-2 pl-6 last:border-b-0">
+                  <li
+                    key={ad.id}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3 py-2 pl-6 last:border-b-0"
+                  >
                     <div className="grid w-[16.75rem] min-w-0 gap-0.5">
                       <span className="text-xs text-muted-foreground">Ad</span>
-                      <Link href={`/campaigns/${campaign.id}?ad=${ad.id}`} className="truncate text-sm hover:underline">
+                      <Link
+                        href={`/campaigns/${campaign.id}?ad=${ad.id}`}
+                        className="truncate text-sm hover:underline"
+                      >
                         {ad.name}
                       </Link>
                     </div>
                     <div className="flex w-44 items-center gap-2">
-                      <StatusToggle entity={{ level: 'AD', id: ad.id, name: ad.name, status: ad.status, currency: data.currency }} canManage={canManage} />
+                      <StatusToggle
+                        entity={{
+                          level: 'AD',
+                          id: ad.id,
+                          name: ad.name,
+                          status: ad.status,
+                          currency: data.currency,
+                        }}
+                        canManage={canManage}
+                      />
                       <EffectiveStatusBadge status={ad.effectiveStatus} size="sm" />
                     </div>
                     <div className="w-28" />
@@ -417,7 +557,12 @@ function ObjectTable({
   canManage: boolean;
   onBulk: (r: BulkRequest) => void;
 }) {
-  const params: Record<string, string | number> = { level, page: state.page, pageSize: state.pageSize, ...statsRangeParams(range) };
+  const params: Record<string, string | number> = {
+    level,
+    page: state.page,
+    pageSize: state.pageSize,
+    ...statsRangeParams(range),
+  };
   if (state.q) params.q = state.q;
   if (state.sort) params.sort = state.sort;
   if (state.filters.adAccountId) params.adAccountId = state.filters.adAccountId;
@@ -430,7 +575,9 @@ function ObjectTable({
       header: label.title,
       interactive: true,
       cell: (r) => {
-        const href = r.entity?.campaignId ? `/campaigns/${r.entity.campaignId}?${level === 'ADSET' ? 'adset' : 'ad'}=${r.entity.id}` : null;
+        const href = r.entity?.campaignId
+          ? `/campaigns/${r.entity.campaignId}?${level === 'ADSET' ? 'adset' : 'ad'}=${r.entity.id}`
+          : null;
         return (
           <div className="grid min-w-0 max-w-[22rem] gap-0.5">
             {href ? (
@@ -452,7 +599,16 @@ function ObjectTable({
       cell: (r) =>
         r.entity ? (
           <div className="flex items-center gap-2">
-            <StatusToggle entity={{ level, id: r.entity.id, name: r.name ?? r.metaObjectId, status: r.entity.status, currency: r.metrics.currency }} canManage={canManage} />
+            <StatusToggle
+              entity={{
+                level,
+                id: r.entity.id,
+                name: r.name ?? r.metaObjectId,
+                status: r.entity.status,
+                currency: r.metrics.currency,
+              }}
+              canManage={canManage}
+            />
             <EffectiveStatusBadge status={r.entity.effectiveStatus} />
           </div>
         ) : (
@@ -469,7 +625,14 @@ function ObjectTable({
             cell: (r: StatsRow) =>
               r.entity ? (
                 <BudgetCell
-                  entity={{ level: 'ADSET', id: r.entity.id, name: r.name ?? r.metaObjectId, status: r.entity.status, currency: r.metrics.currency, budget: entityBudget(r) }}
+                  entity={{
+                    level: 'ADSET',
+                    id: r.entity.id,
+                    name: r.name ?? r.metaObjectId,
+                    status: r.entity.status,
+                    currency: r.metrics.currency,
+                    budget: entityBudget(r),
+                  }}
                   canManage={canManage}
                 />
               ) : (
@@ -488,7 +651,11 @@ function ObjectTable({
         </div>
       ),
     },
-    ...metricColumns<StatsRow>(['spend', 'leads', 'cpl', 'ctr', 'cpc', 'impressions'], (r) => r.metrics, STATS_SORT),
+    ...metricColumns<StatsRow>(
+      ['spend', 'leads', 'cpl', 'ctr', 'cpc', 'impressions'],
+      (r) => r.metrics,
+      STATS_SORT,
+    ),
   ];
 
   return (
@@ -506,14 +673,26 @@ function ObjectTable({
       selectable={canManage}
       isRowSelectable={(r) => !!r.entity}
       bulkActions={({ selected, clear }) => (
-        <BulkButtons level={level} selected={selected.filter((r) => r.entity).map((r) => ({ id: r.entity!.id, name: r.name ?? r.metaObjectId }))} onBulk={onBulk} clear={clear} />
+        <BulkButtons
+          level={level}
+          selected={selected
+            .filter((r) => r.entity)
+            .map((r) => ({ id: r.entity!.id, name: r.name ?? r.metaObjectId }))}
+          onBulk={onBulk}
+          clear={clear}
+        />
       )}
       minWidth={1180}
       toolbar={
         <div className="grid gap-2">
-          <DataTableToolbar state={state} searchPlaceholder={`Search ${label.one} name or ID`} filters={<AccountFilter state={state} />} />
+          <DataTableToolbar
+            state={state}
+            searchPlaceholder={`Search ${label.one} name or ID`}
+            filters={<AccountFilter state={state} />}
+          />
           <p className="text-xs text-muted-foreground">
-            Lists {label.many} with delivery in the selected period. Open a campaign to see all of its {label.many}, including those without delivery.
+            Lists {label.many} with delivery in the selected period. Open a campaign to see all of its{' '}
+            {label.many}, including those without delivery.
           </p>
         </div>
       }

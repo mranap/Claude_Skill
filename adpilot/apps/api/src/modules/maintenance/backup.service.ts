@@ -24,12 +24,19 @@ export async function failAbandonedBackups(db: Prisma.TransactionClient): Promis
   const now = Date.now();
   const silentSince = new Date(now - RUNNING_ABANDONED_MS);
   const running = await db.backup.updateMany({
-    where: { status: 'RUNNING', OR: [{ heartbeatAt: { lt: silentSince } }, { heartbeatAt: null, startedAt: { lt: silentSince } }] },
+    where: {
+      status: 'RUNNING',
+      OR: [{ heartbeatAt: { lt: silentSince } }, { heartbeatAt: null, startedAt: { lt: silentSince } }],
+    },
     data: { status: 'FAILED', error: 'The worker stopped during the backup', finishedAt: new Date() },
   });
   const queued = await db.backup.updateMany({
     where: { status: 'QUEUED', startedAt: { lt: new Date(now - QUEUED_ABANDONED_MS) } },
-    data: { status: 'FAILED', error: `The backup did not start within ${QUEUED_ABANDONED_MS / 60_000} minutes`, finishedAt: new Date() },
+    data: {
+      status: 'FAILED',
+      error: `The backup did not start within ${QUEUED_ABANDONED_MS / 60_000} minutes`,
+      finishedAt: new Date(),
+    },
   });
   return running.count + queued.count;
 }
@@ -48,18 +55,40 @@ export async function queueBackup(
   const backup = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('adpilot:backups'))`;
     await failAbandonedBackups(tx);
-    if (await tx.backup.findFirst({ where: { status: { in: ['QUEUED', 'RUNNING'] } }, select: { id: true } })) return null;
-    if (opts.scheduledSince && (await tx.backup.findFirst({ where: { triggeredById: null, startedAt: { gte: opts.scheduledSince } }, select: { id: true } }))) {
+    if (await tx.backup.findFirst({ where: { status: { in: ['QUEUED', 'RUNNING'] } }, select: { id: true } }))
+      return null;
+    if (
+      opts.scheduledSince &&
+      (await tx.backup.findFirst({
+        where: { triggeredById: null, startedAt: { gte: opts.scheduledSince } },
+        select: { id: true },
+      }))
+    ) {
       return null;
     }
-    return tx.backup.create({ data: { kind: 'DATABASE', status: 'QUEUED', triggeredById: opts.triggeredById }, select: { id: true } });
+    return tx.backup.create({
+      data: { kind: 'DATABASE', status: 'QUEUED', triggeredById: opts.triggeredById },
+      select: { id: true },
+    });
   });
   if (!backup) return null;
   try {
-    await queue.add(QUEUES.MAINTENANCE, JOBS.DATABASE_BACKUP, { kind: 'backup', backupId: backup.id }, { jobId: jobId('backup', backup.id), attempts: 1 });
+    await queue.add(
+      QUEUES.MAINTENANCE,
+      JOBS.DATABASE_BACKUP,
+      { kind: 'backup', backupId: backup.id },
+      { jobId: jobId('backup', backup.id), attempts: 1 },
+    );
   } catch (err) {
     // Without a job the row would stay QUEUED: fail it right away.
-    await prisma.backup.update({ where: { id: backup.id }, data: { status: 'FAILED', error: `Could not queue the backup: ${(err as Error).message}`.slice(0, 1000), finishedAt: new Date() } });
+    await prisma.backup.update({
+      where: { id: backup.id },
+      data: {
+        status: 'FAILED',
+        error: `Could not queue the backup: ${(err as Error).message}`.slice(0, 1000),
+        finishedAt: new Date(),
+      },
+    });
     throw err;
   }
   return backup;
@@ -98,10 +127,15 @@ export class BackupService {
 
   async run(backupId: string): Promise<void> {
     const now = new Date();
-    const claimed = await this.prisma.backup.updateMany({ where: { id: backupId, status: 'QUEUED' }, data: { status: 'RUNNING', startedAt: now, heartbeatAt: now } });
+    const claimed = await this.prisma.backup.updateMany({
+      where: { id: backupId, status: 'QUEUED' },
+      data: { status: 'RUNNING', startedAt: now, heartbeatAt: now },
+    });
     if (claimed.count !== 1) return;
     const heartbeat = setInterval(() => {
-      void this.prisma.backup.updateMany({ where: { id: backupId, status: 'RUNNING' }, data: { heartbeatAt: new Date() } }).catch(() => undefined);
+      void this.prisma.backup
+        .updateMany({ where: { id: backupId, status: 'RUNNING' }, data: { heartbeatAt: new Date() } })
+        .catch(() => undefined);
     }, HEARTBEAT_MS);
     const dir = join(this.config.env.TMP_DIR, 'backups');
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -119,7 +153,10 @@ export class BackupService {
       });
       await this.prune();
     } catch (err) {
-      await this.prisma.backup.update({ where: { id: backupId }, data: { status: 'FAILED', error: (err as Error).message.slice(0, 1000), finishedAt: new Date() } });
+      await this.prisma.backup.update({
+        where: { id: backupId },
+        data: { status: 'FAILED', error: (err as Error).message.slice(0, 1000), finishedAt: new Date() },
+      });
       await this.systemLog.error('backup', `Database backup failed: ${(err as Error).message}`);
       throw err;
     } finally {
@@ -148,13 +185,19 @@ export class BackupService {
       let stderr = '';
       child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
       child.on('error', reject);
-      child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`pg_dump exited with ${code}: ${stderr.slice(0, 500)}`))));
+      child.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`pg_dump exited with ${code}: ${stderr.slice(0, 500)}`)),
+      );
     });
   }
 
   private async prune(): Promise<void> {
     const { keepLast } = await this.settings.get('backups');
-    const old = await this.prisma.backup.findMany({ where: { status: 'SUCCESS' }, orderBy: { startedAt: 'desc' }, skip: keepLast });
+    const old = await this.prisma.backup.findMany({
+      where: { status: 'SUCCESS' },
+      orderBy: { startedAt: 'desc' },
+      skip: keepLast,
+    });
     for (const b of old) {
       if (b.storageKey) await this.storage.delete(b.storageKey, this.bucket).catch(() => undefined);
       await this.prisma.backup.delete({ where: { id: b.id } });

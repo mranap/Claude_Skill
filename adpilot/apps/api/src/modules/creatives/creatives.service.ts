@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { paginationQuerySchema } from '@adpilot/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { StorageService } from '../storage/storage.service';
+import { StorageService, ObjectNotFoundError } from '../storage/storage.service';
 import { QueueService, jobId } from '../../infra/queue/queue.service';
 import { JOBS, QUEUES } from '../../infra/queue/queues';
 import { SettingsService } from '../settings/settings.service';
@@ -39,7 +39,9 @@ export class CreativesService {
       deletedAt: null,
       ...(q.type ? { type: q.type } : {}),
       ...(q.tag ? { tags: { has: q.tag } } : {}),
-      ...(q.q ? { OR: [{ originalName: { contains: q.q, mode: 'insensitive' } }, { tags: { has: q.q } }] } : {}),
+      ...(q.q
+        ? { OR: [{ originalName: { contains: q.q, mode: 'insensitive' } }, { tags: { has: q.q } }] }
+        : {}),
     };
     const [field, dir] = (q.sort ?? 'createdAt:desc').split(':') as [string, 'asc' | 'desc'];
     const sortable = new Set(['createdAt', 'originalName', 'sizeBytes', 'durationMs']);
@@ -49,7 +51,9 @@ export class CreativesService {
         orderBy: { [sortable.has(field) ? field : 'createdAt']: dir },
         skip: (q.page - 1) * q.pageSize,
         take: q.pageSize,
-        include: { metaAssets: { include: { adAccount: { select: { id: true, name: true, metaAccountId: true } } } } },
+        include: {
+          metaAssets: { include: { adAccount: { select: { id: true, name: true, metaAccountId: true } } } },
+        },
       }),
       this.prisma.creativeFile.count({ where }),
     ]);
@@ -59,7 +63,9 @@ export class CreativesService {
   async findOwned(userId: string, id: string) {
     const row = await this.prisma.creativeFile.findFirst({
       where: { id, userId, deletedAt: null },
-      include: { metaAssets: { include: { adAccount: { select: { id: true, name: true, metaAccountId: true } } } } },
+      include: {
+        metaAssets: { include: { adAccount: { select: { id: true, name: true, metaAccountId: true } } } },
+      },
     });
     if (!row) throw AppError.notFound('Creative');
     return row;
@@ -79,17 +85,35 @@ export class CreativesService {
   /** Soft delete; object storage is purged by the retention job. Storage quota is released immediately. */
   async remove(userId: string, id: string) {
     const row = await this.findOwned(userId, id);
-    const deleted = await this.prisma.creativeFile.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+    const deleted = await this.prisma.creativeFile.updateMany({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
     if (deleted.count === 1) {
-      await this.prisma.$executeRaw`UPDATE users SET "storageUsedBytes" = GREATEST(0, "storageUsedBytes" - ${row.sizeBytes}) WHERE id = ${userId}::uuid`;
-      await this.audit.log({ action: 'creative.deleted', actorUserId: userId, subjectUserId: userId, targetType: 'creative', targetId: id, metadata: { name: row.originalName } });
+      await this.prisma
+        .$executeRaw`UPDATE users SET "storageUsedBytes" = GREATEST(0, "storageUsedBytes" - ${row.sizeBytes}) WHERE id = ${userId}::uuid`;
+      await this.audit.log({
+        action: 'creative.deleted',
+        actorUserId: userId,
+        subjectUserId: userId,
+        targetType: 'creative',
+        targetId: id,
+        metadata: { name: row.originalName },
+      });
     }
   }
 
   async usage(userId: string) {
     const [user, files] = await Promise.all([
-      this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { storageUsedBytes: true, storageQuotaBytes: true } }),
-      this.prisma.creativeFile.groupBy({ by: ['type'], where: { userId, deletedAt: null }, _count: { _all: true } }),
+      this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { storageUsedBytes: true, storageQuotaBytes: true },
+      }),
+      this.prisma.creativeFile.groupBy({
+        by: ['type'],
+        where: { userId, deletedAt: null },
+        _count: { _all: true },
+      }),
     ]);
     const limits = await this.settings.get('files');
     return {
@@ -102,12 +126,24 @@ export class CreativesService {
   }
 
   /** Streams the original file or thumbnail (supports HTTP Range for video seeking). */
-  async stream(userId: string, id: string, variant: 'file' | 'thumbnail', range: string | undefined, res: Response) {
+  async stream(
+    userId: string,
+    id: string,
+    variant: 'file' | 'thumbnail',
+    range: string | undefined,
+    res: Response,
+  ) {
     const row = await this.findOwned(userId, id);
     const key = variant === 'thumbnail' ? row.thumbnailKey : row.storageKey;
     if (!key) throw AppError.notFound('Preview');
     const validRange = range && /^bytes=\d*-\d*$/.test(range) ? range : undefined;
-    const obj = await this.storage.getStream(key, variant === 'file' ? validRange : undefined);
+    const obj = await this.storage
+      .getStream(key, variant === 'file' ? validRange : undefined)
+      .catch((err: unknown) => {
+        throw err instanceof ObjectNotFoundError
+          ? AppError.notFound(variant === 'thumbnail' ? 'Preview' : 'File')
+          : err;
+      });
     res.setHeader('Content-Type', variant === 'thumbnail' ? 'image/jpeg' : row.mimeType);
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -122,7 +158,11 @@ export class CreativesService {
   }
 
   /** Makes sure the creative exists in the ad account's Meta library (upload job, idempotent). */
-  async ensureMetaAsset(userId: string, creativeFileId: string, adAccountId: string): Promise<CreativeMetaAsset> {
+  async ensureMetaAsset(
+    userId: string,
+    creativeFileId: string,
+    adAccountId: string,
+  ): Promise<CreativeMetaAsset> {
     const account = await this.prisma.adAccount.findFirst({ where: { id: adAccountId, userId } });
     if (!account) throw AppError.notFound('Ad account');
     const asset = await this.prisma.creativeMetaAsset.upsert({
@@ -131,7 +171,11 @@ export class CreativesService {
       update: {},
     });
     if (asset.status !== 'READY') {
-      if (asset.status === 'FAILED') await this.prisma.creativeMetaAsset.update({ where: { id: asset.id }, data: { status: 'PENDING', error: null } });
+      if (asset.status === 'FAILED')
+        await this.prisma.creativeMetaAsset.update({
+          where: { id: asset.id },
+          data: { status: 'PENDING', error: null },
+        });
       // Job ids are unique per request; the processor serialises work per asset with a lock and skips READY assets.
       await this.queue.add(
         QUEUES.CREATIVE_UPLOAD,
@@ -143,7 +187,10 @@ export class CreativesService {
     return asset;
   }
 
-  toDto(r: CreativeFile, assets?: (CreativeMetaAsset & { adAccount?: { id: string; name: string; metaAccountId: string } })[]) {
+  toDto(
+    r: CreativeFile,
+    assets?: (CreativeMetaAsset & { adAccount?: { id: string; name: string; metaAccountId: string } })[],
+  ) {
     return {
       id: r.id,
       type: r.type,

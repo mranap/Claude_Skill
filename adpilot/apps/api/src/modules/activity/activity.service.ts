@@ -59,14 +59,22 @@ export class ActivityService {
     }
   }
 
-  async list(userId: string, filter: { adAccountId?: string; entityMetaIds?: string[]; page: number; pageSize: number }) {
+  async list(
+    userId: string,
+    filter: { adAccountId?: string; entityMetaIds?: string[]; page: number; pageSize: number },
+  ) {
     const where: Prisma.ActivityEventWhereInput = {
       userId,
       ...(filter.adAccountId ? { adAccountId: filter.adAccountId } : {}),
       ...(filter.entityMetaIds?.length ? { entityMetaId: { in: filter.entityMetaIds } } : {}),
     };
     const [items, total] = await Promise.all([
-      this.prisma.activityEvent.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (filter.page - 1) * filter.pageSize, take: filter.pageSize }),
+      this.prisma.activityEvent.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (filter.page - 1) * filter.pageSize,
+        take: filter.pageSize,
+      }),
       this.prisma.activityEvent.count({ where }),
     ]);
     return { items, total, page: filter.page, pageSize: filter.pageSize };

@@ -34,7 +34,10 @@ export function ForgotPasswordView() {
   };
 
   const backLink = (
-    <Link href="/login" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+    <Link
+      href="/login"
+      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+    >
       <ArrowLeft className="size-3.5" />
       Back to sign in
     </Link>
@@ -47,8 +50,8 @@ export function ForgotPasswordView() {
         title="Check your inbox"
         description={
           <>
-            {NEUTRAL_MESSAGE} The link for <span className="font-medium text-foreground">{sentTo}</span> expires soon, so use
-            it right away. Don’t forget to check the spam folder.
+            {NEUTRAL_MESSAGE} The link for <span className="font-medium text-foreground">{sentTo}</span>{' '}
+            expires soon, so use it right away. Don’t forget to check the spam folder.
           </>
         }
         footer={backLink}

@@ -28,11 +28,19 @@ const triggerClasses = cn(
 );
 
 export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
-  return <TabsPrimitive.Trigger data-slot="tabs-trigger" className={cn(triggerClasses, className)} {...props} />;
+  return (
+    <TabsPrimitive.Trigger data-slot="tabs-trigger" className={cn(triggerClasses, className)} {...props} />
+  );
 }
 
 export function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
-  return <TabsPrimitive.Content data-slot="tabs-content" className={cn('pt-5 outline-none', className)} {...props} />;
+  return (
+    <TabsPrimitive.Content
+      data-slot="tabs-content"
+      className={cn('pt-5 outline-none', className)}
+      {...props}
+    />
+  );
 }
 
 /** Route-driven tabs (each tab is a link; the active one is marked with aria-current). */
@@ -48,7 +56,10 @@ export function NavTabs({
   const ref = useRef<HTMLElement>(null);
   useScrollActiveIntoView(ref, activeHref);
   return (
-    <nav ref={ref} className={cn('scrollbar-none flex w-full items-center gap-1 overflow-x-auto border-b', className)}>
+    <nav
+      ref={ref}
+      className={cn('scrollbar-none flex w-full items-center gap-1 overflow-x-auto border-b', className)}
+    >
       {items.map((item) => (
         <Link
           key={item.href}

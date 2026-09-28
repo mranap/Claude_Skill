@@ -13,7 +13,9 @@ export interface SentMessage {
   at: number;
 }
 
-type Fault = { method: string; times: number } & ({ kind: 'status'; status: number; description: string; retryAfter?: number } | { kind: 'drop' });
+type Fault = { method: string; times: number } & (
+  { kind: 'status'; status: number; description: string; retryAfter?: number } | { kind: 'drop' }
+);
 
 export class FakeTelegram {
   private server!: http.Server;
@@ -61,7 +63,11 @@ export class FakeTelegram {
   }
 
   /** Simulates a user writing to the bot in a private chat (delivered through getUpdates). */
-  userSends(chatId: number, text: string, from: { username?: string; first_name?: string } = {}): Record<string, unknown> {
+  userSends(
+    chatId: number,
+    text: string,
+    from: { username?: string; first_name?: string } = {},
+  ): Record<string, unknown> {
     const update = {
       update_id: this.nextUpdateId++,
       message: {
@@ -77,7 +83,11 @@ export class FakeTelegram {
     return update;
   }
 
-  async waitForMessage(chatId: string | number, predicate: (m: SentMessage) => boolean = () => true, timeoutMs = 15_000): Promise<SentMessage> {
+  async waitForMessage(
+    chatId: string | number,
+    predicate: (m: SentMessage) => boolean = () => true,
+    timeoutMs = 15_000,
+  ): Promise<SentMessage> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const m = this.sentTo(chatId).find(predicate);
@@ -112,7 +122,8 @@ export class FakeTelegram {
     if (!m) return send(404, { ok: false, error_code: 404, description: 'Not Found' });
     const [, token = '', method = ''] = m;
     this.calls.push({ method, token, body });
-    if (!this.validTokens.has(token)) return send(401, { ok: false, error_code: 401, description: 'Unauthorized' });
+    if (!this.validTokens.has(token))
+      return send(401, { ok: false, error_code: 401, description: 'Unauthorized' });
 
     const fault = this.takeFault(method);
     if (fault?.kind === 'status') {
@@ -126,22 +137,36 @@ export class FakeTelegram {
 
     switch (method) {
       case 'getMe':
-        return send(200, { ok: true, result: { id: 777000111, is_bot: true, first_name: 'AdPilot Test', username: this.botUsername } });
+        return send(200, {
+          ok: true,
+          result: { id: 777000111, is_bot: true, first_name: 'AdPilot Test', username: this.botUsername },
+        });
       case 'sendMessage': {
         const text = String(body.text ?? '');
-        if (!text) return send(400, { ok: false, error_code: 400, description: 'Bad Request: message text is empty' });
-        if (text.length > 4096) return send(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' });
+        if (!text)
+          return send(400, { ok: false, error_code: 400, description: 'Bad Request: message text is empty' });
+        if (text.length > 4096)
+          return send(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' });
         if (body.parse_mode === 'HTML' && !balancedHtml(text)) {
           return send(400, { ok: false, error_code: 400, description: "Bad Request: can't parse entities" });
         }
-        const msg: SentMessage = { token, chatId: String(body.chat_id), text, parseMode: body.parse_mode as string | undefined, at: Date.now() };
+        const msg: SentMessage = {
+          token,
+          chatId: String(body.chat_id),
+          text,
+          parseMode: body.parse_mode as string | undefined,
+          at: Date.now(),
+        };
         this.sent.push(msg);
         if (fault?.kind === 'drop') {
           // Delivered, but the HTTP answer is lost (ambiguous outcome for the sender).
           req.socket.destroy();
           return;
         }
-        return send(200, { ok: true, result: { message_id: this.sent.length, chat: { id: Number(body.chat_id) }, text } });
+        return send(200, {
+          ok: true,
+          result: { message_id: this.sent.length, chat: { id: Number(body.chat_id) }, text },
+        });
       }
       case 'setWebhook':
         this.webhook = { url: String(body.url), secret: body.secret_token as string | undefined };
@@ -150,9 +175,17 @@ export class FakeTelegram {
         this.webhook = null;
         return send(200, { ok: true, result: true, description: 'Webhook was deleted' });
       case 'getWebhookInfo':
-        return send(200, { ok: true, result: { url: this.webhook?.url ?? '', pending_update_count: this.updates.length } });
+        return send(200, {
+          ok: true,
+          result: { url: this.webhook?.url ?? '', pending_update_count: this.updates.length },
+        });
       case 'getUpdates': {
-        if (this.webhook) return send(409, { ok: false, error_code: 409, description: "Conflict: can't use getUpdates method while webhook is active" });
+        if (this.webhook)
+          return send(409, {
+            ok: false,
+            error_code: 409,
+            description: "Conflict: can't use getUpdates method while webhook is active",
+          });
         const offset = Number(body.offset ?? 0);
         const pending = () => this.updates.filter((u) => Number(u.update_id) >= offset);
         if (!pending().length) {

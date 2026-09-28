@@ -21,7 +21,12 @@ export class CsrfService {
    *   endpoints (login, 2FA step, password reset) — they never act on the current session. Every
    *   authenticated endpoint requires a token bound to the requesting session.
    */
-  verify(cookieToken: string | undefined, headerToken: string | undefined, sessionId: string | null, allowAnonymous = false): boolean {
+  verify(
+    cookieToken: string | undefined,
+    headerToken: string | undefined,
+    sessionId: string | null,
+    allowAnonymous = false,
+  ): boolean {
     if (!cookieToken || !headerToken || !this.hashing.safeEqual(cookieToken, headerToken)) return false;
     const [nonce, sig] = cookieToken.split('.');
     if (!nonce || !sig) return false;

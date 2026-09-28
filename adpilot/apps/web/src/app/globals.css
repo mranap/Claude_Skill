@@ -164,8 +164,10 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --shadow-overlay: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 8px 24px -4px hsl(var(--shadow-color) / 0.14);
-  --shadow-dialog: 0 1px 3px hsl(var(--shadow-color) / 0.08), 0 24px 48px -12px hsl(var(--shadow-color) / 0.28);
+  --shadow-overlay:
+    0 1px 2px hsl(var(--shadow-color) / 0.06), 0 8px 24px -4px hsl(var(--shadow-color) / 0.14);
+  --shadow-dialog:
+    0 1px 3px hsl(var(--shadow-color) / 0.08), 0 24px 48px -12px hsl(var(--shadow-color) / 0.28);
 
   --animate-fade-in: fade-in 150ms ease-out;
   --animate-fade-out: fade-out 120ms ease-in;
@@ -306,7 +308,9 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;

@@ -72,6 +72,4 @@ export interface AuthUserDto {
   isAdmin: boolean;
 }
 
-export type LoginResponse =
-  | { status: 'OK'; user: AuthUserDto }
-  | { status: 'MFA_REQUIRED'; ticket: string };
+export type LoginResponse = { status: 'OK'; user: AuthUserDto } | { status: 'MFA_REQUIRED'; ticket: string };

@@ -25,10 +25,19 @@ export class TelegramWebhookController {
   @SkipCsrf()
   @Post('webhook')
   @HttpCode(200)
-  async webhook(@Headers('x-telegram-bot-api-secret-token') secretHeader: string | undefined, @Body() update: TelegramUpdate) {
+  async webhook(
+    @Headers('x-telegram-bot-api-secret-token') secretHeader: string | undefined,
+    @Body() update: TelegramUpdate,
+  ) {
     const s = await this.settings.get('telegram');
     const secret = await this.settings.getSecret('telegram', 'webhookSecret');
-    if (!s.enabled || s.mode !== 'WEBHOOK' || !secret || !secretHeader || !this.hashing.safeEqual(secret, secretHeader)) {
+    if (
+      !s.enabled ||
+      s.mode !== 'WEBHOOK' ||
+      !secret ||
+      !secretHeader ||
+      !this.hashing.safeEqual(secret, secretHeader)
+    ) {
       throw AppError.forbidden('Invalid webhook secret');
     }
     try {

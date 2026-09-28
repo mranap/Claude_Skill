@@ -35,13 +35,25 @@ export class CsrfGuard implements CanActivate {
     }
     // Endpoints authenticated by other means (webhook secret) or only by SameSite=Strict cookies
     // (refresh/logout) skip the token check but still get the Origin check above.
-    if (this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, [context.getHandler(), context.getClass()])) return true;
+    if (this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, [context.getHandler(), context.getClass()]))
+      return true;
 
     const cookie = (req.cookies as Record<string, string> | undefined)?.[cookieNames(this.config).csrf];
     const header = req.headers['x-csrf-token'];
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()]) === true;
-    const ok = this.csrf.verify(cookie, typeof header === 'string' ? header : undefined, req.user?.sessionId ?? null, isPublic);
-    if (!ok) throw new AppError('CSRF_INVALID', 'Security token is missing or expired. Reload the page and try again.');
+    const isPublic =
+      this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()]) ===
+      true;
+    const ok = this.csrf.verify(
+      cookie,
+      typeof header === 'string' ? header : undefined,
+      req.user?.sessionId ?? null,
+      isPublic,
+    );
+    if (!ok)
+      throw new AppError(
+        'CSRF_INVALID',
+        'Security token is missing or expired. Reload the page and try again.',
+      );
     return true;
   }
 

@@ -23,7 +23,12 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label="Change theme">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Change theme"
+        >
           <Sun className="dark:hidden" />
           <Moon className="hidden dark:block" />
         </Button>

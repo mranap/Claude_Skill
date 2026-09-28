@@ -5,7 +5,15 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { BigIntString, ISODateString, JobRunStatus, OkResponse, Paginated } from '@/lib/api/types';
 
-export const JOB_STATES = ['failed', 'waiting', 'active', 'delayed', 'prioritized', 'paused', 'completed'] as const;
+export const JOB_STATES = [
+  'failed',
+  'waiting',
+  'active',
+  'delayed',
+  'prioritized',
+  'paused',
+  'completed',
+] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
 export interface QueueSummary {
@@ -72,13 +80,22 @@ export interface WorkersResponse {
 export interface RateLimitScope {
   key: string;
   state: { pct: number; blockedUntil: number; at: number };
+  /** acct | buc | tok | app | obj */
+  scope?: string;
+  /** Human readable scope (ad account / profile names), provided by the API. */
+  label?: string;
 }
 
 export interface StorageStats {
   bucket: string;
   check: { ok: boolean; detail: string };
   byType: { type: 'IMAGE' | 'VIDEO' | string; count: number; bytes: BigIntString }[];
-  topUsers: { id: string; email: string; storageUsedBytes: BigIntString; storageQuotaBytes: BigIntString | null }[];
+  topUsers: {
+    id: string;
+    email: string;
+    storageUsedBytes: BigIntString;
+    storageQuotaBytes: BigIntString | null;
+  }[];
 }
 
 export interface BackupDto {
@@ -99,8 +116,10 @@ export const adminOpsApi = {
   queues: () => api.get<QueueSummary[]>('/admin/queues'),
   jobs: (name: string, params: { state: JobState; page: number; pageSize: number }) =>
     api.get<Paginated<QueueJob>>(`/admin/queues/${encodeURIComponent(name)}/jobs`, params),
-  retryJob: (name: string, id: string) => api.post<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/jobs/${encodeURIComponent(id)}/retry`),
-  removeJob: (name: string, id: string) => api.delete<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/jobs/${encodeURIComponent(id)}`),
+  retryJob: (name: string, id: string) =>
+    api.post<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/jobs/${encodeURIComponent(id)}/retry`),
+  removeJob: (name: string, id: string) =>
+    api.delete<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/jobs/${encodeURIComponent(id)}`),
   pause: (name: string) => api.post<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/pause`),
   resume: (name: string) => api.post<OkResponse>(`/admin/queues/${encodeURIComponent(name)}/resume`),
   clean: (name: string, body: { state: 'completed' | 'failed'; olderThanHours: number }) =>
@@ -126,18 +145,31 @@ export const opsKeys = {
 };
 
 export function useAdminDashboard(enabled = true) {
-  return useQuery({ queryKey: opsKeys.dashboard, queryFn: adminOpsApi.dashboard, enabled, refetchInterval: 30_000 });
+  return useQuery({
+    queryKey: opsKeys.dashboard,
+    queryFn: adminOpsApi.dashboard,
+    enabled,
+    refetchInterval: 30_000,
+  });
 }
 
 export function useHealth(enabled = true) {
-  return useQuery({ queryKey: opsKeys.health(false), queryFn: () => adminOpsApi.health(false), enabled, refetchInterval: 30_000 });
+  return useQuery({
+    queryKey: opsKeys.health(false),
+    queryFn: () => adminOpsApi.health(false),
+    enabled,
+    refetchInterval: 30_000,
+  });
 }
 
 export function useQueues(enabled = true) {
   return useQuery({ queryKey: opsKeys.queues, queryFn: adminOpsApi.queues, enabled, refetchInterval: 5000 });
 }
 
-export function useQueueJobs(name: string | null, params: { state: JobState; page: number; pageSize: number }) {
+export function useQueueJobs(
+  name: string | null,
+  params: { state: JobState; page: number; pageSize: number },
+) {
   return useQuery({
     queryKey: opsKeys.jobs(name ?? '', params),
     queryFn: () => adminOpsApi.jobs(name as string, params),
@@ -148,11 +180,21 @@ export function useQueueJobs(name: string | null, params: { state: JobState; pag
 }
 
 export function useWorkers(enabled = true) {
-  return useQuery({ queryKey: opsKeys.workers, queryFn: adminOpsApi.workers, enabled, refetchInterval: 10_000 });
+  return useQuery({
+    queryKey: opsKeys.workers,
+    queryFn: adminOpsApi.workers,
+    enabled,
+    refetchInterval: 10_000,
+  });
 }
 
 export function useRateLimits(enabled = true) {
-  return useQuery({ queryKey: opsKeys.rateLimits, queryFn: adminOpsApi.rateLimits, enabled, refetchInterval: 10_000 });
+  return useQuery({
+    queryKey: opsKeys.rateLimits,
+    queryFn: adminOpsApi.rateLimits,
+    enabled,
+    refetchInterval: 10_000,
+  });
 }
 
 export function useStorageStats(enabled = true) {
@@ -164,6 +206,7 @@ export function useBackups(enabled = true) {
     queryKey: opsKeys.backups,
     queryFn: adminOpsApi.backups,
     enabled,
-    refetchInterval: (query) => (query.state.data?.some((b) => b.status === 'QUEUED' || b.status === 'RUNNING') ? 3000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.some((b) => b.status === 'QUEUED' || b.status === 'RUNNING') ? 3000 : false,
   });
 }

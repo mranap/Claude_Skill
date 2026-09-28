@@ -94,7 +94,10 @@ export function DataTable<T>({
   rowClassName,
 }: DataTableProps<T>) {
   const selectionKey = state?.key ?? 'static';
-  const [selection, setSelection] = useState<{ key: string; rows: Map<string, T> }>({ key: selectionKey, rows: new Map() });
+  const [selection, setSelection] = useState<{ key: string; rows: Map<string, T> }>({
+    key: selectionKey,
+    rows: new Map(),
+  });
   const selected = selection.key === selectionKey ? selection.rows : new Map<string, T>();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -159,14 +162,18 @@ export function DataTable<T>({
         {selectable && selected.size > 0 ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-primary/[0.05] px-4 py-2 text-sm">
             <span className="font-medium tabular-nums">{selected.size} selected</span>
-            <div className="flex flex-wrap items-center gap-2">{bulkActions?.({ selected: [...selected.values()], clear })}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              {bulkActions?.({ selected: [...selected.values()], clear })}
+            </div>
             <Button variant="ghost" size="xs" className="ml-auto" onClick={clear}>
               Clear selection
             </Button>
           </div>
         ) : null}
 
-        {error && data ? <ErrorAlert error={error} onRetry={onRetry} className="rounded-none border-x-0 border-t-0" /> : null}
+        {error && data ? (
+          <ErrorAlert error={error} onRetry={onRetry} className="rounded-none border-x-0 border-t-0" />
+        ) : null}
 
         {showError ? (
           <div className="p-4">
@@ -198,8 +205,20 @@ export function DataTable<T>({
                   return (
                     <TableHead
                       key={column.id}
-                      className={cn('bg-surface-subtle', ALIGN[column.align ?? 'left'], column.headerClassName)}
-                      aria-sort={direction ? (direction === 'asc' ? 'ascending' : 'descending') : column.sortField ? 'none' : undefined}
+                      className={cn(
+                        'bg-surface-subtle',
+                        ALIGN[column.align ?? 'left'],
+                        column.headerClassName,
+                      )}
+                      aria-sort={
+                        direction
+                          ? direction === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : column.sortField
+                            ? 'none'
+                            : undefined
+                      }
                     >
                       {column.sortField && state ? (
                         <button
@@ -228,7 +247,9 @@ export function DataTable<T>({
                     <TableRow key={`skeleton-${i}`} className="hover:bg-transparent">
                       {Array.from({ length: colCount }, (_, j) => (
                         <TableCell key={j}>
-                          <Skeleton className={cn('h-4', j === 0 ? 'w-4/5' : j % 3 === 0 ? 'w-1/3' : 'w-2/3')} />
+                          <Skeleton
+                            className={cn('h-4', j === 0 ? 'w-4/5' : j % 3 === 0 ? 'w-1/3' : 'w-2/3')}
+                          />
                         </TableCell>
                       ))}
                     </TableRow>
@@ -248,7 +269,8 @@ export function DataTable<T>({
                           aria-expanded={expandable ? isExpanded : undefined}
                           tabIndex={clickable ? 0 : undefined}
                           className={cn(
-                            clickable && 'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
+                            clickable &&
+                              'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
                             isExpanded && 'bg-muted/30 [&>td]:border-b-transparent',
                             rowClassName?.(row),
                           )}
@@ -287,12 +309,17 @@ export function DataTable<T>({
                                 }}
                                 className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                               >
-                                <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+                                <ChevronRight
+                                  className={cn('size-4 transition-transform', isExpanded && 'rotate-90')}
+                                />
                               </button>
                             </TableCell>
                           ) : null}
                           {columns.map((column) => (
-                            <TableCell key={column.id} className={cn(ALIGN[column.align ?? 'left'], column.className)}>
+                            <TableCell
+                              key={column.id}
+                              className={cn(ALIGN[column.align ?? 'left'], column.className)}
+                            >
                               {column.interactive ? (
                                 <div
                                   className={cn('inline-flex', column.align === 'right' && 'justify-end')}
@@ -329,7 +356,9 @@ export function DataTable<T>({
               <EmptyState
                 icon={Inbox}
                 title={state?.hasActiveFilters ? 'No matching results' : 'Nothing here yet'}
-                description={state?.hasActiveFilters ? 'Try a different search or clear the filters.' : undefined}
+                description={
+                  state?.hasActiveFilters ? 'Try a different search or clear the filters.' : undefined
+                }
                 action={
                   state?.hasActiveFilters ? (
                     <Button variant="outline" size="sm" onClick={state.reset}>

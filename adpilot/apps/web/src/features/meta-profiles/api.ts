@@ -17,11 +17,14 @@ import type { ConnectionTestResponse, MetaProfileDto, ProfileAssets, ProfileSave
 export const metaProfilesApi = {
   list: () => api.get<MetaProfileDto[]>('/meta-profiles'),
   get: (id: string) => api.get<MetaProfileDto>(`/meta-profiles/${id}`),
-  create: (body: z.input<typeof metaProfileCreateSchema>) => api.post<ProfileSaveResponse>('/meta-profiles', body),
-  update: (id: string, body: z.input<typeof metaProfileUpdateSchema>) => api.patch<ProfileSaveResponse>(`/meta-profiles/${id}`, body),
+  create: (body: z.input<typeof metaProfileCreateSchema>) =>
+    api.post<ProfileSaveResponse>('/meta-profiles', body),
+  update: (id: string, body: z.input<typeof metaProfileUpdateSchema>) =>
+    api.patch<ProfileSaveResponse>(`/meta-profiles/${id}`, body),
   remove: (id: string) => api.delete<OkResponse>(`/meta-profiles/${id}`),
   /** Tests a token and/or proxy before saving — nothing is stored. */
-  test: (body: z.input<typeof metaConnectionTestSchema>) => api.post<ConnectionTestResponse>('/meta-profiles/test', body),
+  test: (body: z.input<typeof metaConnectionTestSchema>) =>
+    api.post<ConnectionTestResponse>('/meta-profiles/test', body),
   validate: (id: string) => api.post<TokenInspection>(`/meta-profiles/${id}/validate`),
   testProxy: (id: string) => api.post<ProxyTestResult>(`/meta-profiles/${id}/test-proxy`),
   sync: (id: string) => api.post<{ queued: boolean }>(`/meta-profiles/${id}/sync`),

@@ -4,7 +4,15 @@ import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type * as React from 'react';
 import { cn } from '@/lib/utils/cn';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from './command';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from './command';
 import type { ComboboxOption } from './combobox';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
@@ -94,7 +102,10 @@ export function MultiCombobox({
       {visible.map((v) => {
         const option = byValue.get(v) ?? { value: v, label: v };
         return (
-          <span key={v} className="inline-flex h-6 max-w-full items-center gap-1 rounded bg-secondary pr-0.5 pl-2 text-xs font-medium text-secondary-foreground">
+          <span
+            key={v}
+            className="inline-flex h-6 max-w-full items-center gap-1 rounded bg-secondary pr-0.5 pl-2 text-xs font-medium text-secondary-foreground"
+          >
             <span className="truncate">{chipLabel ? chipLabel(option) : option.label}</span>
             <button
               type="button"
@@ -109,7 +120,11 @@ export function MultiCombobox({
         );
       })}
       {hidden > 0 ? (
-        <button type="button" onClick={() => setExpanded(true)} className="h-6 rounded px-1.5 text-xs font-medium text-primary-fg hover:underline">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="h-6 rounded px-1.5 text-xs font-medium text-primary-fg hover:underline"
+        >
           +{hidden} more
         </button>
       ) : null}
@@ -152,7 +167,9 @@ export function MultiCombobox({
                         onSelect={() => onValueChange([...new Set([...value, ...preset.values])])}
                       >
                         <span className="truncate">{preset.label}</span>
-                        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{preset.values.length}</span>
+                        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                          {preset.values.length}
+                        </span>
                       </CommandItem>
                     ))}
                     {value.length ? (
@@ -167,9 +184,15 @@ export function MultiCombobox({
               <CommandGroup>
                 {filtered.map((option) => (
                   <CommandItem key={option.value} value={option.value} onSelect={() => toggle(option.value)}>
-                    <Check className={cn('size-4', selected.has(option.value) ? 'opacity-100' : 'opacity-0')} />
+                    <Check
+                      className={cn('size-4', selected.has(option.value) ? 'opacity-100' : 'opacity-0')}
+                    />
                     <span className="truncate">{option.label}</span>
-                    {option.hint ? <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{option.hint}</span> : null}
+                    {option.hint ? (
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {option.hint}
+                      </span>
+                    ) : null}
                   </CommandItem>
                 ))}
               </CommandGroup>

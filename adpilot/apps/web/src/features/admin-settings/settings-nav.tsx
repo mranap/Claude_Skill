@@ -38,7 +38,9 @@ export function SettingsNav() {
                   'max-lg:border max-lg:bg-card max-lg:aria-[current=page]:border-primary/40 max-lg:aria-[current=page]:bg-primary/[0.06]',
                 )}
               >
-                <Icon className={cn('size-4 shrink-0', active ? 'text-primary-fg' : 'text-muted-foreground')} />
+                <Icon
+                  className={cn('size-4 shrink-0', active ? 'text-primary-fg' : 'text-muted-foreground')}
+                />
                 <span className="flex-1">{category.title}</span>
                 {locked ? <Lock className="size-3 text-muted-foreground/70" aria-label="Read-only" /> : null}
               </Link>

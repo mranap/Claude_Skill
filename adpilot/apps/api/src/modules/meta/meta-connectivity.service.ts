@@ -22,7 +22,12 @@ export class MetaConnectivityService {
       const latencyMs = Date.now() - started;
       const body = res.data as { error?: { code?: number; message?: string } };
       const ok = res.status < 500 && (!!body?.error || res.status === 200);
-      return { ok, latencyMs, version, detail: ok ? `Graph API reachable (HTTP ${res.status})` : `Unexpected HTTP ${res.status}` };
+      return {
+        ok,
+        latencyMs,
+        version,
+        detail: ok ? `Graph API reachable (HTTP ${res.status})` : `Unexpected HTTP ${res.status}`,
+      };
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - started, version, detail: (err as Error).message };
     }

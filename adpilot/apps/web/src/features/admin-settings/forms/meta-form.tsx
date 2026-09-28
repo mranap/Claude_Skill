@@ -33,7 +33,10 @@ export function MetaSettingsForm({
   environment: SettingsEnvironment;
 }) {
   const save = useSaveSettings('meta');
-  const form = useForm({ resolver: zodResolver(schema), values: pickSchemaValues(metaSettingsSchema.shape, values) });
+  const form = useForm({
+    resolver: zodResolver(schema),
+    values: pickSchemaValues(metaSettingsSchema.shape, values),
+  });
   const [secrets, setSecrets] = useState<Record<string, string | null | undefined>>({});
   const patch = secretPatch(secrets);
   const test = useMutation({ mutationFn: adminSettingsApi.testMeta });
@@ -80,9 +83,19 @@ export function MetaSettingsForm({
         </>
       }
     >
-      <FieldSection title="App credentials" description="Used for token debugging and app-level calls. The secret is stored encrypted and never shown again.">
+      <FieldSection
+        title="App credentials"
+        description="Used for token debugging and app-level calls. The secret is stored encrypted and never shown again."
+      >
         <FieldGrid>
-          <TextField control={form.control} name="appId" label="App ID" placeholder="1234567890" inputMode="numeric" autoComplete="off" />
+          <TextField
+            control={form.control}
+            name="appId"
+            label="App ID"
+            placeholder="1234567890"
+            inputMode="numeric"
+            autoComplete="off"
+          />
           <SecretField
             label="App secret"
             isSet={!!values.appSecretSet}
@@ -92,11 +105,34 @@ export function MetaSettingsForm({
           />
         </FieldGrid>
       </FieldSection>
-      <FieldSection title="Rate-limit protection" description="Based on Meta’s usage headers (X-Business-Use-Case-Usage, X-Ad-Account-Usage).">
+      <FieldSection
+        title="Rate-limit protection"
+        description="Based on Meta’s usage headers (X-Business-Use-Case-Usage, X-Ad-Account-Usage)."
+      >
         <FieldGrid columns={3}>
-          <NumberField control={form.control} name="throttleThresholdPct" label="Slow down at" unit="%" min={10} max={99} />
-          <NumberField control={form.control} name="pauseThresholdPct" label="Pause at" unit="%" min={20} max={100} />
-          <NumberField control={form.control} name="maxConcurrentRequestsPerAccount" label="Parallel requests / account" min={1} max={20} />
+          <NumberField
+            control={form.control}
+            name="throttleThresholdPct"
+            label="Slow down at"
+            unit="%"
+            min={10}
+            max={99}
+          />
+          <NumberField
+            control={form.control}
+            name="pauseThresholdPct"
+            label="Pause at"
+            unit="%"
+            min={20}
+            max={100}
+          />
+          <NumberField
+            control={form.control}
+            name="maxConcurrentRequestsPerAccount"
+            label="Parallel requests / account"
+            min={1}
+            max={20}
+          />
         </FieldGrid>
       </FieldSection>
       <FieldSection
@@ -113,17 +149,40 @@ export function MetaSettingsForm({
           <Alert variant="warning">
             <AlertTitle>Server-side request forgery risk</AlertTitle>
             <AlertDescription>
-              Users can then make the server connect to hosts inside its own network (databases, metadata endpoints, admin panels) by entering them as a
-              proxy. Only enable this when every user is trusted, for example to use a proxy running next to AdPilot.
+              Users can then make the server connect to hosts inside its own network (databases, metadata
+              endpoints, admin panels) by entering them as a proxy. Only enable this when every user is
+              trusted, for example to use a proxy running next to AdPilot.
             </AlertDescription>
           </Alert>
         ) : null}
       </FieldSection>
       <FieldSection title="Sync intervals">
         <FieldGrid columns={3}>
-          <NumberField control={form.control} name="tokenCheckIntervalHours" label="Token health check" unit="hours" min={1} max={168} />
-          <NumberField control={form.control} name="assetSyncIntervalHours" label="Assets sync" unit="hours" min={1} max={168} description="Pages, pixels, audiences." />
-          <NumberField control={form.control} name="entitySyncIntervalMinutes" label="Campaign structure sync" unit="min" min={15} max={1440} />
+          <NumberField
+            control={form.control}
+            name="tokenCheckIntervalHours"
+            label="Token health check"
+            unit="hours"
+            min={1}
+            max={168}
+          />
+          <NumberField
+            control={form.control}
+            name="assetSyncIntervalHours"
+            label="Assets sync"
+            unit="hours"
+            min={1}
+            max={168}
+            description="Pages, pixels, audiences."
+          />
+          <NumberField
+            control={form.control}
+            name="entitySyncIntervalMinutes"
+            label="Campaign structure sync"
+            unit="min"
+            min={15}
+            max={1440}
+          />
         </FieldGrid>
       </FieldSection>
     </SettingsFormCard>

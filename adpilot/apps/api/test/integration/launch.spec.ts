@@ -22,12 +22,24 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     user = await stack.createUser(admin);
     world = stack.meta.seed();
     stack.meta.videoPollsUntilReady = 1;
-    profileId = expectStatus(await user.client.post('/api/meta-profiles', { name: 'Launch BM', accessToken: world.token }), 201).body.profile.id;
+    profileId = expectStatus(
+      await user.client.post('/api/meta-profiles', { name: 'Launch BM', accessToken: world.token }),
+      201,
+    ).body.profile.id;
     await stack.waitFor(async () => (await stack.prisma.adAccount.count({ where: { profileId } })) === 2);
-    expectStatus(await user.client.post('/api/ad-accounts/connect', { profileId, connect: [world.accountIds[0]] }), 200);
-    adAccountId = (await stack.prisma.adAccount.findFirstOrThrow({ where: { profileId, metaAccountId: world.accountIds[0] } })).id;
+    expectStatus(
+      await user.client.post('/api/ad-accounts/connect', { profileId, connect: [world.accountIds[0]] }),
+      200,
+    );
+    adAccountId = (
+      await stack.prisma.adAccount.findFirstOrThrow({
+        where: { profileId, metaAccountId: world.accountIds[0] },
+      })
+    ).id;
     // Pixels are imported by the asset sync of the connected account.
-    await stack.waitFor(async () => (await stack.prisma.pixel.count({ where: { adAccountId } })) > 0, { message: 'pixels not synced' });
+    await stack.waitFor(async () => (await stack.prisma.pixel.count({ where: { adAccountId } })) > 0, {
+      message: 'pixels not synced',
+    });
 
     media = generateMedia(`${process.env.TMP_DIR}/media`);
     files.videoA = (await uploadCreative(user.client, media.videoA, 'video/mp4')).id;
@@ -36,7 +48,9 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
   });
   afterAll(() => stack.stop());
 
-  function config(overrides: { name?: string; video?: string; activate?: boolean; variants?: unknown[] } = {}) {
+  function config(
+    overrides: { name?: string; video?: string; activate?: boolean; variants?: unknown[] } = {},
+  ) {
     return {
       profileId,
       adAccountId,
@@ -53,15 +67,50 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
         activateOnSuccess: overrides.activate ?? false,
       },
       variants: overrides.variants ?? [
-        { key: 'en', label: 'EN', countries: ['US'], ads: [{ key: 'a1', creativeFileId: overrides.video ?? files.videoA, primaryText: 'Hello', headline: 'Try it', link: 'https://example.com/en' }] },
-        { key: 'pl', label: 'PL', countries: ['PL'], budgetAmount: '40', ads: [{ key: 'a1', creativeFileId: overrides.video ?? files.videoA, primaryText: 'Cześć', headline: 'Spróbuj', link: 'https://example.com/pl' }] },
+        {
+          key: 'en',
+          label: 'EN',
+          countries: ['US'],
+          ads: [
+            {
+              key: 'a1',
+              creativeFileId: overrides.video ?? files.videoA,
+              primaryText: 'Hello',
+              headline: 'Try it',
+              link: 'https://example.com/en',
+            },
+          ],
+        },
+        {
+          key: 'pl',
+          label: 'PL',
+          countries: ['PL'],
+          budgetAmount: '40',
+          ads: [
+            {
+              key: 'a1',
+              creativeFileId: overrides.video ?? files.videoA,
+              primaryText: 'Cześć',
+              headline: 'Spróbuj',
+              link: 'https://example.com/pl',
+            },
+          ],
+        },
       ],
     };
   }
 
   /** Asserts the final status and prints the unfinished items (with Meta's error) when it differs. */
-  function expectLaunchStatus(job: { status: string; items: { key: string; status: string; lastError?: unknown; errorCategory?: string | null }[] }, status: string) {
-    const unfinished = job.items.filter((i) => !['CREATED', 'VERIFIED'].includes(i.status)).map((i) => ({ key: i.key, status: i.status, category: i.errorCategory, error: i.lastError }));
+  function expectLaunchStatus(
+    job: {
+      status: string;
+      items: { key: string; status: string; lastError?: unknown; errorCategory?: string | null }[];
+    },
+    status: string,
+  ) {
+    const unfinished = job.items
+      .filter((i) => !['CREATED', 'VERIFIED'].includes(i.status))
+      .map((i) => ({ key: i.key, status: i.status, category: i.errorCategory, error: i.lastError }));
     expect(job.status, JSON.stringify(unfinished)).toBe(status);
   }
 
@@ -125,36 +174,58 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     expect(stack.meta.videos.size).toBe(1);
 
     // A later retry of the same request (e.g. the browser resending) still returns the same job.
-    const again = expectStatus(await user.client.post('/api/launches', { idempotencyKey, config: config() }), 202).body;
+    const again = expectStatus(
+      await user.client.post('/api/launches', { idempotencyKey, config: config() }),
+      202,
+    ).body;
     expect(again.job.id).toBe(job.id);
     expect(again.duplicate).toBe(true);
 
     // Entities are synchronised into the platform and the user is notified.
     await stack.waitFor(async () => (await stack.prisma.ad.count({ where: { userId: user.id } })) === 2);
-    const notification = await stack.waitFor(() => stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_LAUNCHED' } }), {
-      message: 'launch notification missing',
-    });
+    const notification = await stack.waitFor(
+      () => stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_LAUNCHED' } }),
+      {
+        message: 'launch notification missing',
+      },
+    );
     expect(notification.title).toBeTruthy();
   });
 
   it('reconciles an object whose creation response was lost (no duplicate ad)', async () => {
     stack.meta.inject({ match: /^POST \/act_\d+\/ads$/, times: 1, kind: 'drop-after-process' });
-    const res = expectStatus(await user.client.post('/api/launches', { idempotencyKey: key('drop'), config: config({ name: 'Lost response' }) }), 202).body;
+    const res = expectStatus(
+      await user.client.post('/api/launches', {
+        idempotencyKey: key('drop'),
+        config: config({ name: 'Lost response' }),
+      }),
+      202,
+    ).body;
     const job = await waitForLaunch(res.job.id);
     expectLaunchStatus(job, 'COMPLETED');
     const campaign = stack.meta.objectsOf('campaign').find((o) => String(o.fields.name).includes(job.code))!;
     expect(stack.meta.objectsOf('ad').filter((o) => o.fields.campaign_id === campaign.id)).toHaveLength(2);
     const items = await stack.prisma.launchJobItem.findMany({ where: { launchJobId: job.id, kind: 'AD' } });
-    expect(items.some((i) => (i.response as { reconciled?: boolean } | null)?.reconciled === true)).toBe(true);
+    expect(items.some((i) => (i.response as { reconciled?: boolean } | null)?.reconciled === true)).toBe(
+      true,
+    );
   });
 
   it('re-sends a request that never reached processing only after the ambiguity window', async () => {
     stack.meta.inject({ match: /^POST \/act_\d+\/adsets$/, times: 1, kind: 'drop-before-process' });
-    const res = expectStatus(await user.client.post('/api/launches', { idempotencyKey: key('lost'), config: config({ name: 'Lost request' }) }), 202).body;
+    const res = expectStatus(
+      await user.client.post('/api/launches', {
+        idempotencyKey: key('lost'),
+        config: config({ name: 'Lost request' }),
+      }),
+      202,
+    ).body;
     // The ad set is left IN_FLIGHT: nothing may be re-sent while Meta could still process the first request.
     const inFlight = await stack.waitFor(async () => {
       await stack.promoteDelayed('campaign-launch');
-      return stack.prisma.launchJobItem.findFirst({ where: { launchJobId: res.job.id, kind: 'ADSET', status: 'IN_FLIGHT', attemptCount: { gte: 1 } } });
+      return stack.prisma.launchJobItem.findFirst({
+        where: { launchJobId: res.job.id, kind: 'ADSET', status: 'IN_FLIGHT', attemptCount: { gte: 1 } },
+      });
     });
     const adsetCount = stack.meta.objectsOf('adset').length;
     await stack.promoteDelayed('campaign-launch');
@@ -164,7 +235,10 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     expect(still.status).toBe('IN_FLIGHT');
 
     // Time passes beyond the window → the lookup proves it does not exist → it is created exactly once.
-    await stack.prisma.launchJobItem.update({ where: { id: inFlight.id }, data: { inFlightSince: new Date(Date.now() - 10 * 60_000) } });
+    await stack.prisma.launchJobItem.update({
+      where: { id: inFlight.id },
+      data: { inFlightSince: new Date(Date.now() - 10 * 60_000) },
+    });
     const job = await waitForLaunch(res.job.id);
     expectLaunchStatus(job, 'COMPLETED');
     const campaign = stack.meta.objectsOf('campaign').find((o) => String(o.fields.name).includes(job.code))!;
@@ -172,25 +246,53 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
   });
 
   it('defers on Meta rate limits (no retry storm) and resumes without duplicates', async () => {
-    const regain = JSON.stringify({ [world.businessId]: [{ type: 'ads_management', call_count: 100, total_cputime: 30, total_time: 30, estimated_time_to_regain_access: 5 }] });
+    const regain = JSON.stringify({
+      [world.businessId]: [
+        {
+          type: 'ads_management',
+          call_count: 100,
+          total_cputime: 30,
+          total_time: 30,
+          estimated_time_to_regain_access: 5,
+        },
+      ],
+    });
     stack.meta.inject({
       match: /^POST \/act_\d+\/adsets$/,
       times: 1,
       kind: 'error',
       status: 400,
-      error: { code: 17, error_subcode: 2446079, message: 'User request limit reached', type: 'OAuthException', is_transient: true },
+      error: {
+        code: 17,
+        error_subcode: 2446079,
+        message: 'User request limit reached',
+        type: 'OAuthException',
+        is_transient: true,
+      },
       headers: { 'x-business-use-case-usage': regain },
     });
-    const res = expectStatus(await user.client.post('/api/launches', { idempotencyKey: key('rl'), config: config({ name: 'Rate limited' }) }), 202).body;
+    const res = expectStatus(
+      await user.client.post('/api/launches', {
+        idempotencyKey: key('rl'),
+        config: config({ name: 'Rate limited' }),
+      }),
+      202,
+    ).body;
     await stack.waitFor(async () => {
-      const item = await stack.prisma.launchJobItem.findFirst({ where: { launchJobId: res.job.id, kind: 'ADSET', attemptCount: { gte: 1 } } });
+      const item = await stack.prisma.launchJobItem.findFirst({
+        where: { launchJobId: res.job.id, kind: 'ADSET', attemptCount: { gte: 1 } },
+      });
       return item?.status === 'PENDING' ? item : null;
     });
-    const postsBefore = stack.meta.requests.filter((r) => r.method === 'POST' && r.path.endsWith('/adsets')).length;
+    const postsBefore = stack.meta.requests.filter(
+      (r) => r.method === 'POST' && r.path.endsWith('/adsets'),
+    ).length;
     // While the scope is blocked, promoting the job does not send anything to Meta.
     await stack.promoteDelayed('campaign-launch');
     await new Promise((r) => setTimeout(r, 1500));
-    expect(stack.meta.requests.filter((r) => r.method === 'POST' && r.path.endsWith('/adsets')).length).toBe(postsBefore);
+    expect(stack.meta.requests.filter((r) => r.method === 'POST' && r.path.endsWith('/adsets')).length).toBe(
+      postsBefore,
+    );
 
     await stack.clearMetaRateLimits();
     const job = await waitForLaunch(res.job.id);
@@ -201,13 +303,25 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
 
   it('survives a worker restart while waiting for video processing', async () => {
     stack.meta.videoPollsUntilReady = 3;
-    const res = expectStatus(await user.client.post('/api/launches', { idempotencyKey: key('restart'), config: config({ name: 'Restart', video: files.videoB }) }), 202).body;
-    await stack.waitFor(async () => (await stack.prisma.launchJob.findUniqueOrThrow({ where: { id: res.job.id } })).status === 'UPLOADING_CREATIVES');
+    const res = expectStatus(
+      await user.client.post('/api/launches', {
+        idempotencyKey: key('restart'),
+        config: config({ name: 'Restart', video: files.videoB }),
+      }),
+      202,
+    ).body;
+    await stack.waitFor(
+      async () =>
+        (await stack.prisma.launchJob.findUniqueOrThrow({ where: { id: res.job.id } })).status ===
+        'UPLOADING_CREATIVES',
+    );
     await stack.restartWorker();
     const job = await waitForLaunch(res.job.id);
     expectLaunchStatus(job, 'COMPLETED');
     expect(stack.meta.videos.size).toBe(2);
-    const campaigns = stack.meta.objectsOf('campaign').filter((o) => String(o.fields.name).includes(job.code));
+    const campaigns = stack.meta
+      .objectsOf('campaign')
+      .filter((o) => String(o.fields.name).includes(job.code));
     expect(campaigns).toHaveLength(1);
     stack.meta.videoPollsUntilReady = 1;
   });
@@ -218,9 +332,21 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
       times: 1,
       kind: 'error',
       status: 400,
-      error: { code: 100, error_subcode: 1885272, message: 'Invalid parameter', error_user_msg: 'Your budget is too low.', type: 'OAuthException' },
+      error: {
+        code: 100,
+        error_subcode: 1885272,
+        message: 'Invalid parameter',
+        error_user_msg: 'Your budget is too low.',
+        type: 'OAuthException',
+      },
     });
-    const res = expectStatus(await user.client.post('/api/launches', { idempotencyKey: key('partial'), config: config({ name: 'Partial', activate: true }) }), 202).body;
+    const res = expectStatus(
+      await user.client.post('/api/launches', {
+        idempotencyKey: key('partial'),
+        config: config({ name: 'Partial', activate: true }),
+      }),
+      202,
+    ).body;
     const job = await waitForLaunch(res.job.id);
     expectLaunchStatus(job, 'PARTIAL_FAILURE');
     const failed = job.items.find((i: { status: string }) => i.status === 'FAILED');
@@ -228,14 +354,20 @@ describe('campaign launch engine (idempotency, reconciliation, deferrals)', () =
     const campaign = stack.meta.objectsOf('campaign').find((o) => String(o.fields.name).includes(job.code))!;
     expect(campaign.fields.status).toBe('PAUSED');
     expect(stack.meta.objectsOf('adset').filter((o) => o.fields.campaign_id === campaign.id)).toHaveLength(1);
-    await stack.waitFor(() => stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_CREATION_FAILED' } }), {
-      message: 'failure notification missing',
-    });
+    await stack.waitFor(
+      () =>
+        stack.prisma.notification.findFirst({ where: { userId: user.id, type: 'CAMPAIGN_CREATION_FAILED' } }),
+      {
+        message: 'failure notification missing',
+      },
+    );
 
     expectStatus(await user.client.post(`/api/launches/${job.id}/retry`), 200);
     const retried = await waitForLaunch(job.id);
     expectLaunchStatus(retried, 'COMPLETED');
-    expect(stack.meta.objectsOf('campaign').filter((o) => String(o.fields.name).includes(job.code))).toHaveLength(1);
+    expect(
+      stack.meta.objectsOf('campaign').filter((o) => String(o.fields.name).includes(job.code)),
+    ).toHaveLength(1);
     expect(stack.meta.objectsOf('adset').filter((o) => o.fields.campaign_id === campaign.id)).toHaveLength(2);
     expect(stack.meta.objectsOf('ad').filter((o) => o.fields.campaign_id === campaign.id)).toHaveLength(2);
     // Activation happens only when everything exists.

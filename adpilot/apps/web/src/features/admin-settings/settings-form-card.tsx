@@ -61,8 +61,8 @@ export function SettingsFormCard<TIn extends FieldValues, TOut>({
           {readOnly ? (
             <Alert icon={<Lock />}>
               <AlertDescription>
-                You can view these settings. Changing them requires the “{PERMISSION_DESCRIPTIONS[permission]?.description ?? permission}”
-                permission.
+                You can view these settings. Changing them requires the “
+                {PERMISSION_DESCRIPTIONS[permission]?.description ?? permission}” permission.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -76,7 +76,9 @@ export function SettingsFormCard<TIn extends FieldValues, TOut>({
           <div className="flex flex-wrap gap-2">{footerActions}</div>
           {!readOnly ? (
             <div className="flex items-center justify-end gap-2">
-              {dirty ? <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">Unsaved changes</span> : null}
+              {dirty ? (
+                <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">Unsaved changes</span>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -101,15 +103,29 @@ export function SettingsFormCard<TIn extends FieldValues, TOut>({
 
 /** Two-column responsive grid for settings fields. */
 export function FieldGrid({ children, columns = 2 }: { children: React.ReactNode; columns?: 2 | 3 }) {
-  return <div className={columns === 3 ? 'grid gap-5 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-5 sm:grid-cols-2'}>{children}</div>;
+  return (
+    <div className={columns === 3 ? 'grid gap-5 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-5 sm:grid-cols-2'}>
+      {children}
+    </div>
+  );
 }
 
-export function FieldSection({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }) {
+export function FieldSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="grid gap-4">
       <div>
         <h4 className="text-sm font-semibold">{title}</h4>
-        {description ? <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{description}</p> : null}
+        {description ? (
+          <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
+        ) : null}
       </div>
       {children}
     </section>

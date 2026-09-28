@@ -20,7 +20,10 @@ import { forgetUrlToken, useUrlToken } from './url-token';
 
 const schema = z
   .object({ password: passwordSchema, confirmPassword: z.string().min(1, 'Repeat the password') })
-  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Passwords do not match',
+  });
 
 export function ResetPasswordView() {
   const searchParams = useSearchParams();
@@ -39,7 +42,10 @@ export function ResetPasswordView() {
   });
 
   const isInvite = inviteParam || validation.data?.purpose === 'INVITE';
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { password: '', confirmPassword: '' } });
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { password: '', confirmPassword: '' },
+  });
 
   const onSubmit = async (values: z.output<typeof schema>) => {
     await authApi.resetPassword({ token, password: values.password });
@@ -68,7 +74,10 @@ export function ResetPasswordView() {
   if (urlToken === undefined) {
     // Server render / hydration: the token is read from the URL fragment in the browser only.
     return (
-      <AuthCard title={isInvite ? 'Set your password' : 'Choose a new password'} description="Checking your link…">
+      <AuthCard
+        title={isInvite ? 'Set your password' : 'Choose a new password'}
+        description="Checking your link…"
+      >
         <div className="grid gap-4">
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
@@ -104,7 +113,10 @@ export function ResetPasswordView() {
 
   if (validation.isPending) {
     return (
-      <AuthCard title={isInvite ? 'Set your password' : 'Choose a new password'} description="Checking your link…">
+      <AuthCard
+        title={isInvite ? 'Set your password' : 'Choose a new password'}
+        description="Checking your link…"
+      >
         <div className="grid gap-4">
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
@@ -146,7 +158,9 @@ export function ResetPasswordView() {
           control={form.control}
           name="confirmPassword"
           label="Confirm password"
-          render={({ field, controlProps }) => <PasswordInput {...field} {...controlProps} autoComplete="new-password" />}
+          render={({ field, controlProps }) => (
+            <PasswordInput {...field} {...controlProps} autoComplete="new-password" />
+          )}
         />
         <Button type="submit" className="w-full" loading={form.formState.isSubmitting}>
           {isInvite ? 'Set password' : 'Update password'}

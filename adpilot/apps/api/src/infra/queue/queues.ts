@@ -97,8 +97,7 @@ export type EmailJob =
   | { kind: 'sealed'; sealed: string; tag: string; userId?: string };
 
 export type TelegramJob =
-  | { kind: 'delivery'; deliveryId: string }
-  | { kind: 'direct'; chatId: string; text: string; tag: string };
+  { kind: 'delivery'; deliveryId: string } | { kind: 'direct'; chatId: string; text: string; tag: string };
 
 export interface BulkActionJob {
   bulkOperationId: string;

@@ -41,7 +41,9 @@ export function StatCard({
       {loading ? (
         <Skeleton className="mt-2.5 h-7 w-24" />
       ) : (
-        <div className="mt-1.5 truncate text-2xl leading-9 font-semibold tracking-tight tabular-nums">{value}</div>
+        <div className="mt-1.5 truncate text-2xl leading-9 font-semibold tracking-tight tabular-nums">
+          {value}
+        </div>
       )}
       {(delta || hint) && !loading ? (
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
@@ -56,7 +58,9 @@ export function StatCard({
               {`${delta.value > 0 ? '+' : ''}${delta.value.toFixed(Math.abs(delta.value) < 10 ? 1 : 0)}%`}
             </span>
           ) : null}
-          {delta?.label || hint ? <span className="text-muted-foreground">{delta?.label ?? hint}</span> : null}
+          {delta?.label || hint ? (
+            <span className="text-muted-foreground">{delta?.label ?? hint}</span>
+          ) : null}
         </div>
       ) : loading ? (
         <Skeleton className="mt-2 h-3.5 w-32" />

@@ -17,7 +17,13 @@ import { SettingsFormCard } from '../settings-form-card';
 
 type Values = z.output<typeof maintenanceSettingsSchema>;
 
-export function MaintenanceSettingsForm({ values, readOnly }: { values: AdminSettingGroup<'maintenance'>; readOnly: boolean }) {
+export function MaintenanceSettingsForm({
+  values,
+  readOnly,
+}: {
+  values: AdminSettingGroup<'maintenance'>;
+  readOnly: boolean;
+}) {
   const save = useSaveSettings('maintenance');
   const form = useForm({
     resolver: zodResolver(maintenanceSettingsSchema),
@@ -63,7 +69,9 @@ export function MaintenanceSettingsForm({ values, readOnly }: { values: AdminSet
           control={form.control}
           name="message"
           label="Message shown to users"
-          render={({ field, controlProps }) => <Textarea {...field} {...controlProps} maxLength={500} rows={3} />}
+          render={({ field, controlProps }) => (
+            <Textarea {...field} {...controlProps} maxLength={500} rows={3} />
+          )}
         />
         <div className="rounded-lg border border-dashed p-4">
           <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase">Preview</p>
@@ -71,7 +79,9 @@ export function MaintenanceSettingsForm({ values, readOnly }: { values: AdminSet
             {message || 'The platform is under maintenance. Please try again later.'}
           </div>
           {enabled !== values.enabled ? (
-            <p className="mt-2 text-xs text-muted-foreground">Maintenance will be {enabled ? 'enabled' : 'disabled'} when you save.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Maintenance will be {enabled ? 'enabled' : 'disabled'} when you save.
+            </p>
           ) : null}
         </div>
       </SettingsFormCard>

@@ -64,7 +64,10 @@ export class AppError extends Error {
   static cooldown(message: string, retryAfterSeconds: number): AppError {
     return new AppError('COOLDOWN', message, undefined, { retryAfterSeconds });
   }
-  static rateLimited(retryAfterSeconds: number, message = 'Too many requests. Please try again later.'): AppError {
+  static rateLimited(
+    retryAfterSeconds: number,
+    message = 'Too many requests. Please try again later.',
+  ): AppError {
     return new AppError('RATE_LIMITED', message, undefined, { retryAfterSeconds });
   }
 }

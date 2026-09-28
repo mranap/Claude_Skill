@@ -32,7 +32,8 @@ export const queryKeys = {
     pixels: (id: string) => ['ad-accounts', 'pixels', id] as const,
     audiences: (id: string) => ['ad-accounts', 'audiences', id] as const,
     pages: (id: string) => ['ad-accounts', 'pages', id] as const,
-    activity: (id: string, params: Record<string, unknown>) => ['ad-accounts', 'activity', id, params] as const,
+    activity: (id: string, params: Record<string, unknown>) =>
+      ['ad-accounts', 'activity', id, params] as const,
   },
   creatives: {
     all: ['creatives'] as const,

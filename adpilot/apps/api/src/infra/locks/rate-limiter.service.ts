@@ -21,11 +21,20 @@ export class RateLimiterService {
 
   /** Identifiers (e-mail addresses, IPs) are hashed: no personal data in Redis key names. */
   private key(bucket: string, identifier: string): string {
-    return this.redis.key('rl', bucket, createHash('sha256').update(identifier.toLowerCase()).digest('hex').slice(0, 32));
+    return this.redis.key(
+      'rl',
+      bucket,
+      createHash('sha256').update(identifier.toLowerCase()).digest('hex').slice(0, 32),
+    );
   }
 
   async hit(bucket: string, identifier: string, limit: number, windowMs: number): Promise<RateLimitResult> {
-    const [count, ttl] = (await this.redis.client.eval(HIT_SCRIPT, 1, this.key(bucket, identifier), String(windowMs))) as [number, number];
+    const [count, ttl] = (await this.redis.client.eval(
+      HIT_SCRIPT,
+      1,
+      this.key(bucket, identifier),
+      String(windowMs),
+    )) as [number, number];
     return { allowed: count <= limit, count, retryAfterMs: count <= limit ? 0 : Math.max(ttl, 0) };
   }
 

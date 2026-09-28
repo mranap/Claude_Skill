@@ -47,12 +47,19 @@ export class AdminUsersService {
       ...(q.status ? { status: q.status } : { status: { not: 'DELETED' } }),
       ...(q.roleId ? { roleId: q.roleId } : {}),
       ...(q.q
-        ? { OR: [{ email: { contains: q.q, mode: 'insensitive' } }, { name: { contains: q.q, mode: 'insensitive' } }] }
+        ? {
+            OR: [
+              { email: { contains: q.q, mode: 'insensitive' } },
+              { name: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
         : {}),
     };
     const [field, dir] = (q.sort ?? 'createdAt:desc').split(':') as [string, 'asc' | 'desc'];
     const sortable = new Set(['createdAt', 'email', 'lastLoginAt', 'status']);
-    const orderBy = { [sortable.has(field) ? field : 'createdAt']: dir } as Prisma.UserOrderByWithRelationInput;
+    const orderBy = {
+      [sortable.has(field) ? field : 'createdAt']: dir,
+    } as Prisma.UserOrderByWithRelationInput;
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
@@ -70,8 +77,22 @@ export class AdminUsersService {
           mustChangePassword: true,
           lockedUntil: true,
           storageUsedBytes: true,
-          role: { select: { id: true, key: true, name: true, permissions: { select: { permission: { select: { key: true } } } } } },
-          _count: { select: { metaProfiles: { where: { deletedAt: null } }, adAccounts: { where: { isConnected: true } }, campaigns: true, creativeFiles: { where: { deletedAt: null } } } },
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: { select: { permission: { select: { key: true } } } },
+            },
+          },
+          _count: {
+            select: {
+              metaProfiles: { where: { deletedAt: null } },
+              adAccounts: { where: { isConnected: true } },
+              campaigns: true,
+              creativeFiles: { where: { deletedAt: null } },
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -79,7 +100,12 @@ export class AdminUsersService {
     return {
       items: users.map((u) => ({
         ...u,
-        role: { id: u.role.id, key: u.role.key, name: u.role.name, permissions: u.role.permissions.map((p) => p.permission.key) },
+        role: {
+          id: u.role.id,
+          key: u.role.key,
+          name: u.role.name,
+          permissions: u.role.permissions.map((p) => p.permission.key),
+        },
         usage: {
           metaProfiles: u._count.metaProfiles,
           adAccounts: u._count.adAccounts,
@@ -131,7 +157,10 @@ export class AdminUsersService {
     });
     if (!user) throw AppError.notFound('User');
     // `current` marks the administrator's own session, so revoking it can be confirmed explicitly in the UI.
-    const sessions = (await this.sessions.listActive(id)).map((s) => ({ ...s, current: s.id === actor?.sessionId }));
+    const sessions = (await this.sessions.listActive(id)).map((s) => ({
+      ...s,
+      current: s.id === actor?.sessionId,
+    }));
     const recentLogins = await this.prisma.loginEvent.findMany({
       where: { userId: id },
       orderBy: { createdAt: 'desc' },
@@ -179,7 +208,8 @@ export class AdminUsersService {
     if (input.name !== undefined) data.name = input.name;
     if (input.timezone) data.timezone = input.timezone;
     if (input.storageQuotaMb !== undefined) {
-      data.storageQuotaBytes = input.storageQuotaMb === null ? null : BigInt(input.storageQuotaMb) * 1024n * 1024n;
+      data.storageQuotaBytes =
+        input.storageQuotaMb === null ? null : BigInt(input.storageQuotaMb) * 1024n * 1024n;
     }
     if (input.roleId && input.roleId !== target.roleId) {
       if (target.id === actor.id) throw AppError.forbidden('You cannot change your own role');
@@ -211,7 +241,14 @@ export class AdminUsersService {
     });
     await this.sessions.revokeAllForUser(id, 'user_blocked');
     await this.cache.invalidateUser(id);
-    await this.audit.log({ action: 'admin.user.blocked', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id, metadata: { reason } });
+    await this.audit.log({
+      action: 'admin.user.blocked',
+      actorUserId: actor.id,
+      subjectUserId: id,
+      targetType: 'user',
+      targetId: id,
+      metadata: { reason },
+    });
   }
 
   async unblock(actor: AuthUser, id: string) {
@@ -219,16 +256,32 @@ export class AdminUsersService {
     if (target.status !== 'BLOCKED') throw AppError.conflict('User is not blocked');
     await this.prisma.user.update({
       where: { id },
-      data: { status: 'ACTIVE', blockedAt: null, blockedReason: null, failedLoginCount: 0, lockedUntil: null },
+      data: {
+        status: 'ACTIVE',
+        blockedAt: null,
+        blockedReason: null,
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
     });
     await this.guard.clearAddress(target.email);
     await this.cache.invalidateUser(id);
-    await this.audit.log({ action: 'admin.user.unblocked', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id });
+    await this.audit.log({
+      action: 'admin.user.unblocked',
+      actorUserId: actor.id,
+      subjectUserId: id,
+      targetType: 'user',
+      targetId: id,
+    });
   }
 
   async resetPassword(actor: AuthUser, id: string, input: z.infer<typeof adminResetPasswordSchema>) {
     const target = await this.assertManageable(actor, id);
-    assertNotSelf(actor, target.id, 'Change your own password in your account settings (it asks for the current one)');
+    assertNotSelf(
+      actor,
+      target.id,
+      'Change your own password in your account settings (it asks for the current one)',
+    );
     if (target.status === 'DELETED') throw AppError.conflict('User is deleted');
     const passwordHash = input.mode === 'password' ? await this.hashing.hashPassword(input.password!) : null;
     await this.prisma.$transaction(async (tx) => {
@@ -236,7 +289,13 @@ export class AdminUsersService {
       if (passwordHash) {
         await tx.user.update({
           where: { id },
-          data: { passwordHash, mustChangePassword: true, passwordChangedAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+          data: {
+            passwordHash,
+            mustChangePassword: true,
+            passwordChangedAt: new Date(),
+            failedLoginCount: 0,
+            lockedUntil: null,
+          },
         });
       }
     });
@@ -244,7 +303,14 @@ export class AdminUsersService {
     await this.guard.clearAddress(target.email);
     await this.sessions.revokeAllForUser(id, 'password_reset_by_admin');
     await this.cache.invalidateUser(id);
-    await this.audit.log({ action: 'admin.user.password_reset', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id, metadata: { mode: input.mode } });
+    await this.audit.log({
+      action: 'admin.user.password_reset',
+      actorUserId: actor.id,
+      subjectUserId: id,
+      targetType: 'user',
+      targetId: id,
+      metadata: { mode: input.mode },
+    });
   }
 
   async resetTwoFactor(actor: AuthUser, id: string) {
@@ -253,11 +319,22 @@ export class AdminUsersService {
     await this.guard.clearSecondFactor(id);
     await this.prisma.user.update({
       where: { id },
-      data: { twoFactorEnabled: false, twoFactorSecretEnc: null, twoFactorPendingSecretEnc: null, twoFactorRecoveryHashes: [] },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecretEnc: null,
+        twoFactorPendingSecretEnc: null,
+        twoFactorRecoveryHashes: [],
+      },
     });
     await this.sessions.revokeAllForUser(id, '2fa_reset_by_admin');
     await this.cache.invalidateUser(id);
-    await this.audit.log({ action: 'admin.user.2fa_reset', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id });
+    await this.audit.log({
+      action: 'admin.user.2fa_reset',
+      actorUserId: actor.id,
+      subjectUserId: id,
+      targetType: 'user',
+      targetId: id,
+    });
   }
 
   async revokeSessions(actor: AuthUser, id: string, sessionId?: string) {
@@ -269,7 +346,14 @@ export class AdminUsersService {
     } else {
       await this.sessions.revokeAllForUser(id, 'revoked_by_admin');
     }
-    await this.audit.log({ action: 'admin.user.sessions_revoked', actorUserId: actor.id, subjectUserId: id, targetType: 'user', targetId: id, metadata: { sessionId } });
+    await this.audit.log({
+      action: 'admin.user.sessions_revoked',
+      actorUserId: actor.id,
+      subjectUserId: id,
+      targetType: 'user',
+      targetId: id,
+      metadata: { sessionId },
+    });
   }
 
   /**
@@ -299,7 +383,13 @@ export class AdminUsersService {
       }),
       this.prisma.metaProfile.updateMany({
         where: { userId: id },
-        data: { tokenEnc: null, appSecretEnc: null, isEnabled: false, deletedAt: now, tokenMask: '[deleted]' },
+        data: {
+          tokenEnc: null,
+          appSecretEnc: null,
+          isEnabled: false,
+          deletedAt: now,
+          tokenMask: '[deleted]',
+        },
       }),
       this.prisma.proxy.updateMany({ where: { userId: id }, data: { passwordEnc: null, username: null } }),
       this.prisma.telegramConnection.deleteMany({ where: { userId: id } }),
@@ -309,14 +399,36 @@ export class AdminUsersService {
       this.prisma.adAccount.updateMany({ where: { userId: id }, data: { isConnected: false } }),
       this.prisma.autoRule.updateMany({ where: { userId: id }, data: { isActive: false } }),
       this.prisma.launchJob.updateMany({
-        where: { userId: id, status: { in: ['QUEUED', 'VALIDATING', 'UPLOADING_CREATIVES', 'CREATING_CAMPAIGN', 'CREATING_ADSETS', 'CREATING_ADS', 'VERIFYING', 'ACTIVATING'] } },
+        where: {
+          userId: id,
+          status: {
+            in: [
+              'QUEUED',
+              'VALIDATING',
+              'UPLOADING_CREATIVES',
+              'CREATING_CAMPAIGN',
+              'CREATING_ADSETS',
+              'CREATING_ADS',
+              'VERIFYING',
+              'ACTIVATING',
+            ],
+          },
+        },
         data: { cancelRequestedAt: now },
       }),
-      this.prisma.creativeFile.updateMany({ where: { userId: id, deletedAt: null }, data: { deletedAt: now } }),
-      this.prisma.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now, revokedReason: 'user_deleted' } }),
+      this.prisma.creativeFile.updateMany({
+        where: { userId: id, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      this.prisma.session.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: now, revokedReason: 'user_deleted' },
+      }),
     ]);
     await this.cache.invalidateUser(id);
-    const sessionIds = (await this.prisma.session.findMany({ where: { userId: id }, select: { id: true } })).map((s) => s.id);
+    const sessionIds = (
+      await this.prisma.session.findMany({ where: { userId: id }, select: { id: true } })
+    ).map((s) => s.id);
     await this.cache.invalidateSession(...sessionIds);
     await this.audit.log({
       action: 'admin.user.deleted',
@@ -334,9 +446,17 @@ export class AdminUsersService {
     const token = this.hashing.randomToken(32);
     const hours = purpose === 'INVITE' ? INVITE_TTL_HOURS : 1;
     await this.prisma.$transaction([
-      this.prisma.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
       this.prisma.passwordResetToken.create({
-        data: { userId, tokenHash: this.hashing.sha256(token), purpose, expiresAt: new Date(Date.now() + hours * 3600_000) },
+        data: {
+          userId,
+          tokenHash: this.hashing.sha256(token),
+          purpose,
+          expiresAt: new Date(Date.now() + hours * 3600_000),
+        },
       }),
     ]);
     if (purpose === 'INVITE') await this.mail.sendInvitation(email, token, hours, userId);
@@ -350,7 +470,8 @@ export class AdminUsersService {
     });
     if (!role) throw AppError.validation('Unknown role', [{ path: 'roleId', message: 'Unknown role' }]);
     const privileged =
-      role.key === SYSTEM_ROLES.SUPER_ADMIN || role.permissions.some((p) => p.permission.key.startsWith('admin.'));
+      role.key === SYSTEM_ROLES.SUPER_ADMIN ||
+      role.permissions.some((p) => p.permission.key.startsWith('admin.'));
     return { id: role.id, key: role.key, privileged };
   }
 
@@ -376,7 +497,8 @@ export class AdminUsersService {
     const others = await this.prisma.user.count({
       where: { role: { key: SYSTEM_ROLES.SUPER_ADMIN }, status: 'ACTIVE', id: { not: excludingUserId } },
     });
-    if (others === 0) throw AppError.forbidden('The last active Super Admin cannot be removed, blocked or demoted');
+    if (others === 0)
+      throw AppError.forbidden('The last active Super Admin cannot be removed, blocked or demoted');
   }
 }
 

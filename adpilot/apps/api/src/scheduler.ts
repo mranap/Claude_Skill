@@ -12,6 +12,9 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((err: unknown) => {
-  getRootLogger().fatal({ err: err instanceof Error ? { message: err.message, stack: err.stack } : err }, 'Scheduler failed to start');
+  getRootLogger().fatal(
+    { err: err instanceof Error ? { message: err.message, stack: err.stack } : err },
+    'Scheduler failed to start',
+  );
   process.exit(1);
 });

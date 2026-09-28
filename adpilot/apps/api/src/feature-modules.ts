@@ -9,4 +9,13 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { RulesModule } from './modules/rules/rules.module';
 
 /** Product feature modules mounted by the HTTP API. */
-export const FEATURE_MODULES: Type<unknown>[] = [AdminModule, MetaProfilesModule, AdAccountsModule, CreativesModule, DashboardModule, LaunchesModule, CampaignsModule, RulesModule];
+export const FEATURE_MODULES: Type<unknown>[] = [
+  AdminModule,
+  MetaProfilesModule,
+  AdAccountsModule,
+  CreativesModule,
+  DashboardModule,
+  LaunchesModule,
+  CampaignsModule,
+  RulesModule,
+];

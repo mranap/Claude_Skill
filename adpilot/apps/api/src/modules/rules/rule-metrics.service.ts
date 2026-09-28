@@ -13,7 +13,10 @@ type TimeRange = 'TODAY' | 'YESTERDAY' | 'LAST_N_HOURS' | 'LAST_N_DAYS';
 
 export type MetricValues = Record<RuleMetric, string | null>;
 
-const LEVEL_API: Record<Level, { level: string; idField: 'campaign_id' | 'adset_id' | 'ad_id'; filter: string }> = {
+const LEVEL_API: Record<
+  Level,
+  { level: string; idField: 'campaign_id' | 'adset_id' | 'ad_id'; filter: string }
+> = {
   CAMPAIGN: { level: 'campaign', idField: 'campaign_id', filter: 'campaign.id' },
   ADSET: { level: 'adset', idField: 'adset_id', filter: 'adset.id' },
   AD: { level: 'ad', idField: 'ad_id', filter: 'ad.id' },
@@ -27,7 +30,14 @@ const LEVEL_API: Record<Level, { level: string; idField: 'campaign_id' | 'adset_
 export class RuleMetricsService {
   constructor(private readonly graph: MetaGraphClient) {}
 
-  async fetch(account: AdAccount, conn: MetaConnection, level: Level, metaIds: string[], range: TimeRange, n?: number): Promise<Map<string, MetricValues>> {
+  async fetch(
+    account: AdAccount,
+    conn: MetaConnection,
+    level: Level,
+    metaIds: string[],
+    range: TimeRange,
+    n?: number,
+  ): Promise<Map<string, MetricValues>> {
     const cfg = LEVEL_API[level];
     const tz = account.timezoneName;
     const now = DateTime.now().setZone(tz);
@@ -57,14 +67,18 @@ export class RuleMetricsService {
     ].join(',');
     for (let i = 0; i < metaIds.length; i += 100) {
       const ids = metaIds.slice(i, i + 100);
-      const rows = await this.graph.paginate<InsightRow & { hourly_stats_aggregated_by_advertiser_time_zone?: string }>(
+      const rows = await this.graph.paginate<
+        InsightRow & { hourly_stats_aggregated_by_advertiser_time_zone?: string }
+      >(
         conn,
         `/${actId(account.metaAccountId)}/insights`,
         {
           level: cfg.level,
           fields,
           time_range: { since, until },
-          ...(hourly ? { time_increment: 1, breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone' } : { time_increment: 'all_days' }),
+          ...(hourly
+            ? { time_increment: 1, breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone' }
+            : { time_increment: 'all_days' }),
           filtering: [{ field: cfg.filter, operator: 'IN', value: ids }],
           limit: 500,
         },
@@ -77,7 +91,9 @@ export class RuleMetricsService {
         if (!id) continue;
         if (hourly && windowStart) {
           const hour = Number((r.hourly_stats_aggregated_by_advertiser_time_zone ?? '00').slice(0, 2));
-          const rowStart = DateTime.fromISO(`${r.date_start}T${String(hour).padStart(2, '0')}:00:00`, { zone: tz });
+          const rowStart = DateTime.fromISO(`${r.date_start}T${String(hour).padStart(2, '0')}:00:00`, {
+            zone: tz,
+          });
           if (rowStart.plus({ hours: 1 }) <= windowStart) continue;
         }
         const conv = extractConversions(r);
@@ -118,7 +134,13 @@ export class RuleMetricsService {
    * chance to deliver yet (a new one, or any ad set just after midnight with "Today").
    */
   private withoutDelivery(currency: string): MetricValues {
-    return { ...this.values(emptyCounters(), currency), clicks: null, leads: null, purchases: null, results: null };
+    return {
+      ...this.values(emptyCounters(), currency),
+      clicks: null,
+      leads: null,
+      purchases: null,
+      results: null,
+    };
   }
 
   values(c: BaseCounters, currency: string): MetricValues {

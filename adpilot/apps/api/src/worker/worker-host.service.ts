@@ -69,7 +69,9 @@ export class WorkerHostService implements OnApplicationBootstrap, OnModuleDestro
       const worker = new Worker(
         queue,
         async (job: Job, token?: string) =>
-          RequestContext.run({ requestId: `job:${job.id}`, jobId: job.id, queue }, () => processor.process(job, token)),
+          RequestContext.run({ requestId: `job:${job.id}`, jobId: job.id, queue }, () =>
+            processor.process(job, token),
+          ),
         {
           connection: this.redis.bullConnection(`worker-${queue}`),
           prefix: `${this.config.env.QUEUE_PREFIX}:bull`,
@@ -85,8 +87,20 @@ export class WorkerHostService implements OnApplicationBootstrap, OnModuleDestro
         this.stats.failed++;
         if (!job) return;
         const final = job.attemptsMade >= (job.opts.attempts ?? 1) || err.name === 'UnrecoverableError';
-        const data = { queue, jobName: job.name, jobId: job.id, attemptsMade: job.attemptsMade, final, err: serializeError(err) };
-        if (final) void this.systemLog.error(`worker:${queue}`, `Job ${job.name} failed permanently: ${err.message}`, data);
+        const data = {
+          queue,
+          jobName: job.name,
+          jobId: job.id,
+          attemptsMade: job.attemptsMade,
+          final,
+          err: serializeError(err),
+        };
+        if (final)
+          void this.systemLog.error(
+            `worker:${queue}`,
+            `Job ${job.name} failed permanently: ${err.message}`,
+            data,
+          );
         else this.logger.warn('Job attempt failed, will retry', data);
       });
       worker.on('error', (err) => this.logger.error('Worker error', { queue, err }));
@@ -103,7 +117,11 @@ export class WorkerHostService implements OnApplicationBootstrap, OnModuleDestro
       id: this.id,
       host: hostname(),
       pid: process.pid,
-      queues: this.workers.map((w) => ({ name: w.name, concurrency: w.opts.concurrency, running: w.isRunning() })),
+      queues: this.workers.map((w) => ({
+        name: w.name,
+        concurrency: w.opts.concurrency,
+        running: w.isRunning(),
+      })),
       ...this.stats,
       memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       at: new Date().toISOString(),

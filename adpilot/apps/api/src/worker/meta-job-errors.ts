@@ -24,7 +24,8 @@ export async function handleMetaJobError(
       return deferJob(job, token, err.details.retryAfterMs ?? 60_000);
     }
     if (err.category === 'AUTH' || err.category === 'PERMISSION') {
-      if (opts.profileId && opts.profileStatus) await opts.profileStatus.onApiError(opts.profileId, err, opts.tokenFingerprint);
+      if (opts.profileId && opts.profileStatus)
+        await opts.profileStatus.onApiError(opts.profileId, err, opts.tokenFingerprint);
       throw new UnrecoverableError(err.details.friendlyMessage);
     }
     if (err.category === 'VALIDATION' || err.category === 'POLICY' || err.category === 'NOT_FOUND') {

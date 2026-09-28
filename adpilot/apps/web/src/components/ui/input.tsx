@@ -45,8 +45,12 @@ export function InputGroup({
           {leading}
         </div>
       ) : null}
-      <div className={cn('w-full', leading && '[&_input]:pl-9', trailing && '[&_input]:pr-10')}>{children}</div>
-      {trailing ? <div className="absolute inset-y-0 right-0 flex items-center pr-1.5">{trailing}</div> : null}
+      <div className={cn('w-full', leading && '[&_input]:pl-9', trailing && '[&_input]:pr-10')}>
+        {children}
+      </div>
+      {trailing ? (
+        <div className="absolute inset-y-0 right-0 flex items-center pr-1.5">{trailing}</div>
+      ) : null}
     </div>
   );
 }

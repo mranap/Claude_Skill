@@ -22,7 +22,9 @@ export function CodeBlock({
   wrap?: boolean;
 }) {
   return (
-    <div className={cn('group/code relative min-w-0 rounded-md border bg-muted/40 dark:bg-black/25', className)}>
+    <div
+      className={cn('group/code relative min-w-0 rounded-md border bg-muted/40 dark:bg-black/25', className)}
+    >
       {copy ? (
         <div className="absolute top-1.5 right-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/code:opacity-100 sm:focus-within:opacity-100">
           <CopyButton value={code} className="bg-card/80 backdrop-blur" />
@@ -44,13 +46,16 @@ export function CodeBlock({
 function stringify(value: unknown): string {
   if (value === undefined) return 'undefined';
   try {
-    return JSON.stringify(value, (_key, v: unknown) => (typeof v === 'bigint' ? v.toString() : v), 2) ?? 'null';
+    return (
+      JSON.stringify(value, (_key, v: unknown) => (typeof v === 'bigint' ? v.toString() : v), 2) ?? 'null'
+    );
   } catch {
     return String(value);
   }
 }
 
-const TOKEN = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+const TOKEN =
+  /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
 
 function highlight(json: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
@@ -76,7 +81,15 @@ function highlight(json: string): React.ReactNode[] {
 }
 
 /** Pretty-printed, syntax-highlighted JSON (audit metadata, log context, Meta usage headers). */
-export function JsonViewer({ value, className, maxHeightClass }: { value: unknown; className?: string; maxHeightClass?: string }) {
+export function JsonViewer({
+  value,
+  className,
+  maxHeightClass,
+}: {
+  value: unknown;
+  className?: string;
+  maxHeightClass?: string;
+}) {
   const json = useMemo(() => stringify(value), [value]);
   const nodes = useMemo(() => highlight(json), [json]);
   return (

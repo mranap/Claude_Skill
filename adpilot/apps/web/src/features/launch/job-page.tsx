@@ -2,7 +2,18 @@
 
 import type { LaunchItemKind, LaunchJobStatus, MetaErrorDetails } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, ExternalLink, Film, FolderKanban, ImageIcon, Layers, Megaphone, Palette, RotateCcw, TriangleAlert } from 'lucide-react';
+import {
+  Ban,
+  ExternalLink,
+  Film,
+  FolderKanban,
+  ImageIcon,
+  Layers,
+  Megaphone,
+  Palette,
+  RotateCcw,
+  TriangleAlert,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -53,28 +64,45 @@ const KIND: Record<LaunchItemKind, { label: string; icon: typeof Film }> = {
 function phaseSteps(job: LaunchJobDto): { steps: StepperStep[]; current: number } {
   const phases = PHASES.filter((p) => p.status !== 'ACTIVATING' || job.activateOnSuccess);
   if (job.status === 'COMPLETED') {
-    return { steps: phases.map((p) => ({ id: p.status, title: p.title, state: 'complete' as StepState })), current: phases.length - 1 };
+    return {
+      steps: phases.map((p) => ({ id: p.status, title: p.title, state: 'complete' as StepState })),
+      current: phases.length - 1,
+    };
   }
   let current = phases.findIndex((p) => p.status === job.status);
   let failedAt = -1;
   if (current === -1) {
     // Terminal failure/cancel: the phase of the first failed (or unfinished) item.
-    const failed = job.items.find((i) => i.status === 'FAILED') ?? job.items.find((i) => i.status !== 'CREATED' && i.status !== 'VERIFIED');
-    failedAt = failed ? phases.findIndex((p) => p.kinds?.includes(failed.kind)) : phases.findIndex((p) => p.status === 'VERIFYING');
+    const failed =
+      job.items.find((i) => i.status === 'FAILED') ??
+      job.items.find((i) => i.status !== 'CREATED' && i.status !== 'VERIFIED');
+    failedAt = failed
+      ? phases.findIndex((p) => p.kinds?.includes(failed.kind))
+      : phases.findIndex((p) => p.status === 'VERIFYING');
     if (failedAt === -1) failedAt = 1;
     current = failedAt;
   }
   const steps = phases.map((p, i) => {
     let state: StepState = i < current ? 'complete' : i === current ? 'current' : 'upcoming';
     if (i === failedAt) state = job.status === 'CANCELLED' ? 'upcoming' : 'error';
-    return { id: p.status, title: p.title, state, description: i === failedAt ? (job.status === 'CANCELLED' ? 'Cancelled' : 'Failed') : undefined };
+    return {
+      id: p.status,
+      title: p.title,
+      state,
+      description: i === failedAt ? (job.status === 'CANCELLED' ? 'Cancelled' : 'Failed') : undefined,
+    };
   });
   return { steps, current };
 }
 
 function itemError(error: LaunchItemError | null): ApiError | null {
   if (!error) return null;
-  return new ApiError({ status: error.meta?.httpStatus ?? 0, code: error.meta ? 'META_API_ERROR' : 'UNKNOWN_ERROR', message: error.message, meta: error.meta as MetaErrorDetails | undefined });
+  return new ApiError({
+    status: error.meta?.httpStatus ?? 0,
+    code: error.meta ? 'META_API_ERROR' : 'UNKNOWN_ERROR',
+    message: error.message,
+    meta: error.meta as MetaErrorDetails | undefined,
+  });
 }
 
 export function LaunchJobPage({ id }: { id: string }) {
@@ -91,7 +119,10 @@ export function LaunchJobPage({ id }: { id: string }) {
   if (job.isError || !job.data) {
     return (
       <>
-        <PageHeader title="Launch" breadcrumbs={[{ label: 'Launch history', href: '/launch?tab=history' }, { label: 'Not available' }]} />
+        <PageHeader
+          title="Launch"
+          breadcrumbs={[{ label: 'Launch history', href: '/launch?tab=history' }, { label: 'Not available' }]}
+        />
         <ErrorAlert error={job.error} onRetry={() => void job.refetch()} />
       </>
     );
@@ -105,13 +136,17 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
   const terminal = isTerminal(job.status);
   const { steps, current } = phaseSteps(job);
   const now = useNow(1000, !terminal);
-  const duration = job.startedAt ? (job.finishedAt ? new Date(job.finishedAt).getTime() : now) - new Date(job.startedAt).getTime() : null;
+  const duration = job.startedAt
+    ? (job.finishedAt ? new Date(job.finishedAt).getTime() : now) - new Date(job.startedAt).getTime()
+    : null;
 
   const retry = useMutation({
     mutationFn: () => launchesApi.retry(job.id),
     onSuccess: async (updated) => {
       queryClient.setQueryData(queryKeys.launches.detail(job.id), updated);
-      toast.success('Retrying the failed steps', { description: 'Objects that were already created are reused.' });
+      toast.success('Retrying the failed steps', {
+        description: 'Objects that were already created are reused.',
+      });
       await queryClient.invalidateQueries({ queryKey: queryKeys.launches.all });
     },
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
@@ -137,16 +172,25 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
     },
     { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} size="sm" /> },
     { id: 'meta', header: 'Meta id', interactive: true, cell: (item) => <MetaId value={item.metaId} /> },
-    { id: 'attempts', header: 'Attempts', align: 'right', cell: (item) => <span className="tabular-nums">{item.attemptCount}</span> },
+    {
+      id: 'attempts',
+      header: 'Attempts',
+      align: 'right',
+      cell: (item) => <span className="tabular-nums">{item.attemptCount}</span>,
+    },
     {
       id: 'error',
       header: 'Details',
       className: 'max-w-md',
       cell: (item) =>
         item.lastError ? (
-          <span className="line-clamp-2 text-xs text-destructive-fg">{item.lastError.meta?.friendlyMessage ?? item.lastError.message}</span>
+          <span className="line-clamp-2 text-xs text-destructive-fg">
+            {item.lastError.meta?.friendlyMessage ?? item.lastError.message}
+          </span>
         ) : (
-          <span className="text-xs text-muted-foreground">{item.status === 'IN_FLIGHT' ? 'Sending to Meta…' : '—'}</span>
+          <span className="text-xs text-muted-foreground">
+            {item.status === 'IN_FLIGHT' ? 'Sending to Meta…' : '—'}
+          </span>
         ),
     },
   ];
@@ -166,14 +210,19 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
         }
         description={
           <>
-            {job.adAccount.name} · <span className="font-mono">act_{job.adAccount.metaAccountId}</span> · started {formatDateTime(job.startedAt ?? job.queuedAt)}
+            {job.adAccount.name} · <span className="font-mono">act_{job.adAccount.metaAccountId}</span> ·
+            started {formatDateTime(job.startedAt ?? job.queuedAt)}
             {job.finishedAt ? ` · finished ${formatDateTime(job.finishedAt)}` : ''}
           </>
         }
         actions={
           <>
             {!terminal ? (
-              <Button variant="outline" onClick={() => setCancelOpen(true)} disabled={!!job.cancelRequestedAt}>
+              <Button
+                variant="outline"
+                onClick={() => setCancelOpen(true)}
+                disabled={!!job.cancelRequestedAt}
+              >
                 <Ban />
                 {job.cancelRequestedAt ? 'Cancelling…' : 'Cancel'}
               </Button>
@@ -193,7 +242,11 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
                   </Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <a href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${job.adAccount.metaAccountId}&selected_campaign_ids=${job.metaCampaignId}`} target="_blank" rel="noreferrer noopener">
+                  <a
+                    href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${job.adAccount.metaAccountId}&selected_campaign_ids=${job.metaCampaignId}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
                     <ExternalLink />
                     Ads Manager
                   </a>
@@ -210,31 +263,54 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
             <div className="grid gap-2">
               <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                 <span className="font-medium" aria-live="polite">
-                  {terminal ? (job.status === 'COMPLETED' ? 'All objects were created' : job.status === 'CANCELLED' ? 'The launch was cancelled' : 'The launch stopped with errors') : 'Creating objects at Meta…'}
+                  {terminal
+                    ? job.status === 'COMPLETED'
+                      ? 'All objects were created'
+                      : job.status === 'CANCELLED'
+                        ? 'The launch was cancelled'
+                        : 'The launch stopped with errors'
+                    : 'Creating objects at Meta…'}
                 </span>
                 <span className="text-muted-foreground tabular-nums">
-                  {job.createdItems} of {job.totalItems} created{job.failedItems ? ` · ${job.failedItems} failed` : ''} · {job.progress}%
+                  {job.createdItems} of {job.totalItems} created
+                  {job.failedItems ? ` · ${job.failedItems} failed` : ''} · {job.progress}%
                   {duration !== null ? ` · ${formatDurationMs(duration)}` : ''}
                 </span>
               </div>
               <Progress
                 value={job.progress}
-                tone={job.status === 'FAILED' ? 'danger' : job.status === 'PARTIAL_FAILURE' ? 'warning' : job.status === 'COMPLETED' ? 'success' : 'default'}
+                tone={
+                  job.status === 'FAILED'
+                    ? 'danger'
+                    : job.status === 'PARTIAL_FAILURE'
+                      ? 'warning'
+                      : job.status === 'COMPLETED'
+                        ? 'success'
+                        : 'default'
+                }
                 indeterminate={!terminal && job.progress === 0}
                 aria-label="Launch progress"
               />
-              {!terminal ? <p className="text-xs text-muted-foreground">{fetching ? 'Refreshing…' : 'Updates every few seconds. You can leave this page — the launch continues in the background.'}</p> : null}
+              {!terminal ? (
+                <p className="text-xs text-muted-foreground">
+                  {fetching
+                    ? 'Refreshing…'
+                    : 'Updates every few seconds. You can leave this page — the launch continues in the background.'}
+                </p>
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
-        {job.error ? (
-          <JobError error={job.error} />
-        ) : null}
+        {job.error ? <JobError error={job.error} /> : null}
         {job.status === 'COMPLETED' ? (
           <Alert variant="success">
             <AlertTitle>Launch completed</AlertTitle>
-            <AlertDescription>{job.activateOnSuccess ? 'Everything was created, verified and activated.' : 'Everything was created and verified. The campaign is paused — activate it when you are ready.'}</AlertDescription>
+            <AlertDescription>
+              {job.activateOnSuccess
+                ? 'Everything was created, verified and activated.'
+                : 'Everything was created and verified. The campaign is paused — activate it when you are ready.'}
+            </AlertDescription>
           </Alert>
         ) : null}
         {job.warnings?.length ? (
@@ -253,7 +329,10 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
         <Card>
           <CardHeader>
             <CardTitle>Objects</CardTitle>
-            <CardDescription>Everything this launch creates at Meta, in order. Expand a failed row for the Meta error details.</CardDescription>
+            <CardDescription>
+              Everything this launch creates at Meta, in order. Expand a failed row for the Meta error
+              details.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable
@@ -265,7 +344,10 @@ function JobView({ job, fetching }: { job: LaunchJobDto; fetching: boolean }) {
               stickyHeader={false}
               renderExpanded={(item) =>
                 item.lastError ? (
-                  <ErrorAlert error={itemError(item.lastError)} title={`${KIND[item.kind].label} “${item.name}”`} />
+                  <ErrorAlert
+                    error={itemError(item.lastError)}
+                    title={`${KIND[item.kind].label} “${item.name}”`}
+                  />
                 ) : (
                   <KeyValueList
                     className="max-w-xl"

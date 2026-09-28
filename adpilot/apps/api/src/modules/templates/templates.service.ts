@@ -27,7 +27,14 @@ export class TemplatesService {
       userId,
       isArchived: q.archived ?? false,
       ...(q.objective ? { objective: q.objective } : {}),
-      ...(q.q ? { OR: [{ name: { contains: q.q, mode: 'insensitive' } }, { description: { contains: q.q, mode: 'insensitive' } }] } : {}),
+      ...(q.q
+        ? {
+            OR: [
+              { name: { contains: q.q, mode: 'insensitive' } },
+              { description: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     };
     const [field, dir] = (q.sort ?? 'updatedAt:desc').split(':') as [string, 'asc' | 'desc'];
     const sortable = new Set(['updatedAt', 'createdAt', 'name', 'lastUsedAt']);
@@ -88,7 +95,14 @@ export class TemplatesService {
         config: input.config,
       },
     });
-    await this.audit.log({ action: 'template.created', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: row.id, metadata: { name: row.name } });
+    await this.audit.log({
+      action: 'template.created',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'template',
+      targetId: row.id,
+      metadata: { name: row.name },
+    });
     return this.get(userId, row.id);
   }
 
@@ -104,7 +118,13 @@ export class TemplatesService {
         ...(input.config ? { config: input.config, objective: input.config.settings.objective } : {}),
       },
     });
-    await this.audit.log({ action: 'template.updated', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: id });
+    await this.audit.log({
+      action: 'template.updated',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'template',
+      targetId: id,
+    });
     return this.get(userId, id);
   }
 
@@ -120,7 +140,14 @@ export class TemplatesService {
         clonedFromId: src.id,
       },
     });
-    await this.audit.log({ action: 'template.cloned', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: row.id, metadata: { from: id } });
+    await this.audit.log({
+      action: 'template.cloned',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'template',
+      targetId: row.id,
+      metadata: { from: id },
+    });
     return this.get(userId, row.id);
   }
 
@@ -132,7 +159,13 @@ export class TemplatesService {
     } else {
       await this.prisma.campaignTemplate.delete({ where: { id } });
     }
-    await this.audit.log({ action: inUse ? 'template.archived' : 'template.deleted', actorUserId: userId, subjectUserId: userId, targetType: 'template', targetId: id });
+    await this.audit.log({
+      action: inUse ? 'template.archived' : 'template.deleted',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'template',
+      targetId: id,
+    });
     return { archived: inUse > 0, deleted: inUse === 0 };
   }
 
@@ -147,14 +180,21 @@ export class TemplatesService {
     const dest = rule?.destinations.find((d) => d.destination === config.settings.destination);
     const goal = dest?.goals.find((g) => g.goal === config.settings.optimizationGoal);
     if (!rule || !dest || !goal) {
-      throw AppError.validation('This combination of objective, conversion location and optimization goal is not supported', [
-        { path: 'config.settings.optimizationGoal', message: 'Choose one of the listed optimization goals' },
-      ]);
+      throw AppError.validation(
+        'This combination of objective, conversion location and optimization goal is not supported',
+        [
+          {
+            path: 'config.settings.optimizationGoal',
+            message: 'Choose one of the listed optimization goals',
+          },
+        ],
+      );
     }
     if (!goal.billingEvents.includes(config.settings.billingEvent)) {
-      throw AppError.validation(`Billing event ${config.settings.billingEvent} is not available for ${goal.label}`, [
-        { path: 'config.settings.billingEvent', message: `Allowed: ${goal.billingEvents.join(', ')}` },
-      ]);
+      throw AppError.validation(
+        `Billing event ${config.settings.billingEvent} is not available for ${goal.label}`,
+        [{ path: 'config.settings.billingEvent', message: `Allowed: ${goal.billingEvents.join(', ')}` }],
+      );
     }
   }
 }

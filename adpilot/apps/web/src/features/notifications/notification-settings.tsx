@@ -7,7 +7,10 @@ import { PreferencesCard } from './preferences-card';
 import { TelegramCard } from './telegram-card';
 
 export function NotificationSettings() {
-  const telegram = useQuery({ queryKey: queryKeys.notifications.telegram, queryFn: notificationsApi.telegramStatus });
+  const telegram = useQuery({
+    queryKey: queryKeys.notifications.telegram,
+    queryFn: notificationsApi.telegramStatus,
+  });
   return (
     <div className="grid gap-6">
       <TelegramCard />

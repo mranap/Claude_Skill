@@ -86,7 +86,11 @@ export function effectiveCountries(settings: TemplateSettings, v: Variant): stri
   return v.countries.length ? v.countries : settings.targeting.countries;
 }
 
-export function buildCampaignPayload(config: LaunchConfig, name: string, currency: string): Record<string, unknown> {
+export function buildCampaignPayload(
+  config: LaunchConfig,
+  name: string,
+  currency: string,
+): Record<string, unknown> {
   const s = config.settings;
   const allCountries = [...new Set(config.variants.flatMap((v) => effectiveCountries(s, v)))];
   const payload: Record<string, unknown> = {
@@ -97,7 +101,9 @@ export function buildCampaignPayload(config: LaunchConfig, name: string, currenc
     special_ad_categories: s.specialAdCategories,
   };
   if (s.specialAdCategories.length) {
-    payload.special_ad_category_country = s.specialAdCategoryCountries.length ? s.specialAdCategoryCountries : allCountries;
+    payload.special_ad_category_country = s.specialAdCategoryCountries.length
+      ? s.specialAdCategoryCountries
+      : allCountries;
   }
   if (s.budget.level === 'CAMPAIGN') {
     const amount = majorToMinor(s.budget.amount, currency).toString();
@@ -127,15 +133,21 @@ export function buildTargeting(s: TemplateSettings, v: Variant): Record<string, 
   if (genders === 'FEMALE') targeting.genders = [2];
   if (locales.length) targeting.locales = locales.map((l) => l.key);
   if (t.customAudienceIds.length) targeting.custom_audiences = t.customAudienceIds.map((id) => ({ id }));
-  if (t.excludedCustomAudienceIds.length) targeting.excluded_custom_audiences = t.excludedCustomAudienceIds.map((id) => ({ id }));
-  if (t.interests.length) targeting.flexible_spec = [{ interests: t.interests.map((i) => ({ id: i.id, name: i.name })) }];
+  if (t.excludedCustomAudienceIds.length)
+    targeting.excluded_custom_audiences = t.excludedCustomAudienceIds.map((id) => ({ id }));
+  if (t.interests.length)
+    targeting.flexible_spec = [{ interests: t.interests.map((i) => ({ id: i.id, name: i.name })) }];
   if (s.placements.mode === 'MANUAL') {
     const p = s.placements;
     targeting.publisher_platforms = p.publisherPlatforms;
-    if (p.publisherPlatforms.includes('facebook') && p.facebookPositions.length) targeting.facebook_positions = p.facebookPositions;
-    if (p.publisherPlatforms.includes('instagram') && p.instagramPositions.length) targeting.instagram_positions = p.instagramPositions;
-    if (p.publisherPlatforms.includes('audience_network') && p.audienceNetworkPositions.length) targeting.audience_network_positions = p.audienceNetworkPositions;
-    if (p.publisherPlatforms.includes('threads') && p.threadsPositions.length) targeting.threads_positions = p.threadsPositions;
+    if (p.publisherPlatforms.includes('facebook') && p.facebookPositions.length)
+      targeting.facebook_positions = p.facebookPositions;
+    if (p.publisherPlatforms.includes('instagram') && p.instagramPositions.length)
+      targeting.instagram_positions = p.instagramPositions;
+    if (p.publisherPlatforms.includes('audience_network') && p.audienceNetworkPositions.length)
+      targeting.audience_network_positions = p.audienceNetworkPositions;
+    if (p.publisherPlatforms.includes('threads') && p.threadsPositions.length)
+      targeting.threads_positions = p.threadsPositions;
     if (p.devicePlatforms.length) targeting.device_platforms = p.devicePlatforms;
   }
   return targeting;
@@ -159,7 +171,8 @@ export function buildAdSetPayload(
     targeting: buildTargeting(s, v),
   };
   if (s.destination !== 'NONE') payload.destination_type = s.destination;
-  if (rule?.promotedObject === 'PIXEL_EVENT') payload.promoted_object = { pixel_id: s.conversion.pixelId, custom_event_type: s.conversion.event };
+  if (rule?.promotedObject === 'PIXEL_EVENT')
+    payload.promoted_object = { pixel_id: s.conversion.pixelId, custom_event_type: s.conversion.event };
   if (rule?.promotedObject === 'PAGE') payload.promoted_object = { page_id: s.identity.pageId };
 
   if (s.budget.level === 'ADSET') {
@@ -168,7 +181,10 @@ export function buildAdSetPayload(
     else payload.lifetime_budget = amount;
     payload.bid_strategy = s.budget.bidStrategy;
   }
-  if (s.budget.bidAmount && (s.budget.bidStrategy === 'COST_CAP' || s.budget.bidStrategy === 'LOWEST_COST_WITH_BID_CAP')) {
+  if (
+    s.budget.bidAmount &&
+    (s.budget.bidStrategy === 'COST_CAP' || s.budget.bidStrategy === 'LOWEST_COST_WITH_BID_CAP')
+  ) {
     payload.bid_amount = majorToMinor(s.budget.bidAmount, currency).toString();
   }
   if (s.budget.bidStrategy === 'LOWEST_COST_WITH_MIN_ROAS' && s.budget.roasFloor) {
@@ -179,9 +195,13 @@ export function buildAdSetPayload(
 
   const conversionGoal = s.optimizationGoal === 'OFFSITE_CONVERSIONS' || s.optimizationGoal === 'VALUE';
   if (conversionGoal && s.attribution.mode === 'CUSTOM') {
-    const spec: { event_type: string; window_days: number }[] = [{ event_type: 'CLICK_THROUGH', window_days: s.attribution.clickDays }];
-    if (s.attribution.viewDays) spec.push({ event_type: 'VIEW_THROUGH', window_days: s.attribution.viewDays });
-    if (s.attribution.engagedViewDays) spec.push({ event_type: 'ENGAGED_VIDEO_VIEW', window_days: s.attribution.engagedViewDays });
+    const spec: { event_type: string; window_days: number }[] = [
+      { event_type: 'CLICK_THROUGH', window_days: s.attribution.clickDays },
+    ];
+    if (s.attribution.viewDays)
+      spec.push({ event_type: 'VIEW_THROUGH', window_days: s.attribution.viewDays });
+    if (s.attribution.engagedViewDays)
+      spec.push({ event_type: 'ENGAGED_VIDEO_VIEW', window_days: s.attribution.engagedViewDays });
     payload.attribution_spec = spec;
   }
   if (targetsEu(effectiveCountries(s, v))) {
@@ -191,14 +211,24 @@ export function buildAdSetPayload(
   return payload;
 }
 
-function callToAction(s: TemplateSettings, ad: AdVariant, link: string | undefined, video = false): Record<string, unknown> | undefined {
+function callToAction(
+  s: TemplateSettings,
+  ad: AdVariant,
+  link: string | undefined,
+  video = false,
+): Record<string, unknown> | undefined {
   const type = ad.callToAction ?? s.creative.callToAction;
   if (type === 'NO_BUTTON') return { type };
   const leadFormId = ad.leadFormId ?? s.creative.leadFormId;
   if (s.destination === 'ON_AD' && leadFormId) {
     // Lead Ads guide: link_data carries the placeholder link itself; video_data has no link field, so the
     // video call to action carries it next to the form.
-    return { type, value: video ? { link: LEAD_FORM_LINK, lead_gen_form_id: leadFormId } : { lead_gen_form_id: leadFormId } };
+    return {
+      type,
+      value: video
+        ? { link: LEAD_FORM_LINK, lead_gen_form_id: leadFormId }
+        : { lead_gen_form_id: leadFormId },
+    };
   }
   return link ? { type, value: { link } } : { type };
 }
@@ -209,7 +239,13 @@ export interface CreativeRefs {
   typeOf: (creativeFileId: string) => 'IMAGE' | 'VIDEO';
 }
 
-export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVariant, name: string, refs: CreativeRefs): Record<string, unknown> {
+export function buildCreativePayload(
+  config: LaunchConfig,
+  v: Variant,
+  ad: AdVariant,
+  name: string,
+  refs: CreativeRefs,
+): Record<string, unknown> {
   const s = config.settings;
   const leadForm = s.destination === 'ON_AD';
   const link = leadForm ? LEAD_FORM_LINK : ad.link;
@@ -247,7 +283,7 @@ export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVar
       multi_share_end_card: false,
       child_attachments: ad.cards.map((c) => {
         const key = refs.mediaKey(c.creativeFileId);
-        const cardLink = leadForm ? LEAD_FORM_LINK : c.link ?? link;
+        const cardLink = leadForm ? LEAD_FORM_LINK : (c.link ?? link);
         const media =
           refs.typeOf(c.creativeFileId) === 'VIDEO'
             ? { video_id: ref(key, 'videoId'), picture: ref(key, 'thumbnailUrl') }
@@ -269,9 +305,16 @@ export function buildCreativePayload(config: LaunchConfig, v: Variant, ad: AdVar
   if (urlTags) payload.url_tags = urlTags;
   payload.contextual_multi_ads = { enroll_status: s.creative.multiAdvertiserAds ? 'OPT_IN' : 'OPT_OUT' };
   if (s.creative.enhancements === 'OFF') {
-    const kind = s.creative.format === 'CAROUSEL' ? 'CAROUSEL' : s.creative.format === 'SINGLE_VIDEO' ? 'VIDEO' : 'IMAGE';
+    const kind =
+      s.creative.format === 'CAROUSEL'
+        ? 'CAROUSEL'
+        : s.creative.format === 'SINGLE_VIDEO'
+          ? 'VIDEO'
+          : 'IMAGE';
     payload.degrees_of_freedom_spec = {
-      creative_features_spec: Object.fromEntries(ENHANCEMENT_OPT_OUT_FEATURES[kind].map((f) => [f, { enroll_status: 'OPT_OUT' }])),
+      creative_features_spec: Object.fromEntries(
+        ENHANCEMENT_OPT_OUT_FEATURES[kind].map((f) => [f, { enroll_status: 'OPT_OUT' }]),
+      ),
     };
   }
   void v;

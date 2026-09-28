@@ -6,7 +6,15 @@ import { paginationQuerySchema } from './common';
  * Insights), never in the server's time zone. "last_7d" means the 7 complete days before today, matching
  * Ads Manager; "last_7d_incl_today" is not offered to avoid confusion.
  */
-export const DATE_RANGE_KEYS = ['today', 'yesterday', 'last_3d', 'last_7d', 'last_14d', 'last_30d', 'custom'] as const;
+export const DATE_RANGE_KEYS = [
+  'today',
+  'yesterday',
+  'last_3d',
+  'last_7d',
+  'last_14d',
+  'last_30d',
+  'custom',
+] as const;
 export type DateRangeKey = (typeof DATE_RANGE_KEYS)[number];
 
 export const DATE_RANGE_LABELS: Record<DateRangeKey, string> = {

@@ -17,13 +17,23 @@ import { AmountInput, SelectInput, SettingsSection } from './fields';
  * Language/geo groups ("variants"): each one becomes an ad set with its own countries, languages,
  * optional budget and audience overrides. Ads are added per group in the launch wizard.
  */
-export function VariantsEditor({ title = 'Language / geo groups', description }: { title?: string; description?: string }) {
+export function VariantsEditor({
+  title = 'Language / geo groups',
+  description,
+}: {
+  title?: string;
+  description?: string;
+}) {
   const form = useSettingsForm();
   const ui = useSettingsUi();
   const { fields, append, remove, insert } = useFieldArray({ control: form.control, name: 'variants' });
-  const [defaultCountries, budgetLevel] = useWatch({ control: form.control, name: ['settings.targeting.countries', 'settings.budget.level'] });
-  const rootError = (form.formState.errors.variants as { message?: string; root?: { message?: string } } | undefined)?.root?.message
-    ?? (form.formState.errors.variants as { message?: string } | undefined)?.message;
+  const [defaultCountries, budgetLevel] = useWatch({
+    control: form.control,
+    name: ['settings.targeting.countries', 'settings.budget.level'],
+  });
+  const rootError =
+    (form.formState.errors.variants as { message?: string; root?: { message?: string } } | undefined)?.root
+      ?.message ?? (form.formState.errors.variants as { message?: string } | undefined)?.message;
 
   const addPerCountry = () => {
     const existing = new Set(form.getValues('variants').flatMap((v) => v.countries ?? []));
@@ -45,7 +55,12 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
     <SettingsSection
       id="variants"
       title={title}
-      description={description ?? (ui.mode === 'template' ? 'Optional predefined groups; each becomes one ad set when the template is launched.' : 'Each group becomes one ad set with its own countries, languages and ads.')}
+      description={
+        description ??
+        (ui.mode === 'template'
+          ? 'Optional predefined groups; each becomes one ad set when the template is launched.'
+          : 'Each group becomes one ad set with its own countries, languages and ads.')
+      }
       actions={
         <div className="flex flex-wrap gap-2">
           {(defaultCountries?.length ?? 0) > 1 ? (
@@ -54,7 +69,13 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
               One per country
             </Button>
           ) : null}
-          <Button type="button" variant="outline" size="sm" onClick={() => append(newVariant(fields.length))} disabled={ui.disabled || fields.length >= 50}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => append(newVariant(fields.length))}
+            disabled={ui.disabled || fields.length >= 50}
+          >
             <Plus />
             Add group
           </Button>
@@ -71,7 +92,11 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
           compact
           icon={Globe2}
           title="No groups yet"
-          description={ui.mode === 'template' ? 'Without groups the launch starts with one group using the default targeting.' : 'Add at least one group. A single group with the default countries is the simplest launch.'}
+          description={
+            ui.mode === 'template'
+              ? 'Without groups the launch starts with one group using the default targeting.'
+              : 'Add at least one group. A single group with the default countries is the simplest launch.'
+          }
           action={
             <Button type="button" size="sm" onClick={() => append(newVariant(0))} disabled={ui.disabled}>
               <Plus />
@@ -82,19 +107,50 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
       ) : (
         <ol className="grid gap-3">
           {fields.map((field, index) => (
-            <li key={field.id} className="grid gap-4 rounded-lg border bg-surface-subtle p-4" data-testid="variant-card">
+            <li
+              key={field.id}
+              className="grid gap-4 rounded-lg border bg-surface-subtle p-4"
+              data-testid="variant-card"
+            >
               <div className="flex items-start gap-3">
-                <span className="mt-1.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary-fg tabular-nums">{index + 1}</span>
+                <span className="mt-1.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary-fg tabular-nums">
+                  {index + 1}
+                </span>
                 <FormField
                   control={form.control}
                   name={`variants.${index}.label`}
                   className="min-w-0 flex-1"
-                  render={({ field: f, controlProps }) => <Input {...controlProps} value={f.value ?? ''} onChange={f.onChange} onBlur={f.onBlur} maxLength={60} placeholder="Group name, e.g. Poland — Polish" aria-label={`Name of group ${index + 1}`} disabled={ui.disabled} />}
+                  render={({ field: f, controlProps }) => (
+                    <Input
+                      {...controlProps}
+                      value={f.value ?? ''}
+                      onChange={f.onChange}
+                      onBlur={f.onBlur}
+                      maxLength={60}
+                      placeholder="Group name, e.g. Poland — Polish"
+                      aria-label={`Name of group ${index + 1}`}
+                      disabled={ui.disabled}
+                    />
+                  )}
                 />
-                <Button type="button" variant="ghost" size="icon-sm" onClick={() => duplicate(index)} aria-label={`Duplicate group ${index + 1}`} disabled={ui.disabled}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => duplicate(index)}
+                  aria-label={`Duplicate group ${index + 1}`}
+                  disabled={ui.disabled}
+                >
                   <Copy />
                 </Button>
-                <Button type="button" variant="ghost" size="icon-sm" onClick={() => remove(index)} aria-label={`Remove group ${index + 1}`} disabled={ui.disabled}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => remove(index)}
+                  aria-label={`Remove group ${index + 1}`}
+                  disabled={ui.disabled}
+                >
                   <Trash2 />
                 </Button>
               </div>
@@ -102,7 +158,11 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
                 control={form.control}
                 name={`variants.${index}.countries`}
                 label="Countries"
-                description={defaultCountries?.length ? `Empty = default countries (${defaultCountries.join(', ')}).` : 'Select at least one country (or set default countries in the audience).'}
+                description={
+                  defaultCountries?.length
+                    ? `Empty = default countries (${defaultCountries.join(', ')}).`
+                    : 'Select at least one country (or set default countries in the audience).'
+                }
                 render={({ field: f, controlProps }) => (
                   <MultiCombobox
                     {...controlProps}
@@ -122,7 +182,17 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
                 name={`variants.${index}.locales`}
                 label="Languages"
                 description="Empty = default languages of the audience."
-                render={({ field: f }) => <PairListEditor value={f.value ?? []} onChange={f.onChange} idKey="key" numeric idLabel="Locale key" nameLabel="Language" disabled={ui.disabled} />}
+                render={({ field: f }) => (
+                  <PairListEditor
+                    value={f.value ?? []}
+                    onChange={f.onChange}
+                    idKey="key"
+                    numeric
+                    idLabel="Locale key"
+                    nameLabel="Language"
+                    disabled={ui.disabled}
+                  />
+                )}
               />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {budgetLevel !== 'CAMPAIGN' ? (
@@ -130,7 +200,17 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
                     control={form.control}
                     name={`variants.${index}.budgetAmount`}
                     label="Budget override"
-                    render={({ field: f, controlProps }) => <AmountInput controlProps={controlProps} value={f.value} onChange={f.onChange} currency={ui.currency} optional placeholder="Default" disabled={ui.disabled} />}
+                    render={({ field: f, controlProps }) => (
+                      <AmountInput
+                        controlProps={controlProps}
+                        value={f.value}
+                        onChange={f.onChange}
+                        currency={ui.currency}
+                        optional
+                        placeholder="Default"
+                        disabled={ui.disabled}
+                      />
+                    )}
                   />
                 ) : null}
                 <FormField
@@ -138,7 +218,13 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
                   name={`variants.${index}.ageMin`}
                   label="Min age"
                   render={({ field: f, controlProps }) => (
-                    <SelectInput controlProps={controlProps} value={f.value === undefined ? 'DEFAULT' : String(f.value)} onChange={(v) => f.onChange(v === 'DEFAULT' ? undefined : Number(v))} options={[{ value: 'DEFAULT', label: 'Default' }, ...ageOptions()]} disabled={ui.disabled} />
+                    <SelectInput
+                      controlProps={controlProps}
+                      value={f.value === undefined ? 'DEFAULT' : String(f.value)}
+                      onChange={(v) => f.onChange(v === 'DEFAULT' ? undefined : Number(v))}
+                      options={[{ value: 'DEFAULT', label: 'Default' }, ...ageOptions()]}
+                      disabled={ui.disabled}
+                    />
                   )}
                 />
                 <FormField
@@ -146,7 +232,13 @@ export function VariantsEditor({ title = 'Language / geo groups', description }:
                   name={`variants.${index}.ageMax`}
                   label="Max age"
                   render={({ field: f, controlProps }) => (
-                    <SelectInput controlProps={controlProps} value={f.value === undefined ? 'DEFAULT' : String(f.value)} onChange={(v) => f.onChange(v === 'DEFAULT' ? undefined : Number(v))} options={[{ value: 'DEFAULT', label: 'Default' }, ...ageOptions()]} disabled={ui.disabled} />
+                    <SelectInput
+                      controlProps={controlProps}
+                      value={f.value === undefined ? 'DEFAULT' : String(f.value)}
+                      onChange={(v) => f.onChange(v === 'DEFAULT' ? undefined : Number(v))}
+                      options={[{ value: 'DEFAULT', label: 'Default' }, ...ageOptions()]}
+                      disabled={ui.disabled}
+                    />
                   )}
                 />
                 <FormField

@@ -24,7 +24,9 @@ interface LayoutInput {
 }
 
 export function renderLayout(input: LayoutInput): { html: string; text: string } {
-  const p = input.paragraphs.map((t) => `<p style="margin:0 0 14px;line-height:1.55">${escapeHtml(t)}</p>`).join('');
+  const p = input.paragraphs
+    .map((t) => `<p style="margin:0 0 14px;line-height:1.55">${escapeHtml(t)}</p>`)
+    .join('');
   const button = input.action
     ? `<p style="margin:22px 0"><a href="${escapeHtml(input.action.url)}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(input.action.label)}</a></p>
        <p style="margin:0 0 14px;font-size:12px;color:#6b7280;word-break:break-all">${escapeHtml(input.action.url)}</p>`
@@ -94,7 +96,10 @@ export const MailTemplates = {
     const { html, text } = renderLayout({
       platformName,
       title,
-      paragraphs: [message, 'If this was not you, reset your password immediately and contact your administrator.'],
+      paragraphs: [
+        message,
+        'If this was not you, reset your password immediately and contact your administrator.',
+      ],
     });
     return { subject: `${platformName}: ${title}`, html, text };
   },

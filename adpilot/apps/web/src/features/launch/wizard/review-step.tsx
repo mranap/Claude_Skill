@@ -1,7 +1,16 @@
 'use client';
 
 import { BID_STRATEGY_LABELS, goalRule, objectiveRule, type BidStrategy } from '@adpilot/shared';
-import { ArrowRight, ChevronDown, CircleAlert, CircleCheck, FileJson, FlaskConical, ShieldCheck, TriangleAlert } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  FileJson,
+  FlaskConical,
+  ShieldCheck,
+  TriangleAlert,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -43,13 +52,25 @@ export function IssueList({
         const step = stepOfPath(issue.path);
         return (
           <li key={`${issue.path}:${i}`} className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm">
-            {tone === 'error' ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive-fg" aria-hidden /> : <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-fg" aria-hidden />}
+            {tone === 'error' ? (
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive-fg" aria-hidden />
+            ) : (
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-fg" aria-hidden />
+            )}
             <span className="min-w-0 flex-1">
-              {issue.path ? <span className="font-medium">{describePath(issue.path, variantLabels)}: </span> : null}
+              {issue.path ? (
+                <span className="font-medium">{describePath(issue.path, variantLabels)}: </span>
+              ) : null}
               <span className="text-muted-foreground">{issue.message}</span>
             </span>
             {step < WIZARD_STEPS.length - 2 ? (
-              <Button type="button" variant="link" size="xs" className="h-auto p-0" onClick={() => onGoTo(step)}>
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                className="h-auto p-0"
+                onClick={() => onGoTo(step)}
+              >
                 {WIZARD_STEPS[step]!.title}
                 <ArrowRight />
               </Button>
@@ -85,14 +106,28 @@ export function ReviewStep({
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-4">
           <div className="grid gap-1">
             <CardTitle>Check before launching</CardTitle>
-            <CardDescription>Validation runs every rule locally. The dry run also shows each object that would be created, with the exact Meta payload. Nothing is sent to Meta.</CardDescription>
+            <CardDescription>
+              Validation runs every rule locally. The dry run also shows each object that would be created,
+              with the exact Meta payload. Nothing is sent to Meta.
+            </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => onRun('validate')} loading={running === 'validate'} disabled={!!running}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onRun('validate')}
+              loading={running === 'validate'}
+              disabled={!!running}
+            >
               <ShieldCheck />
               Validate
             </Button>
-            <Button type="button" onClick={() => onRun('dry-run')} loading={running === 'dry-run'} disabled={!!running}>
+            <Button
+              type="button"
+              onClick={() => onRun('dry-run')}
+              loading={running === 'dry-run'}
+              disabled={!!running}
+            >
               <FlaskConical />
               Dry run
             </Button>
@@ -103,7 +138,9 @@ export function ReviewStep({
           {running && !result ? <Skeleton className="h-24" /> : null}
           {result && stale ? (
             <Alert variant="info">
-              <AlertDescription>The configuration changed since this check. Run it again to see the current result.</AlertDescription>
+              <AlertDescription>
+                The configuration changed since this check. Run it again to see the current result.
+              </AlertDescription>
             </Alert>
           ) : null}
           {result ? (
@@ -111,36 +148,58 @@ export function ReviewStep({
               <Alert variant="success" icon={<CircleCheck />}>
                 <AlertTitle>Ready to launch</AlertTitle>
                 <AlertDescription>
-                  No blocking problems{result.warnings.length ? `, ${result.warnings.length} ${result.warnings.length === 1 ? 'warning' : 'warnings'} to review` : ''}.
+                  No blocking problems
+                  {result.warnings.length
+                    ? `, ${result.warnings.length} ${result.warnings.length === 1 ? 'warning' : 'warnings'} to review`
+                    : ''}
+                  .
                 </AlertDescription>
               </Alert>
             ) : (
               <Alert variant="destructive" icon={<CircleAlert />}>
                 <AlertTitle>
-                  {result.errors.length} {result.errors.length === 1 ? 'problem blocks' : 'problems block'} the launch
+                  {result.errors.length} {result.errors.length === 1 ? 'problem blocks' : 'problems block'}{' '}
+                  the launch
                 </AlertTitle>
                 <AlertDescription>Fix them in the steps shown next to each problem.</AlertDescription>
               </Alert>
             )
           ) : !running ? (
-            <p className="text-sm text-muted-foreground">Run a validation or a dry run to check the configuration.</p>
+            <p className="text-sm text-muted-foreground">
+              Run a validation or a dry run to check the configuration.
+            </p>
           ) : null}
-          {result?.errors.length ? <IssueList issues={result.errors} tone="error" variantLabels={variantLabels} onGoTo={onGoTo} /> : null}
+          {result?.errors.length ? (
+            <IssueList issues={result.errors} tone="error" variantLabels={variantLabels} onGoTo={onGoTo} />
+          ) : null}
           {result?.warnings.length ? (
             <div className="grid gap-2">
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Warnings</p>
-              <IssueList issues={result.warnings} tone="warning" variantLabels={variantLabels} onGoTo={onGoTo} />
+              <IssueList
+                issues={result.warnings}
+                tone="warning"
+                variantLabels={variantLabels}
+                onGoTo={onGoTo}
+              />
             </div>
           ) : null}
         </CardContent>
       </Card>
-      {review.dryRun?.ok && review.dryRun.summary ? <PlanSummaryCard summary={review.dryRun.summary} /> : null}
+      {review.dryRun?.ok && review.dryRun.summary ? (
+        <PlanSummaryCard summary={review.dryRun.summary} />
+      ) : null}
       {review.dryRun?.ok && review.dryRun.items ? <PlanItems items={review.dryRun.items} /> : null}
     </div>
   );
 }
 
-export function PlanSummaryCard({ summary, title = 'What will be created' }: { summary: PlanSummary; title?: string }) {
+export function PlanSummaryCard({
+  summary,
+  title = 'What will be created',
+}: {
+  summary: PlanSummary;
+  title?: string;
+}) {
   const goal = goalRule(summary.objective, summary.destination, summary.optimizationGoal);
   const budgetLabel = summary.budget.type === 'LIFETIME' ? 'lifetime' : 'daily';
   return (
@@ -160,12 +219,29 @@ export function PlanSummaryCard({ summary, title = 'What will be created' }: { s
         <div className="grid gap-4 lg:grid-cols-2">
           <KeyValueList
             items={[
-              { label: 'Objective', value: `${objectiveRule(summary.objective)?.label ?? summary.objective} · ${goal?.label ?? humanize(summary.optimizationGoal)}` },
-              { label: 'Budget', value: `${summary.budget.level === 'CAMPAIGN' ? 'Campaign' : 'Per ad set'}, ${budgetLabel}` },
-              { label: 'Total budget', value: `${formatAmount(summary.budget.total, summary.currency)} ${budgetLabel}` },
-              { label: 'Bid strategy', value: BID_STRATEGY_LABELS[summary.bidStrategy as BidStrategy]?.label ?? humanize(summary.bidStrategy) },
+              {
+                label: 'Objective',
+                value: `${objectiveRule(summary.objective)?.label ?? summary.objective} · ${goal?.label ?? humanize(summary.optimizationGoal)}`,
+              },
+              {
+                label: 'Budget',
+                value: `${summary.budget.level === 'CAMPAIGN' ? 'Campaign' : 'Per ad set'}, ${budgetLabel}`,
+              },
+              {
+                label: 'Total budget',
+                value: `${formatAmount(summary.budget.total, summary.currency)} ${budgetLabel}`,
+              },
+              {
+                label: 'Bid strategy',
+                value:
+                  BID_STRATEGY_LABELS[summary.bidStrategy as BidStrategy]?.label ??
+                  humanize(summary.bidStrategy),
+              },
               { label: 'Placements', value: summary.placements },
-              { label: 'After launch', value: summary.activateOnSuccess ? 'Activated automatically' : 'Stays paused for review' },
+              {
+                label: 'After launch',
+                value: summary.activateOnSuccess ? 'Activated automatically' : 'Stays paused for review',
+              },
             ]}
           />
           <KeyValueList
@@ -174,7 +250,11 @@ export function PlanSummaryCard({ summary, title = 'What will be created' }: { s
                 label: 'Audience',
                 value: `${summary.audience.ageMin}–${summary.audience.ageMax === 65 ? '65+' : summary.audience.ageMax}, ${summary.audience.genders === 'ALL' ? 'all genders' : humanize(summary.audience.genders).toLowerCase()}${summary.audience.advantageAudience ? ', Advantage+ audience' : ''}`,
               },
-              { label: 'Custom audiences', value: `${summary.audience.customAudiences} included · ${summary.audience.excludedAudiences} excluded`, hidden: !summary.audience.customAudiences && !summary.audience.excludedAudiences },
+              {
+                label: 'Custom audiences',
+                value: `${summary.audience.customAudiences} included · ${summary.audience.excludedAudiences} excluded`,
+                hidden: !summary.audience.customAudiences && !summary.audience.excludedAudiences,
+              },
               { label: 'Interests', value: summary.audience.interests, hidden: !summary.audience.interests },
               { label: 'Creative files', value: summary.creativeFiles.map((f) => f.name).join(', ') },
             ]}
@@ -197,7 +277,9 @@ export function PlanSummaryCard({ summary, title = 'What will be created' }: { s
                   <td className="px-3 py-2">{g.countries.join(', ')}</td>
                   <td className="px-3 py-2 text-muted-foreground">{g.locales.join(', ') || 'All'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    {summary.budget.level === 'ADSET' ? formatAmount(summary.budget.perAdSet[i]?.amount, summary.currency) : 'Campaign budget'}
+                    {summary.budget.level === 'ADSET'
+                      ? formatAmount(summary.budget.perAdSet[i]?.amount, summary.currency)
+                      : 'Campaign budget'}
                   </td>
                 </tr>
               ))}
@@ -223,7 +305,10 @@ function PlanItems({ items }: { items: DryRunItem[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Objects and payloads</CardTitle>
-        <CardDescription>Exactly what will be sent to Meta, in order. References such as ‹metaId of campaign› are filled in while launching.</CardDescription>
+        <CardDescription>
+          Exactly what will be sent to Meta, in order. References such as ‹metaId of campaign› are filled in
+          while launching.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ol className="grid gap-2">
@@ -238,17 +323,32 @@ function PlanItems({ items }: { items: DryRunItem[] }) {
 
 function PlanItemRow({ item }: { item: DryRunItem }) {
   const [open, setOpen] = useState(false);
-  const indent = item.kind === 'CREATIVE' || item.kind === 'AD' ? 'sm:ml-10' : item.kind === 'ADSET' ? 'sm:ml-5' : '';
+  const indent =
+    item.kind === 'CREATIVE' || item.kind === 'AD' ? 'sm:ml-10' : item.kind === 'ADSET' ? 'sm:ml-5' : '';
   return (
     <li className={indent}>
       <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border bg-card">
         <CollapsibleTrigger className="group flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <Badge variant={item.kind === 'CAMPAIGN' ? 'default' : item.kind === 'ADSET' ? 'info' : item.kind.startsWith('MEDIA') ? 'muted' : 'secondary'} size="sm">
+          <Badge
+            variant={
+              item.kind === 'CAMPAIGN'
+                ? 'default'
+                : item.kind === 'ADSET'
+                  ? 'info'
+                  : item.kind.startsWith('MEDIA')
+                    ? 'muted'
+                    : 'secondary'
+            }
+            size="sm"
+          >
             {KIND_LABEL[item.kind]}
           </Badge>
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.name}</span>
           <FileJson className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden />
+          <ChevronDown
+            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+            aria-hidden
+          />
           <span className="sr-only">Show payload</span>
         </CollapsibleTrigger>
         <CollapsibleContent>

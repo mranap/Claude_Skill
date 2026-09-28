@@ -11,11 +11,13 @@ export function testDatabaseUrl(): string {
   loadDotEnvFile();
   const explicit = process.env.TEST_DATABASE_URL;
   const source = explicit ?? process.env.DATABASE_URL;
-  if (!source) throw new Error('Set TEST_DATABASE_URL (or DATABASE_URL in .env) to run the integration tests');
+  if (!source)
+    throw new Error('Set TEST_DATABASE_URL (or DATABASE_URL in .env) to run the integration tests');
   const url = new URL(source);
   if (!explicit) url.pathname = `${url.pathname.replace(/\/+$/, '').replace(/_test$/, '')}_test`;
   const db = url.pathname.slice(1);
-  if (!/^[a-z0-9_]+_test$/.test(db)) throw new Error(`Refusing to use database "${db}" for tests: the name must end with "_test"`);
+  if (!/^[a-z0-9_]+_test$/.test(db))
+    throw new Error(`Refusing to use database "${db}" for tests: the name must end with "_test"`);
   return url.toString();
 }
 

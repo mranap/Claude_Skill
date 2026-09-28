@@ -36,11 +36,26 @@ export function AdAccountStatusBadge({
   size?: 'sm' | 'default';
 }) {
   const display = AD_ACCOUNT_STATUS_DISPLAY[statusKey ?? 'UNKNOWN'] ?? AD_ACCOUNT_STATUS_DISPLAY.UNKNOWN;
-  return <StatusBadge status={statusKey} label={label ?? display.label} tone={toneToVariant(tone ?? display.tone)} size={size} />;
+  return (
+    <StatusBadge
+      status={statusKey}
+      label={label ?? display.label}
+      tone={toneToVariant(tone ?? display.tone)}
+      size={size}
+    />
+  );
 }
 
-export function MetaProfileStatusBadge({ status, size }: { status: MetaProfileStatus; size?: 'sm' | 'default' }) {
-  return <StatusBadge status={status} label={META_PROFILE_STATUS_LABELS[status] ?? humanize(status)} size={size} />;
+export function MetaProfileStatusBadge({
+  status,
+  size,
+}: {
+  status: MetaProfileStatus;
+  size?: 'sm' | 'default';
+}) {
+  return (
+    <StatusBadge status={status} label={META_PROFILE_STATUS_LABELS[status] ?? humanize(status)} size={size} />
+  );
 }
 
 /** Meta delivery status (effective_status) of campaigns, ad sets and ads. */
@@ -59,11 +74,27 @@ const EFFECTIVE_STATUS: Record<string, { label: string; tone: BadgeVariant }> = 
   DELETED: { label: 'Deleted', tone: 'muted' },
 };
 
-export const EFFECTIVE_STATUS_OPTIONS = Object.entries(EFFECTIVE_STATUS).map(([value, v]) => ({ value, label: v.label }));
+export const EFFECTIVE_STATUS_OPTIONS = Object.entries(EFFECTIVE_STATUS).map(([value, v]) => ({
+  value,
+  label: v.label,
+}));
 
-export function EffectiveStatusBadge({ status, size }: { status: string | null | undefined; size?: 'sm' | 'default' }) {
+export function EffectiveStatusBadge({
+  status,
+  size,
+}: {
+  status: string | null | undefined;
+  size?: 'sm' | 'default';
+}) {
   const known = status ? EFFECTIVE_STATUS[status] : undefined;
-  return <StatusBadge status={status} label={known?.label ?? humanize(status ?? 'Unknown')} tone={known?.tone ?? 'muted'} size={size} />;
+  return (
+    <StatusBadge
+      status={status}
+      label={known?.label ?? humanize(status ?? 'Unknown')}
+      tone={known?.tone ?? 'muted'}
+      size={size}
+    />
+  );
 }
 
 export function effectiveStatusLabel(status: string | null | undefined): string {

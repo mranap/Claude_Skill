@@ -137,7 +137,9 @@ export function NotificationCenter() {
             ))}
           </ul>
         )}
-        {list.data && list.data.total > 0 ? <DataTablePagination state={table} total={list.data.total} /> : null}
+        {list.data && list.data.total > 0 ? (
+          <DataTablePagination state={table} total={list.data.total} />
+        ) : null}
       </Card>
     </>
   );

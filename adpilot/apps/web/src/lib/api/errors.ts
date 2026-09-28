@@ -43,7 +43,10 @@ export class ApiError extends Error {
     if (!Array.isArray(this.details)) return [];
     return this.details.filter(
       (d): d is FieldError =>
-        !!d && typeof d === 'object' && typeof (d as FieldError).path === 'string' && typeof (d as FieldError).message === 'string',
+        !!d &&
+        typeof d === 'object' &&
+        typeof (d as FieldError).path === 'string' &&
+        typeof (d as FieldError).message === 'string',
     );
   }
 
@@ -78,7 +81,12 @@ export async function errorFromResponse(res: Response): Promise<ApiError> {
 }
 
 /** Builds an ApiError from a raw status + body (shared by `fetch` and `XMLHttpRequest` uploads). */
-export function errorFromBody(status: number, text: string, header: (name: string) => string | null, statusText = ''): ApiError {
+export function errorFromBody(
+  status: number,
+  text: string,
+  header: (name: string) => string | null,
+  statusText = '',
+): ApiError {
   let body: unknown = null;
   try {
     body = text ? JSON.parse(text) : null;
@@ -93,13 +101,22 @@ export function errorFromBody(status: number, text: string, header: (name: strin
       message: body.error.message || statusText,
       details: body.error.details,
       meta: body.error.meta,
-      retryAfterSeconds: body.error.retryAfterSeconds ?? (Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined),
+      retryAfterSeconds:
+        body.error.retryAfterSeconds ??
+        (Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined),
       requestId: body.requestId ?? header('X-Request-Id') ?? undefined,
     });
   }
   return new ApiError({
     status,
-    code: status >= 500 ? 'INTERNAL_ERROR' : status === 404 ? 'NOT_FOUND' : status === 413 ? 'PAYLOAD_TOO_LARGE' : 'UNKNOWN_ERROR',
+    code:
+      status >= 500
+        ? 'INTERNAL_ERROR'
+        : status === 404
+          ? 'NOT_FOUND'
+          : status === 413
+            ? 'PAYLOAD_TOO_LARGE'
+            : 'UNKNOWN_ERROR',
     message:
       status === 502 || status === 503 || status === 504
         ? 'The server is temporarily unavailable. Please try again in a moment.'

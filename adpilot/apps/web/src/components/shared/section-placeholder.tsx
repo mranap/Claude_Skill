@@ -24,7 +24,16 @@ export function SectionPlaceholder({
 }) {
   return (
     <>
-      <PageHeader title={title} description={description} actions={actions} meta={<Badge variant="muted" size="sm">Coming soon</Badge>} />
+      <PageHeader
+        title={title}
+        description={description}
+        actions={actions}
+        meta={
+          <Badge variant="muted" size="sm">
+            Coming soon
+          </Badge>
+        }
+      />
       <Card className="overflow-hidden">
         <EmptyState
           icon={icon}
@@ -34,7 +43,10 @@ export function SectionPlaceholder({
           {highlights.length ? (
             <ul className="mt-6 grid w-full max-w-lg gap-2 text-left sm:grid-cols-2">
               {highlights.map((item) => (
-                <li key={item} className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
+                <li
+                  key={item}
+                  className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground"
+                >
                   <Check className="mt-0.5 size-3.5 shrink-0 text-primary-fg" aria-hidden />
                   <span>{item}</span>
                 </li>

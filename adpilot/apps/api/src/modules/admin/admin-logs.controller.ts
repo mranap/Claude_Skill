@@ -1,6 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { META_ERROR_CATEGORIES, auditQuerySchema, logsQuerySchema, metaApiLogsQuerySchema } from '@adpilot/shared';
+import {
+  META_ERROR_CATEGORIES,
+  auditQuerySchema,
+  logsQuerySchema,
+  metaApiLogsQuerySchema,
+} from '@adpilot/shared';
 import { RequirePermissions } from '../../common/decorators/auth.decorators';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -24,20 +29,41 @@ export class AdminLogsController {
       ...(q.actorUserId ? { actorUserId: q.actorUserId } : {}),
       ...(q.subjectUserId ? { subjectUserId: q.subjectUserId } : {}),
       ...(dateRange(q.from, q.to) ? { createdAt: dateRange(q.from, q.to) } : {}),
-      ...(q.q ? { OR: [{ actorEmail: { contains: q.q, mode: 'insensitive' } }, { targetId: q.q }, { action: { contains: q.q } }] } : {}),
+      ...(q.q
+        ? {
+            OR: [
+              { actorEmail: { contains: q.q, mode: 'insensitive' } },
+              { targetId: q.q },
+              { action: { contains: q.q } },
+            ],
+          }
+        : {}),
     };
     const [items, total] = await Promise.all([
-      this.prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
       this.prisma.auditLog.count({ where }),
     ]);
-    const userIds = [...new Set(items.flatMap((i) => [i.actorUserId, i.subjectUserId]).filter((x): x is string => !!x))];
-    const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } });
+    const userIds = [
+      ...new Set(items.flatMap((i) => [i.actorUserId, i.subjectUserId]).filter((x): x is string => !!x)),
+    ];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true },
+    });
     const emails = new Map(users.map((u) => [u.id, u.email]));
     return {
       items: items.map((i) => ({
         ...i,
-        actorLabel: i.actorEmail ?? (i.actorUserId ? emails.get(i.actorUserId) : null) ?? (i.actorType === 'SYSTEM' ? 'system' : null),
-        subjectLabel: i.subjectUserId ? emails.get(i.subjectUserId) ?? null : null,
+        actorLabel:
+          i.actorEmail ??
+          (i.actorUserId ? emails.get(i.actorUserId) : null) ??
+          (i.actorType === 'SYSTEM' ? 'system' : null),
+        subjectLabel: i.subjectUserId ? (emails.get(i.subjectUserId) ?? null) : null,
       })),
       total,
       page: q.page,
@@ -55,7 +81,12 @@ export class AdminLogsController {
       ...(q.q ? { message: { contains: q.q, mode: 'insensitive' } } : {}),
     };
     const [items, total] = await Promise.all([
-      this.prisma.systemLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+      this.prisma.systemLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
       this.prisma.systemLog.count({ where }),
     ]);
     return { items, total, page: q.page, pageSize: q.pageSize };
@@ -71,16 +102,37 @@ export class AdminLogsController {
     if (q.category) and.push({ category: { startsWith: q.category } });
     const created = dateRange(q.from, q.to);
     if (created) and.push({ createdAt: created });
-    if (q.q) and.push({ OR: [{ metaAccountId: q.q }, { fbtraceId: q.q }, { path: { contains: q.q } }, { errorMessage: { contains: q.q, mode: 'insensitive' } }] });
+    if (q.q)
+      and.push({
+        OR: [
+          { metaAccountId: q.q },
+          { fbtraceId: q.q },
+          { path: { contains: q.q } },
+          { errorMessage: { contains: q.q, mode: 'insensitive' } },
+        ],
+      });
     const where: Prisma.MetaApiLogWhereInput = and.length ? { AND: and } : {};
     const [items, total] = await Promise.all([
-      this.prisma.metaApiLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+      this.prisma.metaApiLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
       this.prisma.metaApiLog.count({ where }),
     ]);
     const userIds = [...new Set(items.map((i) => i.userId).filter((x): x is string => !!x))];
-    const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true },
+    });
     const emails = new Map(users.map((u) => [u.id, u.email]));
-    return { items: items.map((i) => ({ ...i, userEmail: i.userId ? emails.get(i.userId) ?? null : null })), total, page: q.page, pageSize: q.pageSize };
+    return {
+      items: items.map((i) => ({ ...i, userEmail: i.userId ? (emails.get(i.userId) ?? null) : null })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
   }
 
   /** Values for the log filters (system log sources seen so far, Meta call categories and error categories). */
@@ -88,8 +140,18 @@ export class AdminLogsController {
   @RequirePermissions('admin.logs.view')
   async logSources() {
     const [sources, categories] = await Promise.all([
-      this.prisma.systemLog.findMany({ distinct: ['source'], select: { source: true }, orderBy: { source: 'asc' }, take: 200 }),
-      this.prisma.metaApiLog.findMany({ distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' }, take: 500 }),
+      this.prisma.systemLog.findMany({
+        distinct: ['source'],
+        select: { source: true },
+        orderBy: { source: 'asc' },
+        take: 200,
+      }),
+      this.prisma.metaApiLog.findMany({
+        distinct: ['category'],
+        select: { category: true },
+        orderBy: { category: 'asc' },
+        take: 500,
+      }),
     ]);
     return {
       systemSources: sources.map((s) => s.source),

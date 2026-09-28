@@ -28,8 +28,8 @@ export function RecoveryCodes({ codes, email }: { codes: string[]; email: string
       <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-[13px] leading-relaxed">
         <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-fg" />
         <span>
-          Save these codes now — <span className="font-medium">they will not be shown again</span>. Each code works once if you lose
-          access to your authenticator app.
+          Save these codes now — <span className="font-medium">they will not be shown again</span>. Each code
+          works once if you lose access to your authenticator app.
         </span>
       </div>
       <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-lg border bg-muted/40 p-4 font-mono text-sm tracking-wide tabular-nums dark:bg-black/20">
@@ -40,7 +40,13 @@ export function RecoveryCodes({ codes, email }: { codes: string[]; email: string
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <CopyButton value={text} label="Copy codes" variant="outline" size="sm" successMessage="Recovery codes copied" />
+        <CopyButton
+          value={text}
+          label="Copy codes"
+          variant="outline"
+          size="sm"
+          successMessage="Recovery codes copied"
+        />
         <Button variant="outline" size="sm" onClick={download}>
           <Download />
           Download .txt

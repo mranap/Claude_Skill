@@ -157,7 +157,12 @@ services:
     image: redis:7.4-alpine
     restart: unless-stopped
     # BullMQ requires maxmemory-policy noeviction; AOF keeps queued jobs across restarts.
-    command: ['sh', '-c', 'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec --maxmemory-policy noeviction']
+    command:
+      [
+        'sh',
+        '-c',
+        'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec --maxmemory-policy noeviction',
+      ]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:

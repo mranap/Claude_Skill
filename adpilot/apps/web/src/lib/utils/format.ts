@@ -72,7 +72,9 @@ export function formatDate(value: DateInput): string {
 export function formatTime(value: DateInput): string {
   const date = toDate(value);
   if (!date) return '—';
-  return formatter('t', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(date);
+  return formatter('t', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(
+    date,
+  );
 }
 
 /** "3 min ago", "in 2 days", "just now". */

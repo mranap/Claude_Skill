@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { draftSaveSchema, launchRequestSchema, paginationQuerySchema } from '@adpilot/shared';
 import { CurrentUser, RateLimit, RequirePermissions } from '../../common/decorators/auth.decorators';
@@ -33,12 +44,18 @@ export class LaunchesController {
   @Post()
   @HttpCode(202)
   @RateLimit({ bucket: 'launch', limit: 30, windowSeconds: 3600 })
-  launch(@CurrentUser() user: AuthUser, @Body(zod(launchRequestSchema)) body: z.infer<typeof launchRequestSchema>) {
+  launch(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(launchRequestSchema)) body: z.infer<typeof launchRequestSchema>,
+  ) {
     return this.launches.launch(user.id, body);
   }
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>,
+  ) {
     return this.launches.list(user.id, q);
   }
 
@@ -60,7 +77,9 @@ export class LaunchesController {
   }
 }
 
-const draftListSchema = paginationQuerySchema.extend({ status: z.enum(['DRAFT', 'LAUNCHED', 'ARCHIVED']).optional() });
+const draftListSchema = paginationQuerySchema.extend({
+  status: z.enum(['DRAFT', 'LAUNCHED', 'ARCHIVED']).optional(),
+});
 
 @Controller('drafts')
 @RequirePermissions('app.campaigns.launch')
@@ -88,7 +107,11 @@ export class DraftsController {
   }
 
   @Put(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Body(zod(draftSaveSchema)) body: z.infer<typeof draftSaveSchema>) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(draftSaveSchema)) body: z.infer<typeof draftSaveSchema>,
+  ) {
     return this.drafts.update(user.id, id, body);
   }
 

@@ -1,7 +1,16 @@
 'use client';
 
 import { NOTIFICATION_TYPE_LABELS, type NotificationSeverity } from '@adpilot/shared';
-import { ArrowUpRight, CircleAlert, CircleCheck, Info, Mail, Send, TriangleAlert, type LucideIcon } from 'lucide-react';
+import {
+  ArrowUpRight,
+  CircleAlert,
+  CircleCheck,
+  Info,
+  Mail,
+  Send,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import type * as React from 'react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
@@ -18,11 +27,20 @@ const SEVERITY: Record<NotificationSeverity, { icon: LucideIcon; className: stri
   ERROR: { icon: CircleAlert, className: 'bg-destructive/10 text-destructive-fg', label: 'Error' },
 };
 
-export function SeverityIcon({ severity, className }: { severity: NotificationSeverity; className?: string }) {
+export function SeverityIcon({
+  severity,
+  className,
+}: {
+  severity: NotificationSeverity;
+  className?: string;
+}) {
   const s = SEVERITY[severity] ?? SEVERITY.INFO;
   const Icon = s.icon;
   return (
-    <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', s.className, className)} aria-label={s.label}>
+    <span
+      className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', s.className, className)}
+      aria-label={s.label}
+    >
       <Icon className="size-4" aria-hidden />
     </span>
   );
@@ -37,7 +55,13 @@ const DELIVERY_TONE: Record<DeliveryStatus, BadgeVariant> = {
   UNCERTAIN: 'warning',
 };
 
-export function DeliveryBadges({ deliveries, className }: { deliveries: NotificationDeliveryDto[]; className?: string }) {
+export function DeliveryBadges({
+  deliveries,
+  className,
+}: {
+  deliveries: NotificationDeliveryDto[];
+  className?: string;
+}) {
   if (!deliveries.length) {
     return (
       <Badge variant="outline" size="sm" className={cn('text-muted-foreground', className)}>
@@ -86,7 +110,12 @@ export function NotificationItem({
   const typeLabel = NOTIFICATION_TYPE_LABELS[notification.type]?.label ?? humanize(notification.type);
 
   const title = (
-    <span className={cn('text-sm leading-snug', unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/90')}>
+    <span
+      className={cn(
+        'text-sm leading-snug',
+        unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/90',
+      )}
+    >
       {notification.title}
     </span>
   );
@@ -146,7 +175,12 @@ export function NotificationItem({
             {unread ? <span className="size-2 rounded-full bg-primary" aria-label="Unread" /> : null}
           </div>
         </div>
-        <p className={cn('mt-0.5 text-[13px] leading-relaxed text-muted-foreground', compact ? 'line-clamp-2' : 'whitespace-pre-line')}>
+        <p
+          className={cn(
+            'mt-0.5 text-[13px] leading-relaxed text-muted-foreground',
+            compact ? 'line-clamp-2' : 'whitespace-pre-line',
+          )}
+        >
           {notification.body}
         </p>
         {!compact ? (

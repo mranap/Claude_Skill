@@ -3,7 +3,13 @@
 import './globals.css';
 
 /** Replaces the root layout when it fails; renders its own document (no providers are available). */
-export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+export default function GlobalError({
+  error,
+  retry,
+}: {
+  error: Error & { digest?: string };
+  retry: () => void;
+}) {
   return (
     <html lang="en">
       <body className="flex min-h-dvh items-center justify-center bg-background px-4 font-sans text-foreground antialiased">
@@ -13,7 +19,9 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
           <p className="mt-2 text-sm text-muted-foreground">
             An unexpected error occurred. Please try again. If it keeps happening, contact support.
           </p>
-          {error.digest ? <p className="mt-2 font-mono text-xs text-muted-foreground">Reference: {error.digest}</p> : null}
+          {error.digest ? (
+            <p className="mt-2 font-mono text-xs text-muted-foreground">Reference: {error.digest}</p>
+          ) : null}
           <button
             type="button"
             onClick={retry}

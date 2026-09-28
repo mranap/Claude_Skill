@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   changeEmailSchema,
   changePasswordSchema,
@@ -42,13 +53,19 @@ export class AccountController {
   ) {}
 
   @Patch('profile')
-  async updateProfile(@CurrentUser() user: AuthUser, @Body(zod(updateProfileSchema)) body: z.infer<typeof updateProfileSchema>) {
+  async updateProfile(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(updateProfileSchema)) body: z.infer<typeof updateProfileSchema>,
+  ) {
     if (body.timezone && !isValidTimezone(body.timezone)) {
       throw AppError.validation('Unknown time zone', [{ path: 'timezone', message: 'Unknown time zone' }]);
     }
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { ...(body.name !== undefined ? { name: body.name } : {}), ...(body.timezone ? { timezone: body.timezone } : {}) },
+      data: {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.timezone ? { timezone: body.timezone } : {}),
+      },
     });
     await this.cache.invalidateUser(user.id);
     return this.auth.me(user.id);
@@ -57,14 +74,20 @@ export class AccountController {
   @AllowPendingPasswordChange()
   @Post('password')
   @HttpCode(200)
-  async changePassword(@CurrentUser() user: AuthUser, @Body(zod(changePasswordSchema)) body: z.infer<typeof changePasswordSchema>) {
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(changePasswordSchema)) body: z.infer<typeof changePasswordSchema>,
+  ) {
     await this.auth.changePassword(user, body.currentPassword, body.newPassword);
     return { ok: true };
   }
 
   @Post('email')
   @HttpCode(202)
-  async changeEmail(@CurrentUser() user: AuthUser, @Body(zod(changeEmailSchema)) body: z.infer<typeof changeEmailSchema>) {
+  async changeEmail(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(changeEmailSchema)) body: z.infer<typeof changeEmailSchema>,
+  ) {
     await this.auth.requestEmailChange(user, body.newEmail, body.password);
     return { ok: true, message: 'We sent a confirmation link to the new address.' };
   }
@@ -80,7 +103,13 @@ export class AccountController {
     const s = await this.prisma.session.findFirst({ where: { id, userId: user.id } });
     if (!s) throw AppError.notFound('Session');
     await this.sessions.revoke(id, 'revoked_by_user');
-    await this.audit.log({ action: 'auth.session.revoked', actorUserId: user.id, subjectUserId: user.id, targetType: 'session', targetId: id });
+    await this.audit.log({
+      action: 'auth.session.revoked',
+      actorUserId: user.id,
+      subjectUserId: user.id,
+      targetType: 'session',
+      targetId: id,
+    });
     return { ok: true };
   }
 
@@ -88,12 +117,20 @@ export class AccountController {
   @HttpCode(200)
   async revokeOthers(@CurrentUser() user: AuthUser) {
     const count = await this.sessions.revokeAllForUser(user.id, 'revoked_by_user', user.sessionId);
-    await this.audit.log({ action: 'auth.session.revoked_others', actorUserId: user.id, subjectUserId: user.id, metadata: { count } });
+    await this.audit.log({
+      action: 'auth.session.revoked_others',
+      actorUserId: user.id,
+      subjectUserId: user.id,
+      metadata: { count },
+    });
     return { revoked: count };
   }
 
   @Get('login-history')
-  async loginHistory(@CurrentUser() user: AuthUser, @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>) {
+  async loginHistory(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(paginationQuerySchema)) q: z.infer<typeof paginationQuerySchema>,
+  ) {
     const where = { userId: user.id };
     const [items, total] = await Promise.all([
       this.prisma.loginEvent.findMany({
@@ -116,20 +153,29 @@ export class AccountController {
 
   @Post('2fa/enable')
   @HttpCode(200)
-  enable2fa(@CurrentUser() user: AuthUser, @Body(zod(enable2faSchema)) body: z.infer<typeof enable2faSchema>) {
+  enable2fa(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(enable2faSchema)) body: z.infer<typeof enable2faSchema>,
+  ) {
     return this.twoFactor.enable(user, body.code);
   }
 
   @Post('2fa/disable')
   @HttpCode(200)
-  async disable2fa(@CurrentUser() user: AuthUser, @Body(zod(disable2faSchema)) body: z.infer<typeof disable2faSchema>) {
+  async disable2fa(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(disable2faSchema)) body: z.infer<typeof disable2faSchema>,
+  ) {
     await this.twoFactor.disable(user, body.password, body.code);
     return { ok: true };
   }
 
   @Post('2fa/recovery-codes')
   @HttpCode(200)
-  regenerateCodes(@CurrentUser() user: AuthUser, @Body(zod(z.object({ code: totpCodeSchema }))) body: { code: string }) {
+  regenerateCodes(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(z.object({ code: totpCodeSchema }))) body: { code: string },
+  ) {
     return this.twoFactor.regenerateRecoveryCodes(user, body.code);
   }
 }

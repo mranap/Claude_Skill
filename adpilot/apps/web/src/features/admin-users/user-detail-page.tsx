@@ -127,7 +127,10 @@ export function UserDetailPage({ id }: { id: string }) {
   if (query.error) {
     return (
       <>
-        <PageHeader title="User" breadcrumbs={[{ label: 'Users', href: '/admin/users' }, { label: 'Details' }]} />
+        <PageHeader
+          title="User"
+          breadcrumbs={[{ label: 'Users', href: '/admin/users' }, { label: 'Details' }]}
+        />
         {isApiError(query.error, 'NOT_FOUND') ? (
           <Card>
             <EmptyState
@@ -166,8 +169,21 @@ export function UserDetailPage({ id }: { id: string }) {
     await refresh();
   };
 
-  const menuItems: { key: string; label: string; icon: React.ElementType; onSelect: () => void; show: boolean; destructive?: boolean }[] = [
-    { key: 'edit', label: 'Edit profile & role', icon: Pencil, onSelect: () => setDialog({ kind: 'edit' }), show: allowed('admin.users.update') },
+  const menuItems: {
+    key: string;
+    label: string;
+    icon: React.ElementType;
+    onSelect: () => void;
+    show: boolean;
+    destructive?: boolean;
+  }[] = [
+    {
+      key: 'edit',
+      label: 'Edit profile & role',
+      icon: Pencil,
+      onSelect: () => setDialog({ kind: 'edit' }),
+      show: allowed('admin.users.update'),
+    },
     {
       key: 'block',
       label: user.status === 'BLOCKED' ? 'Unblock user' : 'Block user',
@@ -254,7 +270,11 @@ export function UserDetailPage({ id }: { id: string }) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>Manage user</DropdownMenuLabel>
                   {visibleItems.map((item) => (
-                    <DropdownMenuItem key={item.key} onSelect={item.onSelect} variant={item.destructive ? 'destructive' : 'default'}>
+                    <DropdownMenuItem
+                      key={item.key}
+                      onSelect={item.onSelect}
+                      variant={item.destructive ? 'destructive' : 'default'}
+                    >
                       <item.icon />
                       {item.label}
                     </DropdownMenuItem>
@@ -279,7 +299,9 @@ export function UserDetailPage({ id }: { id: string }) {
         {protectedTarget ? (
           <Alert variant="info">
             <AlertTitle>Administrator account</AlertTitle>
-            <AlertDescription>Only a Super Admin can change, block or delete users with administrative roles.</AlertDescription>
+            <AlertDescription>
+              Only a Super Admin can change, block or delete users with administrative roles.
+            </AlertDescription>
           </Alert>
         ) : null}
         {user.status === 'BLOCKED' ? (
@@ -295,14 +317,18 @@ export function UserDetailPage({ id }: { id: string }) {
           <Alert>
             <AlertTitle>Deleted account</AlertTitle>
             <AlertDescription>
-              Deleted {user.deletedAt ? formatDateTime(user.deletedAt) : ''}. Secrets were destroyed; the record is kept for the audit trail.
+              Deleted {user.deletedAt ? formatDateTime(user.deletedAt) : ''}. Secrets were destroyed; the
+              record is kept for the audit trail.
             </AlertDescription>
           </Alert>
         ) : null}
         {locked ? (
           <Alert variant="warning">
             <AlertTitle>Temporarily locked</AlertTitle>
-            <AlertDescription>Too many failed sign-ins. The lock ends {formatDateTime(user.lockedUntil)}; unblocking clears it.</AlertDescription>
+            <AlertDescription>
+              Too many failed sign-ins. The lock ends {formatDateTime(user.lockedUntil)}; unblocking clears
+              it.
+            </AlertDescription>
           </Alert>
         ) : null}
         {user.mustChangePassword && !deleted ? (
@@ -336,7 +362,10 @@ export function UserDetailPage({ id }: { id: string }) {
                     {formatBytes(user.storageUsedBytes)} of {quota ? formatBytes(quota) : 'platform default'}
                   </span>
                 </div>
-                <Progress value={quota ? pct : 0} tone={pct > 90 ? 'danger' : pct > 75 ? 'warning' : 'default'} />
+                <Progress
+                  value={quota ? pct : 0}
+                  tone={pct > 90 ? 'danger' : pct > 75 ? 'warning' : 'default'}
+                />
               </div>
             </CardContent>
           </Card>
@@ -344,7 +373,11 @@ export function UserDetailPage({ id }: { id: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Active sessions</CardTitle>
-              <CardDescription>{user.sessions.length ? `${user.sessions.length} signed-in device${user.sessions.length === 1 ? '' : 's'}.` : 'Not signed in anywhere.'}</CardDescription>
+              <CardDescription>
+                {user.sessions.length
+                  ? `${user.sessions.length} signed-in device${user.sessions.length === 1 ? '' : 's'}.`
+                  : 'Not signed in anywhere.'}
+              </CardDescription>
               {allowed('admin.users.sessions') && user.sessions.length ? (
                 <CardAction>
                   <Button variant="outline" size="sm" onClick={() => setDialog({ kind: 'revoke-all' })}>
@@ -360,7 +393,11 @@ export function UserDetailPage({ id }: { id: string }) {
                 canRevoke={allowed('admin.users.sessions')}
                 onRevoke={(session) => setDialog({ kind: 'revoke-one', session })}
                 revokingId={revokeOne.isPending ? revokeOne.variables : null}
-                empty={<p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No active sessions.</p>}
+                empty={
+                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                    No active sessions.
+                  </p>
+                }
               />
             </CardContent>
           </Card>
@@ -396,10 +433,18 @@ export function UserDetailPage({ id }: { id: string }) {
                   { label: 'Role', value: user.role.name },
                   { label: 'Time zone', value: user.timezone },
                   { label: 'Created', value: formatDateTime(user.createdAt) },
-                  { label: 'Last sign-in', value: user.lastLoginAt ? <RelativeTime value={user.lastLoginAt} /> : 'Never' },
+                  {
+                    label: 'Last sign-in',
+                    value: user.lastLoginAt ? <RelativeTime value={user.lastLoginAt} /> : 'Never',
+                  },
                   { label: 'Last IP', value: user.lastLoginIp, mono: true },
                   { label: '2FA', value: user.twoFactorEnabled ? 'Enabled' : 'Disabled' },
-                  { label: 'User ID', value: <span className="text-xs">{user.id}</span>, mono: true, copy: user.id },
+                  {
+                    label: 'User ID',
+                    value: <span className="text-xs">{user.id}</span>,
+                    mono: true,
+                    copy: user.id,
+                  },
                 ]}
               />
             </CardContent>
@@ -417,9 +462,16 @@ export function UserDetailPage({ id }: { id: string }) {
                   items={[
                     {
                       label: 'Status',
-                      value: user.telegramConnection.isActive ? <Badge variant="success">Connected</Badge> : <Badge variant="warning">Inactive</Badge>,
+                      value: user.telegramConnection.isActive ? (
+                        <Badge variant="success">Connected</Badge>
+                      ) : (
+                        <Badge variant="warning">Inactive</Badge>
+                      ),
                     },
-                    { label: 'Username', value: user.telegramConnection.username ? `@${user.telegramConnection.username}` : null },
+                    {
+                      label: 'Username',
+                      value: user.telegramConnection.username ? `@${user.telegramConnection.username}` : null,
+                    },
                     { label: 'Linked', value: formatDateTime(user.telegramConnection.linkedAt) },
                   ]}
                 />
@@ -503,7 +555,9 @@ export function UserDetailPage({ id }: { id: string }) {
         description="The device will need to sign in again."
         confirmLabel="Sign out session"
         destructive
-        onConfirm={() => (dialog?.kind === 'revoke-one' ? revokeOne.mutateAsync(dialog.session.id) : undefined)}
+        onConfirm={() =>
+          dialog?.kind === 'revoke-one' ? revokeOne.mutateAsync(dialog.session.id) : undefined
+        }
       />
       <ConfirmDialog
         open={dialog?.kind === 'delete'}
@@ -519,7 +573,10 @@ export function UserDetailPage({ id }: { id: string }) {
               <li>Telegram links and one-time reset / e-mail tokens</li>
               <li>Two-factor authentication data</li>
             </ul>
-            <p>Ad accounts are disconnected and running launch jobs are cancelled. Records stay in the audit trail. This cannot be undone.</p>
+            <p>
+              Ad accounts are disconnected and running launch jobs are cancelled. Records stay in the audit
+              trail. This cannot be undone.
+            </p>
           </div>
         }
         confirmText={user.email}

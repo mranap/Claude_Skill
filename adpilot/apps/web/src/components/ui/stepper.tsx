@@ -52,7 +52,10 @@ export function Stepper({
         Step {Math.min(current + 1, steps.length)} of {steps.length}
         {active ? <span className="text-foreground"> · {active.title}</span> : null}
       </p>
-      <ol className="scrollbar-none flex w-full items-start overflow-x-auto px-1 pt-1 pb-1.5" aria-label="Progress">
+      <ol
+        className="scrollbar-none flex w-full items-start overflow-x-auto px-1 pt-1 pb-1.5"
+        aria-label="Progress"
+      >
         {steps.map((step, index) => {
           const state = stateOf(step, index, current);
           const clickable = !!onStepClick && !step.disabled && (state === 'complete' || state === 'error');

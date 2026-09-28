@@ -2,7 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import { majorToMinor, minorToMajor, PLACEMENT_LABELS } from '@adpilot/shared';
 import type { LaunchContext, LaunchPlan, PlanItem, PlanSummary } from './launch.types';
-import { buildAdPayload, buildAdSetPayload, buildCampaignPayload, buildCreativePayload, effectiveCountries, renderName } from './meta-payloads';
+import {
+  buildAdPayload,
+  buildAdSetPayload,
+  buildCampaignPayload,
+  buildCreativePayload,
+  effectiveCountries,
+  renderName,
+} from './meta-payloads';
 
 function stripExt(name: string): string {
   return name.replace(/\.[A-Za-z0-9]{2,5}$/, '');
@@ -25,10 +32,16 @@ export class PlanBuilderService {
     // 1. Media: one upload per distinct library file.
     const mediaKey = (fileId: string) => `media:${fileId}`;
     const usedFiles: string[] = [];
-    for (const v of config.variants) for (const ad of v.ads) {
-      const ids = s.creative.format === 'CAROUSEL' ? ad.cards.map((c) => c.creativeFileId) : ad.creativeFileId ? [ad.creativeFileId] : [];
-      for (const id of ids) if (!usedFiles.includes(id)) usedFiles.push(id);
-    }
+    for (const v of config.variants)
+      for (const ad of v.ads) {
+        const ids =
+          s.creative.format === 'CAROUSEL'
+            ? ad.cards.map((c) => c.creativeFileId)
+            : ad.creativeFileId
+              ? [ad.creativeFileId]
+              : [];
+        for (const id of ids) if (!usedFiles.includes(id)) usedFiles.push(id);
+      }
     for (const id of usedFiles) {
       const f = ctx.creatives.get(id)!;
       items.push({
@@ -41,14 +54,30 @@ export class PlanBuilderService {
     }
 
     // 2. Campaign
-    const campaignName = renderName(s.naming.campaign, { name: config.name, date: today, code, objective: s.objective });
-    items.push({ key: 'campaign', kind: 'CAMPAIGN', name: campaignName, payload: buildCampaignPayload(config, campaignName, currency) });
+    const campaignName = renderName(s.naming.campaign, {
+      name: config.name,
+      date: today,
+      code,
+      objective: s.objective,
+    });
+    items.push({
+      key: 'campaign',
+      kind: 'CAMPAIGN',
+      name: campaignName,
+      payload: buildCampaignPayload(config, campaignName, currency),
+    });
 
     // 3. Ad sets, 4. creatives + ads
     for (const v of config.variants) {
       const countries = effectiveCountries(s, v);
       const adSetKey = `adset:${v.key}`;
-      const adSetName = renderName(s.naming.adSet, { name: config.name, variant: v.label, countries: countries.join(','), date: today, code });
+      const adSetName = renderName(s.naming.adSet, {
+        name: config.name,
+        variant: v.label,
+        countries: countries.join(','),
+        date: today,
+        code,
+      });
       items.push({
         key: adSetKey,
         kind: 'ADSET',
@@ -62,7 +91,15 @@ export class PlanBuilderService {
       v.ads.forEach((ad, idx) => {
         const firstFile = ad.creativeFileId ?? ad.cards[0]?.creativeFileId;
         const fileName = firstFile ? stripExt(ctx.creatives.get(firstFile)?.originalName ?? '') : '';
-        const adName = ad.name?.trim() || renderName(s.naming.ad, { name: config.name, variant: v.label, creative: fileName, n: idx + 1, code });
+        const adName =
+          ad.name?.trim() ||
+          renderName(s.naming.ad, {
+            name: config.name,
+            variant: v.label,
+            creative: fileName,
+            n: idx + 1,
+            code,
+          });
         const creativeKey = `creative:${v.key}:${ad.key}`;
         items.push({
           key: creativeKey,
@@ -74,11 +111,23 @@ export class PlanBuilderService {
             typeOf: (id) => (ctx.creatives.get(id)?.type === 'VIDEO' ? 'VIDEO' : 'IMAGE'),
           }),
         });
-        items.push({ key: `ad:${v.key}:${ad.key}`, kind: 'AD', parentKey: adSetKey, name: adName, payload: buildAdPayload(adName, adSetKey, creativeKey) });
+        items.push({
+          key: `ad:${v.key}:${ad.key}`,
+          kind: 'AD',
+          parentKey: adSetKey,
+          name: adName,
+          payload: buildAdPayload(adName, adSetKey, creativeKey),
+        });
       });
     }
 
-    return { version: 1, code, adAccountMetaId: adAccount.metaAccountId, items, summary: this.summary(ctx, items) };
+    return {
+      version: 1,
+      code,
+      adAccountMetaId: adAccount.metaAccountId,
+      items,
+      summary: this.summary(ctx, items),
+    };
   }
 
   private summary(ctx: LaunchContext, items: PlanItem[]): PlanSummary {
@@ -87,13 +136,19 @@ export class PlanBuilderService {
     const currency = adAccount.currency;
     const perAdSet = config.variants.map((v) => ({
       variant: v.label,
-      amount: s.budget.level === 'ADSET' ? minorToMajor(majorToMinor(v.budgetAmount ?? s.budget.amount, currency), currency)! : '—',
+      amount:
+        s.budget.level === 'ADSET'
+          ? minorToMajor(majorToMinor(v.budgetAmount ?? s.budget.amount, currency), currency)!
+          : '—',
     }));
     const total =
       s.budget.level === 'CAMPAIGN'
         ? minorToMajor(majorToMinor(s.budget.amount, currency), currency)!
         : minorToMajor(
-            config.variants.reduce((sum, v) => sum + majorToMinor(v.budgetAmount ?? s.budget.amount, currency), 0n),
+            config.variants.reduce(
+              (sum, v) => sum + majorToMinor(v.budgetAmount ?? s.budget.amount, currency),
+              0n,
+            ),
             currency,
           )!;
     const p = s.placements;
@@ -132,7 +187,11 @@ export class PlanBuilderService {
         interests: t.interests.length,
       },
       placements,
-      creativeFiles: [...ctx.creatives.values()].map((f) => ({ creativeFileId: f.id, name: f.originalName, type: f.type })),
+      creativeFiles: [...ctx.creatives.values()].map((f) => ({
+        creativeFileId: f.id,
+        name: f.originalName,
+        type: f.type,
+      })),
       objective: s.objective,
       optimizationGoal: s.optimizationGoal,
       destination: s.destination,

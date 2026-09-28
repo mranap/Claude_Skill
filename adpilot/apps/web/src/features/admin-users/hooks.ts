@@ -23,7 +23,11 @@ export function useRoles(enabled = true) {
 }
 
 export function usePermissionCatalog() {
-  return useQuery({ queryKey: queryKeys.admin.permissions, queryFn: rolesApi.permissions, staleTime: 5 * 60_000 });
+  return useQuery({
+    queryKey: queryKeys.admin.permissions,
+    queryFn: rolesApi.permissions,
+    staleTime: 5 * 60_000,
+  });
 }
 
 /** Roles with administrative permissions can only be assigned/managed by a Super Admin. */

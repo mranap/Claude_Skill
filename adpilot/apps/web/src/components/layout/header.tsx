@@ -19,7 +19,8 @@ function useHeaderCrumbs(): Crumb[] {
   const items = admin ? filterNav(ADMIN_NAV, can) : MAIN_NAV;
   const active = findActiveNavItem(pathname, items);
   const crumbs: Crumb[] = [];
-  if (admin) crumbs.push({ label: 'Administration', href: can('admin.dashboard.view') ? '/admin' : undefined });
+  if (admin)
+    crumbs.push({ label: 'Administration', href: can('admin.dashboard.view') ? '/admin' : undefined });
   if (active) crumbs.push({ label: active.title, href: active.href });
   return crumbs;
 }
@@ -27,11 +28,18 @@ function useHeaderCrumbs(): Crumb[] {
 export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const crumbs = useHeaderCrumbs();
   const { setOpen } = useCommandMenu();
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const isMac =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 sm:px-5 lg:px-6">
-      <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={onOpenMobileNav} aria-label="Open navigation">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="md:hidden"
+        onClick={onOpenMobileNav}
+        aria-label="Open navigation"
+      >
         <Menu />
       </Button>
       <Breadcrumbs items={crumbs} className="min-w-0 flex-1 text-[13px] [&_li:last-child]:font-medium" />

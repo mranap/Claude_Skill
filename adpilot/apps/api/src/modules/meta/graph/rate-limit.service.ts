@@ -35,10 +35,15 @@ interface ScopeState {
  * (isBudgetChangeLimit) from a throttled ad account.
  */
 export class MetaRateLimitedError extends MetaApiError {
-  constructor(readonly retryAfterMs: number, scope: string, cause: { code?: number; subcode?: number } = {}) {
+  constructor(
+    readonly retryAfterMs: number,
+    scope: string,
+    cause: { code?: number; subcode?: number } = {},
+  ) {
     super({
       friendlyMessage: isBudgetChangeLimit(cause)
-        ? classifyGraphError({ code: cause.code, error_subcode: cause.subcode }, undefined, retryAfterMs).friendlyMessage
+        ? classifyGraphError({ code: cause.code, error_subcode: cause.subcode }, undefined, retryAfterMs)
+            .friendlyMessage
         : `Meta API limit reached (${scope}). The request was postponed by ${Math.ceil(retryAfterMs / 1000)} s.`,
       category: 'RATE_LIMIT',
       retryable: true,
@@ -148,7 +153,8 @@ export class MetaRateLimitService {
       const raw = values[i];
       if (!raw) continue;
       const st = JSON.parse(raw) as ScopeState;
-      if (st.blockedUntil > now) throw new MetaRateLimitedError(st.blockedUntil - now, SCOPE_LABELS[names[i]] ?? names[i], st);
+      if (st.blockedUntil > now)
+        throw new MetaRateLimitedError(st.blockedUntil - now, SCOPE_LABELS[names[i]] ?? names[i], st);
       // Usage percentages decay; ignore data older than 10 minutes for pacing decisions.
       if (now - st.at < 10 * 60_000) maxPct = Math.max(maxPct, st.pct);
     }
@@ -168,20 +174,35 @@ export class MetaRateLimitService {
     const now = Date.now();
     const writes: [string, ScopeState][] = [];
     if (usage.app) {
-      writes.push([keys.app, { pct: Math.max(usage.app.callCount, usage.app.totalTime, usage.app.totalCputime), blockedUntil: 0, at: now }]);
+      writes.push([
+        keys.app,
+        {
+          pct: Math.max(usage.app.callCount, usage.app.totalTime, usage.app.totalCputime),
+          blockedUntil: 0,
+          at: now,
+        },
+      ]);
     }
     if (usage.adAccount && keys.account) {
       const pct = usage.adAccount.utilPct;
-      const blockedUntil = pct >= 100 && usage.adAccount.resetSeconds > 0 ? now + usage.adAccount.resetSeconds * 1000 : 0;
+      const blockedUntil =
+        pct >= 100 && usage.adAccount.resetSeconds > 0 ? now + usage.adAccount.resetSeconds * 1000 : 0;
       writes.push([keys.account, { pct, blockedUntil, at: now }]);
     }
     if (usage.insights && keys.insights) {
-      writes.push([keys.insights, { pct: Math.max(usage.insights.accountPct, usage.insights.appPct), blockedUntil: 0, at: now }]);
+      writes.push([
+        keys.insights,
+        { pct: Math.max(usage.insights.accountPct, usage.insights.appPct), blockedUntil: 0, at: now },
+      ]);
     }
     for (const b of usage.business) {
-      const useCase = b.type === 'ads_insights' ? 'ads_insights' : b.type === 'ads_management' ? 'ads_management' : 'other';
+      const useCase =
+        b.type === 'ads_insights' ? 'ads_insights' : b.type === 'ads_management' ? 'ads_management' : 'other';
       const pct = Math.max(b.callCount, b.totalCputime, b.totalTime);
-      writes.push([this.bucKey(b.businessId, useCase), { pct, blockedUntil: b.regainMinutes > 0 ? now + b.regainMinutes * 60_000 : 0, at: now }]);
+      writes.push([
+        this.bucKey(b.businessId, useCase),
+        { pct, blockedUntil: b.regainMinutes > 0 ? now + b.regainMinutes * 60_000 : 0, at: now },
+      ]);
     }
     if (!writes.length) return;
     await this.store(writes);
@@ -204,10 +225,10 @@ export class MetaRateLimitService {
         code === 4
           ? keys.app
           : code === 17
-            ? keys.account ?? keys.token
+            ? (keys.account ?? keys.token)
             : code && code >= 80000
-              ? keys.business ?? keys.buc ?? keys.account ?? keys.token
-              : keys.account ?? keys.token;
+              ? (keys.business ?? keys.buc ?? keys.account ?? keys.token)
+              : (keys.account ?? keys.token);
       if (!delay) {
         const strikeKey = `${target}:strikes`;
         const strikes = await this.redis.client.incr(strikeKey);
@@ -219,9 +240,16 @@ export class MetaRateLimitService {
     if (!target) return delay;
     const now = Date.now();
     // A longer block that is already in place (an earlier strike, a BUC regain time) is kept.
-    const [blockedUntil] = await this.store([[target, { pct: 100, blockedUntil: now + delay, at: now, code, subcode: err.metaSubcode }]]);
+    const [blockedUntil] = await this.store([
+      [target, { pct: 100, blockedUntil: now + delay, at: now, code, subcode: err.metaSubcode }],
+    ]);
     delay = Math.max(delay, blockedUntil - now);
-    this.logger.warn('Meta rate limit hit', { code, subcode: err.metaSubcode, scope: target.split(':').slice(-2).join(':'), delayMs: delay });
+    this.logger.warn('Meta rate limit hit', {
+      code,
+      subcode: err.metaSubcode,
+      scope: target.split(':').slice(-2).join(':'),
+      delayMs: delay,
+    });
     return delay;
   }
 
@@ -236,7 +264,8 @@ export class MetaRateLimitService {
       if (keys.length) {
         const vals = await this.redis.client.mget(...keys);
         keys.forEach((k, i) => {
-          if (vals[i] && !k.endsWith(':strikes')) out.push({ key: k.replace(`${this.redis.prefix}:meta:rl:`, ''), state: JSON.parse(vals[i]) });
+          if (vals[i] && !k.endsWith(':strikes'))
+            out.push({ key: k.replace(`${this.redis.prefix}:meta:rl:`, ''), state: JSON.parse(vals[i]) });
         });
       }
     } while (cursor !== '0' && out.length < 1000);

@@ -12,7 +12,8 @@ const alertVariants = cva(
         info: 'border-info/30 bg-info/[0.06] text-foreground [&>svg]:text-info-fg',
         success: 'border-success/30 bg-success/[0.07] text-foreground [&>svg]:text-success-fg',
         warning: 'border-warning/40 bg-warning/[0.08] text-foreground [&>svg]:text-warning-fg',
-        destructive: 'border-destructive/30 bg-destructive/[0.06] text-foreground [&>svg]:text-destructive-fg',
+        destructive:
+          'border-destructive/30 bg-destructive/[0.06] text-foreground [&>svg]:text-destructive-fg',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -49,7 +50,13 @@ export function Alert({
 }
 
 export function AlertTitle({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="alert-title" className={cn('font-medium leading-5 tracking-tight', className)} {...props} />;
+  return (
+    <div
+      data-slot="alert-title"
+      className={cn('font-medium leading-5 tracking-tight', className)}
+      {...props}
+    />
+  );
 }
 
 export function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {

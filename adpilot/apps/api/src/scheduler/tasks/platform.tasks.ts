@@ -5,7 +5,11 @@ import { BulkActionJob, JOBS, QUEUES } from '../../infra/queue/queues';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { SettingsService } from '../../modules/settings/settings.service';
 import { SystemLogService } from '../../modules/system-log/system-log.service';
-import { BULK_JOB_ATTEMPTS, bulkJobId, closeBulkOperation } from '../../modules/campaigns/bulk-actions.service';
+import {
+  BULK_JOB_ATTEMPTS,
+  bulkJobId,
+  closeBulkOperation,
+} from '../../modules/campaigns/bulk-actions.service';
 import { failAbandonedBackups, queueBackup } from '../../modules/maintenance/backup.service';
 import { SchedulerTask } from '../scheduler-task';
 
@@ -46,13 +50,18 @@ export class OutboxSweepTask implements SchedulerTask {
       where: {
         status: 'PENDING',
         updatedAt: { lt: new Date(Date.now() - 2 * MINUTE) },
-        ...(c ? { OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] } : {}),
+        ...(c
+          ? { OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] }
+          : {}),
       },
       select: { id: true, channel: true, createdAt: true },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: SWEEP_BATCH,
     });
-    this.cursor = stale.length === SWEEP_BATCH ? { createdAt: stale[stale.length - 1].createdAt, id: stale[stale.length - 1].id } : null;
+    this.cursor =
+      stale.length === SWEEP_BATCH
+        ? { createdAt: stale[stale.length - 1].createdAt, id: stale[stale.length - 1].id }
+        : null;
     for (const d of stale) await this.notifications.enqueueDelivery(d.id, d.channel);
     // A worker died between claiming and finishing: we cannot know whether the message went out, so we do
     // not resend it (no duplicates) and mark it UNCERTAIN for visibility.
@@ -69,7 +78,10 @@ export class OutboxSweepTask implements SchedulerTask {
    */
   private async sweepBulkOperations(): Promise<void> {
     const ops = await this.prisma.bulkOperation.findMany({
-      where: { status: { in: ['QUEUED', 'RUNNING'] }, createdAt: { lt: new Date(Date.now() - BULK_GRACE_MS) } },
+      where: {
+        status: { in: ['QUEUED', 'RUNNING'] },
+        createdAt: { lt: new Date(Date.now() - BULK_GRACE_MS) },
+      },
       orderBy: { createdAt: 'asc' },
       take: SWEEP_BATCH,
     });
@@ -80,7 +92,10 @@ export class OutboxSweepTask implements SchedulerTask {
         await closeBulkOperation(this.prisma, op);
       } else if (state === 'missing' || state === 'completed') {
         const data: BulkActionJob = { bulkOperationId: op.id, userId: op.userId };
-        await this.queue.addReplacingFinished(QUEUES.BULK_ACTIONS, JOBS.BULK_ACTION, data, { jobId: bulkJobId(op.id), attempts: BULK_JOB_ATTEMPTS });
+        await this.queue.addReplacingFinished(QUEUES.BULK_ACTIONS, JOBS.BULK_ACTION, data, {
+          jobId: bulkJobId(op.id),
+          attempts: BULK_JOB_ATTEMPTS,
+        });
       }
     }
   }
@@ -98,7 +113,12 @@ export class RetentionTask implements SchedulerTask {
     const now = new Date();
     if (now.getUTCHours() !== 2) return;
     const day = now.toISOString().slice(0, 10);
-    await this.queue.add(QUEUES.MAINTENANCE, JOBS.RETENTION_CLEANUP, { kind: 'retention' }, { jobId: jobId('retention', day), attempts: 2 });
+    await this.queue.add(
+      QUEUES.MAINTENANCE,
+      JOBS.RETENTION_CLEANUP,
+      { kind: 'retention' },
+      { jobId: jobId('retention', day), attempts: 2 },
+    );
   }
 }
 

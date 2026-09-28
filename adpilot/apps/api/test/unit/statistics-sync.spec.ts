@@ -34,13 +34,19 @@ describe('statistics look-back and the weekly 28-day refresh', () => {
 
   it('once a week a regular sync re-reads the whole window in which Meta still revises data', () => {
     expect(INSIGHTS_SETTLED_AFTER_DAYS).toBe(28);
-    expect(insightsWindow(account(FULL_REFRESH_EVERY_MS - 60_000), cfg, false, now)).toEqual({ days: 8, full: false });
+    expect(insightsWindow(account(FULL_REFRESH_EVERY_MS - 60_000), cfg, false, now)).toEqual({
+      days: 8,
+      full: false,
+    });
     expect(insightsWindow(account(FULL_REFRESH_EVERY_MS), cfg, false, now)).toEqual({ days: 28, full: true });
     expect(insightsWindow(account(null), cfg, false, now)).toEqual({ days: 28, full: true });
   });
 
   it('the first sync (or a requested backfill) fetches the backfill period and counts as the refresh', () => {
-    expect(insightsWindow({ statsBackfilledAt: null, statsFullRefreshAt: null }, cfg, false, now)).toEqual({ days: 30, full: true });
+    expect(insightsWindow({ statsBackfilledAt: null, statsFullRefreshAt: null }, cfg, false, now)).toEqual({
+      days: 30,
+      full: true,
+    });
     expect(insightsWindow(account(DAY), cfg, true, now)).toEqual({ days: 30, full: true });
   });
 });
@@ -84,19 +90,35 @@ describe('Insights sync storage', () => {
         requests.push({ level: params.level, ...params.time_range });
         if (params.level === opts.tooMuchDataAt && !failed) {
           failed = true;
-          throw new MetaApiError(classifyGraphError({ code: 100, error_subcode: 1487534, message: 'Please reduce the amount of data you are asking for' }, 400));
+          throw new MetaApiError(
+            classifyGraphError(
+              {
+                code: 100,
+                error_subcode: 1487534,
+                message: 'Please reduce the amount of data you are asking for',
+              },
+              400,
+            ),
+          );
         }
         const page = Number(params.after ?? 0);
         events.push(`get:${params.level}:${page}`);
         const next = page + 1 < pages ? { next: 'https://graph.example/next' } : {};
-        return { data: [row(`${params.level}-${page}`, params.time_range.since)], paging: { cursors: { after: String(page + 1) }, ...next } };
+        return {
+          data: [row(`${params.level}-${page}`, params.time_range.since)],
+          paging: { cursors: { after: String(page + 1) }, ...next },
+        };
       }),
     };
     const prisma = {
       $executeRaw: vi.fn(async () => (events.push('store'), 1)),
       adAccount: { update: vi.fn(async () => ({})) },
     };
-    const service = new InsightsSyncService(fake(prisma), fake(graph), fake({ get: async () => defaultSettings('statistics') }));
+    const service = new InsightsSyncService(
+      fake(prisma),
+      fake(graph),
+      fake({ get: async () => defaultSettings('statistics') }),
+    );
     return { events, requests, prisma, service };
   }
 
@@ -104,7 +126,14 @@ describe('Insights sync storage', () => {
     const { events, service } = setup(3);
     const res = await service.syncAccount(account, fake({}));
     expect(res.rows).toBe(12); // 4 levels × 3 pages × 1 row
-    expect(events.slice(0, 6)).toEqual(['get:account:0', 'store', 'get:account:1', 'store', 'get:account:2', 'store']);
+    expect(events.slice(0, 6)).toEqual([
+      'get:account:0',
+      'store',
+      'get:account:1',
+      'store',
+      'get:account:2',
+      'store',
+    ]);
   });
 
   it('records the weekly refresh only for a sync that covered the whole 28-day window', async () => {
@@ -114,9 +143,15 @@ describe('Insights sync storage', () => {
     expect(regular.prisma.adAccount.update).not.toHaveBeenCalled();
 
     const due = setup(1);
-    const full = await due.service.syncAccount({ ...account, statsFullRefreshAt: new Date(Date.now() - 8 * DAY) }, fake({}));
+    const full = await due.service.syncAccount(
+      { ...account, statsFullRefreshAt: new Date(Date.now() - 8 * DAY) },
+      fake({}),
+    );
     expect(DateTime.fromISO(full.until).diff(DateTime.fromISO(full.since), 'days').days).toBe(27);
-    expect(due.prisma.adAccount.update).toHaveBeenCalledWith({ where: { id: 'acc-1' }, data: { statsFullRefreshAt: expect.any(Date) } });
+    expect(due.prisma.adAccount.update).toHaveBeenCalledWith({
+      where: { id: 'acc-1' },
+      data: { statsFullRefreshAt: expect.any(Date) },
+    });
   });
 
   it('splits a range that returns too much data into halves', async () => {
@@ -131,14 +166,25 @@ describe('Insights sync storage', () => {
 });
 
 describe('aggregations that cannot be added up', () => {
-  const base: InsightRow = { date_start: '2026-09-01', date_stop: '2026-09-01', spend: '10', impressions: '100', reach: '80', clicks: '5', inline_link_clicks: '4' };
+  const base: InsightRow = {
+    date_start: '2026-09-01',
+    date_stop: '2026-09-01',
+    spend: '10',
+    impressions: '100',
+    reach: '80',
+    clicks: '5',
+    inline_link_clicks: '4',
+  };
 
   it('a campaign whose ad sets have different result types has no "Results"', () => {
     const mixed: InsightRow = {
       ...base,
       objective: 'OUTCOME_LEADS',
       results: [
-        { indicator: 'actions:offsite_conversion.fb_pixel_lead', values: [{ value: '4', attribution_windows: ['default'] }] },
+        {
+          indicator: 'actions:offsite_conversion.fb_pixel_lead',
+          values: [{ value: '4', attribution_windows: ['default'] }],
+        },
         { indicator: 'actions:link_click', values: [{ value: '120', attribution_windows: ['default'] }] },
       ],
     };
@@ -170,13 +216,18 @@ describe('aggregations that cannot be added up', () => {
       purchaseValue: new Decimal(0),
       results: new Decimal(1),
     });
-    const prisma = { insightDaily: { findMany: async () => [r('a', 'USD', 100n), r('b', 'USD', 50n), r('c', 'EUR', 70n)] } };
+    const prisma = {
+      insightDaily: { findMany: async () => [r('a', 'USD', 100n), r('b', 'USD', 50n), r('c', 'EUR', 70n)] },
+    };
     const accounts = [
       { id: 'a', timezoneName: 'UTC', currency: 'USD' },
       { id: 'b', timezoneName: 'UTC', currency: 'USD' },
       { id: 'c', timezoneName: 'UTC', currency: 'EUR' },
     ];
-    const totals = await new StatsQueryService(fake(prisma)).totals(accounts, 'custom', { from: '2026-09-01', to: '2026-09-01' });
+    const totals = await new StatsQueryService(fake(prisma)).totals(accounts, 'custom', {
+      from: '2026-09-01',
+      to: '2026-09-01',
+    });
     expect(totals.byCurrency.get('USD')).toMatchObject({ impressions: 200n, reach: null });
     expect(totals.byCurrency.get('EUR')).toMatchObject({ impressions: 100n, reach: 70n });
     expect(totals.byDay.get('2026-09-01')?.get('USD')?.reach).toBeNull();

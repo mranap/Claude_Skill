@@ -6,7 +6,19 @@
  */
 
 /** Currencies with offset 1 in the Marketing API currency table. */
-export const OFFSET_ONE_CURRENCIES = new Set(['CLP', 'COP', 'CRC', 'HUF', 'ISK', 'IDR', 'JPY', 'KRW', 'PYG', 'TWD', 'VND']);
+export const OFFSET_ONE_CURRENCIES = new Set([
+  'CLP',
+  'COP',
+  'CRC',
+  'HUF',
+  'ISK',
+  'IDR',
+  'JPY',
+  'KRW',
+  'PYG',
+  'TWD',
+  'VND',
+]);
 
 export function currencyOffset(currency: string): 1 | 100 {
   return OFFSET_ONE_CURRENCIES.has(currency.toUpperCase()) ? 1 : 100;
@@ -25,13 +37,18 @@ export function majorToMinor(major: string, currency: string): bigint {
   const decimals = currencyDecimals(currency);
   const frac = (m[2] ?? '').replace(/0+$/, '');
   if (frac.length > decimals) {
-    throw new Error(decimals === 0 ? `${currency} amounts cannot have decimals` : `Use at most ${decimals} decimals`);
+    throw new Error(
+      decimals === 0 ? `${currency} amounts cannot have decimals` : `Use at most ${decimals} decimals`,
+    );
   }
   return BigInt(m[1]!) * BigInt(10 ** decimals) + BigInt((frac + '00').slice(0, decimals) || '0');
 }
 
 /** 1234n (USD) → "12.34"; 1234n (JPY) → "1234". */
-export function minorToMajor(minor: bigint | string | number | null | undefined, currency: string): string | null {
+export function minorToMajor(
+  minor: bigint | string | number | null | undefined,
+  currency: string,
+): string | null {
   if (minor === null || minor === undefined || minor === '') return null;
   const v = BigInt(minor);
   const decimals = currencyDecimals(currency);
@@ -43,7 +60,11 @@ export function minorToMajor(minor: bigint | string | number | null | undefined,
 }
 
 /** Formats a major-unit decimal string for display (exact: Intl formats decimal strings without float loss). */
-export function formatMoney(major: string | number | null | undefined, currency: string, locale = 'en-US'): string {
+export function formatMoney(
+  major: string | number | null | undefined,
+  currency: string,
+  locale = 'en-US',
+): string {
   if (major === null || major === undefined || major === '') return '—';
   const decimals = currencyDecimals(currency);
   try {

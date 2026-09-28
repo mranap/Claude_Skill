@@ -59,7 +59,8 @@ export class SessionService {
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
       }) as jwt.JwtPayload;
-      if (payload.typ !== 'access' || typeof payload.sub !== 'string' || typeof payload.sid !== 'string') return null;
+      if (payload.typ !== 'access' || typeof payload.sub !== 'string' || typeof payload.sid !== 'string')
+        return null;
       return { sub: payload.sub, sid: payload.sid, typ: 'access' };
     } catch {
       return null;

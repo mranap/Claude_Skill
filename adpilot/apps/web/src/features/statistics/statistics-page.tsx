@@ -4,7 +4,7 @@ import type { MetricsDto } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChartColumn, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,13 @@ import { PageHeader } from '@/components/shared/page-header';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { CooldownButton } from '@/components/product/cooldown-button';
 import { EffectiveStatusBadge } from '@/components/product/status';
-import { parseStatsRange, statsRangeLabel, statsRangeParams, statsRangePatch, StatsRangePicker } from '@/components/product/stats-range-picker';
+import {
+  parseStatsRange,
+  statsRangeLabel,
+  statsRangeParams,
+  statsRangePatch,
+  StatsRangePicker,
+} from '@/components/product/stats-range-picker';
 import { getErrorMessage } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useCooldown } from '@/lib/hooks/use-cooldown';
@@ -36,9 +42,47 @@ import { formatMetric, METRICS, metricColumns, type MetricKey } from './metrics'
 import { SeriesCard } from './series-card';
 import type { StatsLevel, StatsRefreshResponse, StatsRow, StatsSyncInfo } from './types';
 
-const SORTABLE = ['spend', 'impressions', 'clicks', 'linkClicks', 'ctr', 'cpc', 'cpm', 'leads', 'cpl', 'purchases', 'roas', 'results', 'costPerResult'] as const;
-const TABLE_METRICS: MetricKey[] = ['spend', 'impressions', 'linkClicks', 'ctr', 'cpc', 'cpm', 'leads', 'cpl', 'purchases', 'roas', 'results', 'costPerResult'];
-const TOTAL_METRICS: MetricKey[] = ['spend', 'impressions', 'linkClicks', 'ctr', 'cpc', 'cpm', 'leads', 'cpl', 'purchases', 'roas'];
+const SORTABLE = [
+  'spend',
+  'impressions',
+  'clicks',
+  'linkClicks',
+  'ctr',
+  'cpc',
+  'cpm',
+  'leads',
+  'cpl',
+  'purchases',
+  'roas',
+  'results',
+  'costPerResult',
+] as const;
+const TABLE_METRICS: MetricKey[] = [
+  'spend',
+  'impressions',
+  'linkClicks',
+  'ctr',
+  'cpc',
+  'cpm',
+  'leads',
+  'cpl',
+  'purchases',
+  'roas',
+  'results',
+  'costPerResult',
+];
+const TOTAL_METRICS: MetricKey[] = [
+  'spend',
+  'impressions',
+  'linkClicks',
+  'ctr',
+  'cpc',
+  'cpm',
+  'leads',
+  'cpl',
+  'purchases',
+  'roas',
+];
 const LEVEL_LABELS: Record<StatsLevel, string> = { CAMPAIGN: 'Campaign', ADSET: 'Ad set', AD: 'Ad' };
 const LEVEL_PLURAL: Record<StatsLevel, string> = { CAMPAIGN: 'campaigns', ADSET: 'ad sets', AD: 'ads' };
 
@@ -59,12 +103,15 @@ function useRefreshStatistics(cooldown: ReturnType<typeof useCooldown>, adAccoun
             : 'New numbers appear here as soon as Meta returns them.',
         });
       } else {
-        toast.info('Statistics were refreshed recently', { description: `You can refresh again in ${Math.ceil(Math.min(...waits) / 60)} min.` });
+        toast.info('Statistics were refreshed recently', {
+          description: `You can refresh again in ${Math.ceil(Math.min(...waits) / 60)} min.`,
+        });
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.statistics.all });
     },
     onError: (error) => {
-      if (!cooldown.fromError(error)) toast.error('Could not refresh statistics', { description: getErrorMessage(error) });
+      if (!cooldown.fromError(error))
+        toast.error('Could not refresh statistics', { description: getErrorMessage(error) });
     },
   });
 }
@@ -79,11 +126,18 @@ export function StatisticsPage() {
     }),
     [table],
   );
-  const level = (['ADSET', 'AD'].includes(table.filters.level ?? '') ? table.filters.level : 'CAMPAIGN') as StatsLevel;
+  const level = (
+    ['ADSET', 'AD'].includes(table.filters.level ?? '') ? table.filters.level : 'CAMPAIGN'
+  ) as StatsLevel;
   const range = parseStatsRange(table.filters.range, table.filters.from, table.filters.to, 'last_7d');
   const adAccountId = table.filters.adAccountId;
 
-  const params: Record<string, string | number> = { level, page: table.page, pageSize: table.pageSize, ...statsRangeParams(range) };
+  const params: Record<string, string | number> = {
+    level,
+    page: table.page,
+    pageSize: table.pageSize,
+    ...statsRangeParams(range),
+  };
   if (table.q) params.q = table.q;
   if (table.sort) params.sort = table.sort;
   if (adAccountId) params.adAccountId = adAccountId;
@@ -93,8 +147,22 @@ export function StatisticsPage() {
   const cooldown = useCooldown();
   const refresh = useRefreshStatistics(cooldown, adAccountId);
   const data = stats.data;
-  const zones = [...new Set((data?.sync ?? []).map((s) => accountById.get(s.adAccountId)?.timezoneName).filter(Boolean))] as string[];
-  const otherCurrencies = (data?.totals ?? []).map((t) => t.currency).filter((c) => c !== data?.primaryCurrency);
+  // "Refresh" is refused only while every account in view is on cooldown: count down to the earliest one.
+  const { start } = cooldown;
+  const nextRefreshAt = (data?.sync ?? []).reduce(
+    (min, s) => Math.min(min, s.nextManualRefreshAt ? new Date(s.nextManualRefreshAt).getTime() : 0),
+    Infinity,
+  );
+  useEffect(() => {
+    if (Number.isFinite(nextRefreshAt) && nextRefreshAt > Date.now())
+      start(Math.ceil((nextRefreshAt - Date.now()) / 1000));
+  }, [nextRefreshAt, start]);
+  const zones = [
+    ...new Set((data?.sync ?? []).map((s) => accountById.get(s.adAccountId)?.timezoneName).filter(Boolean)),
+  ] as string[];
+  const otherCurrencies = (data?.totals ?? [])
+    .map((t) => t.currency)
+    .filter((c) => c !== data?.primaryCurrency);
 
   const columns: DataTableColumn<StatsRow>[] = [
     {
@@ -126,7 +194,12 @@ export function StatisticsPage() {
     {
       id: 'status',
       header: 'Delivery',
-      cell: (r) => (r.entity ? <EffectiveStatusBadge status={r.entity.effectiveStatus} /> : <span className="text-muted-foreground">—</span>),
+      cell: (r) =>
+        r.entity ? (
+          <EffectiveStatusBadge status={r.entity.effectiveStatus} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       id: 'account',
@@ -150,7 +223,13 @@ export function StatisticsPage() {
         title="Statistics"
         description="Meta Insights synced for your connected ad accounts. Ranges are evaluated in each ad account's own time zone, and amounts are never converted between currencies."
         actions={
-          <CooldownButton cooldown={cooldown} variant="outline" onClick={() => refresh.mutate()} loading={refresh.isPending} cooldownHint="Statistics can be refreshed manually once per cooldown period">
+          <CooldownButton
+            cooldown={cooldown}
+            variant="outline"
+            onClick={() => refresh.mutate()}
+            loading={refresh.isPending}
+            cooldownHint="Statistics can be refreshed manually once per cooldown period"
+          >
             <RefreshCw />
             {adAccountId ? 'Refresh account' : 'Refresh all'}
           </CooldownButton>
@@ -160,7 +239,9 @@ export function StatisticsPage() {
         <SegmentedControl
           aria-label="Level"
           value={level}
-          onValueChange={(next) => table.setFilters({ level: next === 'CAMPAIGN' ? undefined : next, sort: undefined })}
+          onValueChange={(next) =>
+            table.setFilters({ level: next === 'CAMPAIGN' ? undefined : next, sort: undefined })
+          }
           options={[
             { value: 'CAMPAIGN', label: 'Campaigns' },
             { value: 'ADSET', label: 'Ad sets' },
@@ -169,11 +250,18 @@ export function StatisticsPage() {
         />
         <StatsRangePicker value={range} onChange={(next) => table.setFilters(statsRangePatch(next))} />
         {(accounts.data?.length ?? 0) > 1 ? (
-          <FilterSelect state={state} filterKey="adAccountId" allLabel="All ad accounts" options={(accounts.data ?? []).map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))} />
+          <FilterSelect
+            state={state}
+            filterKey="adAccountId"
+            allLabel="All ad accounts"
+            options={(accounts.data ?? []).map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))}
+          />
         ) : null}
         <span className="text-xs text-muted-foreground">
           {statsRangeLabel(range)}
-          {zones.length ? ` · ${zones.length === 1 ? `time zone ${zones[0]}` : `time zones ${zones.join(', ')}`}` : ''}
+          {zones.length
+            ? ` · ${zones.length === 1 ? `time zone ${zones[0]}` : `time zones ${zones.join(', ')}`}`
+            : ''}
         </span>
       </div>
 
@@ -184,7 +272,9 @@ export function StatisticsPage() {
           data.totals.map((t) => <TotalsCard key={t.currency} totals={t} />)
         ) : (
           <Card>
-            <CardContent className="py-6 text-center text-sm text-muted-foreground">No delivery in this period.</CardContent>
+            <CardContent className="py-6 text-center text-sm text-muted-foreground">
+              No delivery in this period.
+            </CardContent>
           </Card>
         )}
       </section>
@@ -199,7 +289,10 @@ export function StatisticsPage() {
           description={
             <>
               Per day in {data?.primaryCurrency ?? '…'}
-              {otherCurrencies.length ? ` (the currency with the highest spend; ${otherCurrencies.join(', ')} totals are shown above)` : ''}.
+              {otherCurrencies.length
+                ? ` (the currency with the highest spend; ${otherCurrencies.join(', ')} totals are shown above)`
+                : ''}
+              .
             </>
           }
         />
@@ -218,12 +311,21 @@ export function StatisticsPage() {
         error={stats.error}
         onRetry={() => void stats.refetch()}
         minWidth={1560}
-        toolbar={<DataTableToolbar state={state} searchPlaceholder={`Search ${LEVEL_LABELS[level].toLowerCase()} name or ID`} />}
+        toolbar={
+          <DataTableToolbar
+            state={state}
+            searchPlaceholder={`Search ${LEVEL_LABELS[level].toLowerCase()} name or ID`}
+          />
+        }
         emptyState={
           <EmptyState
             compact
             icon={ChartColumn}
-            title={state.hasActiveFilters ? 'Nothing matches the search' : `No ${LEVEL_PLURAL[level]} with delivery in this period`}
+            title={
+              state.hasActiveFilters
+                ? 'Nothing matches the search'
+                : `No ${LEVEL_PLURAL[level]} with delivery in this period`
+            }
             description="Only objects with delivery in the selected period are listed. Try a longer range or refresh the statistics."
           />
         }
@@ -250,19 +352,39 @@ function TotalsCard({ totals }: { totals: MetricsDto }) {
   );
 }
 
-const SYNC_TONES: Record<string, 'success' | 'danger' | 'info' | 'muted'> = { SUCCESS: 'success', FAILED: 'danger', QUEUED: 'info', RUNNING: 'info', IDLE: 'muted' };
+const SYNC_TONES: Record<string, 'success' | 'danger' | 'info' | 'muted'> = {
+  SUCCESS: 'success',
+  FAILED: 'danger',
+  QUEUED: 'info',
+  RUNNING: 'info',
+  IDLE: 'muted',
+};
 
-function SyncCard({ sync, accounts, loading }: { sync: StatsSyncInfo[] | undefined; accounts: Map<string, AdAccountDto>; loading: boolean }) {
+function SyncCard({
+  sync,
+  accounts,
+  loading,
+}: {
+  sync: StatsSyncInfo[] | undefined;
+  accounts: Map<string, AdAccountDto>;
+  loading: boolean;
+}) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sync status</CardTitle>
-        <CardDescription>Statistics are synced automatically; refresh an account to fetch the latest numbers now.</CardDescription>
+        <CardDescription>
+          Statistics are synced automatically; refresh an account to fetch the latest numbers now.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-1">
         {loading && !sync ? <Skeleton className="h-24 w-full" /> : null}
-        {sync?.length === 0 ? <p className="text-sm text-muted-foreground">No connected ad accounts.</p> : null}
-        {sync?.map((s) => <SyncRow key={s.adAccountId} sync={s} account={accounts.get(s.adAccountId)} />)}
+        {sync?.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No connected ad accounts.</p>
+        ) : null}
+        {sync?.map((s) => (
+          <SyncRow key={s.adAccountId} sync={s} account={accounts.get(s.adAccountId)} />
+        ))}
       </CardContent>
     </Card>
   );
@@ -275,12 +397,13 @@ function SyncRow({ sync, account }: { sync: StatsSyncInfo; account: AdAccountDto
   return (
     <div className="flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0">
       <div className="grid min-w-0 gap-0.5">
-        <Link href={`/ad-accounts/${sync.adAccountId}`} className="truncate text-sm font-medium hover:underline">
+        <Link
+          href={`/ad-accounts/${sync.adAccountId}`}
+          className="truncate text-sm font-medium hover:underline"
+        >
           {sync.name}
         </Link>
-        <span className="text-xs text-muted-foreground">
-          {account ? `${account.currency} · ${tz}` : '—'}
-        </span>
+        <span className="text-xs text-muted-foreground">{account ? `${account.currency} · ${tz}` : '—'}</span>
         <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <StatusBadge status={sync.status} tone={SYNC_TONES[sync.status] ?? 'muted'} size="sm" />
           {sync.lastStatsSyncAt ? (
@@ -293,9 +416,18 @@ function SyncRow({ sync, account }: { sync: StatsSyncInfo; account: AdAccountDto
             'never synced'
           )}
         </span>
-        {sync.status === 'FAILED' && account?.statsSyncError ? <span className="text-xs text-destructive-fg">{account.statsSyncError}</span> : null}
+        {sync.status === 'FAILED' && account?.statsSyncError ? (
+          <span className="text-xs text-destructive-fg">{account.statsSyncError}</span>
+        ) : null}
       </div>
-      <CooldownButton cooldown={cooldown} size="xs" variant="ghost" onClick={() => refresh.mutate()} loading={refresh.isPending} aria-label={`Refresh ${sync.name}`}>
+      <CooldownButton
+        cooldown={cooldown}
+        size="xs"
+        variant="ghost"
+        onClick={() => refresh.mutate()}
+        loading={refresh.isPending}
+        aria-label={`Refresh ${sync.name}`}
+      >
         <RefreshCw />
         Refresh
       </CooldownButton>

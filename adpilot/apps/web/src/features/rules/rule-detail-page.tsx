@@ -2,7 +2,7 @@
 
 import { History, Play, Settings2, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,10 @@ export function RuleDetailPage({ id }: { id: string }) {
   if (rule.isError || !rule.data) {
     return (
       <>
-        <PageHeader title="Rule" breadcrumbs={[{ label: 'Auto Rules', href: '/rules' }, { label: 'Not available' }]} />
+        <PageHeader
+          title="Rule"
+          breadcrumbs={[{ label: 'Auto Rules', href: '/rules' }, { label: 'Not available' }]}
+        />
         <ErrorAlert error={rule.error} onRetry={() => void rule.refetch()} />
       </>
     );
@@ -51,6 +54,12 @@ function RuleDetail({ rule }: { rule: RuleDto }) {
   const tab = searchParams.get('tab') === 'history' ? 'history' : 'settings';
   const cooldown = useCooldown();
   const actions = useRuleActions({ onCooldown: cooldown.fromError });
+  // Show the "Run now" countdown right away when the rule was started less than a minute ago.
+  const { start } = cooldown;
+  useEffect(() => {
+    const until = rule.nextManualRunAt ? new Date(rule.nextManualRunAt).getTime() : 0;
+    if (until > Date.now()) start(Math.ceil((until - Date.now()) / 1000));
+  }, [rule.nextManualRunAt, start]);
   const [deleting, setDeleting] = useState(false);
   const executions = useLocalTableState({ filterKeys: ['result'] });
 
@@ -61,13 +70,16 @@ function RuleDetail({ rule }: { rule: RuleDto }) {
         title={rule.name}
         meta={
           <>
-            <Badge variant={rule.isActive ? 'success' : 'muted'}>{rule.isActive ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant={rule.isActive ? 'success' : 'muted'}>
+              {rule.isActive ? 'Active' : 'Inactive'}
+            </Badge>
             {rule.isDryRun ? <Badge variant="info">Dry run</Badge> : null}
           </>
         }
         description={
           <>
-            If {rule.summary} ({describeTimeRange(rule)}) → {describeAction(rule).toLowerCase()} · {TARGET_LABELS[rule.targetLevel].many.toLowerCase()} ·{' '}
+            If {rule.summary} ({describeTimeRange(rule)}) → {describeAction(rule).toLowerCase()} ·{' '}
+            {TARGET_LABELS[rule.targetLevel].many.toLowerCase()} ·{' '}
             {describeInterval(rule.checkIntervalMinutes)}
           </>
         }
@@ -108,12 +120,24 @@ function RuleDetail({ rule }: { rule: RuleDto }) {
           <span className="text-xs text-muted-foreground">Last run</span>
           <span>
             {rule.lastRunAt ? <RelativeTime value={rule.lastRunAt} /> : 'Never'}
-            {rule.lastRunStatus ? <span className="text-muted-foreground"> · {rule.lastRunStatus === 'OK' ? 'completed' : rule.lastRunStatus === 'PARTIAL' ? 'some actions failed' : rule.lastRunStatus.toLowerCase()}</span> : null}
+            {rule.lastRunStatus ? (
+              <span className="text-muted-foreground">
+                {' '}
+                ·{' '}
+                {rule.lastRunStatus === 'OK'
+                  ? 'completed'
+                  : rule.lastRunStatus === 'PARTIAL'
+                    ? 'some actions failed'
+                    : rule.lastRunStatus.toLowerCase()}
+              </span>
+            ) : null}
           </span>
         </div>
         <div className="grid gap-0.5">
           <span className="text-xs text-muted-foreground">Next scheduled run</span>
-          <span>{rule.isActive && rule.nextRunAt ? <RelativeTime value={rule.nextRunAt} /> : 'Not scheduled'}</span>
+          <span>
+            {rule.isActive && rule.nextRunAt ? <RelativeTime value={rule.nextRunAt} /> : 'Not scheduled'}
+          </span>
         </div>
         <div className="grid gap-0.5">
           <span className="text-xs text-muted-foreground">Safeguards</span>
@@ -137,7 +161,11 @@ function RuleDetail({ rule }: { rule: RuleDto }) {
           { href: `/rules/${rule.id}?tab=history`, label: 'Execution history', icon: <History /> },
         ]}
       />
-      {tab === 'history' ? <RuleExecutionsTable state={executions} ruleId={rule.id} poll /> : <RuleEditor key={rule.id} rule={rule} />}
+      {tab === 'history' ? (
+        <RuleExecutionsTable state={executions} ruleId={rule.id} poll />
+      ) : (
+        <RuleEditor key={rule.id} rule={rule} />
+      )}
 
       <ConfirmDialog
         open={deleting}

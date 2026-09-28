@@ -74,28 +74,64 @@ export function SecretField({
               aria-describedby={error ? errorId : undefined}
             />
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={() => onChange(undefined)} aria-label="Cancel" disabled={disabled}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onChange(undefined)}
+            aria-label="Cancel"
+            disabled={disabled}
+          >
             <X />
           </Button>
         </div>
       ) : (
         <div className="flex min-h-9 flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-1.5">
-          <span className={isSet && !clearing ? 'flex-1 font-mono text-sm tracking-widest text-muted-foreground' : 'flex-1 text-sm text-muted-foreground'}>
-            {clearing ? 'The stored value will be deleted when you save.' : isSet ? '••••••••••••' : 'No value stored'}
+          <span
+            className={
+              isSet && !clearing
+                ? 'flex-1 font-mono text-sm tracking-widest text-muted-foreground'
+                : 'flex-1 text-sm text-muted-foreground'
+            }
+          >
+            {clearing
+              ? 'The stored value will be deleted when you save.'
+              : isSet
+                ? '••••••••••••'
+                : 'No value stored'}
           </span>
           {clearing ? (
-            <Button type="button" variant="ghost" size="xs" onClick={() => onChange(undefined)} disabled={disabled}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => onChange(undefined)}
+              disabled={disabled}
+            >
               <RotateCcw />
               Undo
             </Button>
           ) : (
             <>
-              <Button type="button" variant="outline" size="xs" onClick={() => onChange('')} disabled={disabled}>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => onChange('')}
+                disabled={disabled}
+              >
                 <KeyRound />
                 {isSet ? 'Replace' : 'Set'}
               </Button>
               {isSet ? (
-                <Button type="button" variant="ghost" size="xs" onClick={() => onChange(null)} disabled={disabled} className="text-destructive-fg">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => onChange(null)}
+                  disabled={disabled}
+                  className="text-destructive-fg"
+                >
                   <Trash />
                   Clear
                 </Button>

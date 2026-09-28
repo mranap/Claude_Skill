@@ -22,7 +22,10 @@ export class CampaignLaunchProcessor implements QueueProcessor {
   ) {}
 
   async process(job: Job<CampaignCreateJob>, token?: string): Promise<unknown> {
-    const launch = await this.prisma.launchJob.findUnique({ where: { id: job.data.launchJobId }, select: { userId: true, status: true } });
+    const launch = await this.prisma.launchJob.findUnique({
+      where: { id: job.data.launchJobId },
+      select: { userId: true, status: true },
+    });
     if (!launch || launch.userId !== job.data.userId) return { skipped: 'not found' };
     // A stray job (e.g. re-queued by recovery) for a finished launch ends here instead of deferring forever.
     if (LAUNCH_JOB_TERMINAL_STATUSES.includes(launch.status)) return { skipped: `already ${launch.status}` };
@@ -38,7 +41,10 @@ export class CampaignLaunchProcessor implements QueueProcessor {
       const lastAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (lastAttempt) {
         // Out of retries for a temporary problem: mark the launch failed (items keep their state → retryable).
-        await this.executor.markFailed(job.data.launchJobId, `Stopped after repeated temporary errors: ${(err as Error).message}`);
+        await this.executor.markFailed(
+          job.data.launchJobId,
+          `Stopped after repeated temporary errors: ${(err as Error).message}`,
+        );
       }
       throw err;
     }

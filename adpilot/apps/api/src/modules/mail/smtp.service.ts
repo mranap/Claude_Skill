@@ -55,11 +55,19 @@ export class SmtpService {
       prepared = await this.transport();
     } catch (err) {
       // The settings could not be loaded (e.g. database unavailable): nothing was sent, try again later.
-      throw err instanceof SmtpSendError ? err : new SmtpSendError('TEMPORARY', `SMTP settings unavailable: ${(err as Error).message}`);
+      throw err instanceof SmtpSendError
+        ? err
+        : new SmtpSendError('TEMPORARY', `SMTP settings unavailable: ${(err as Error).message}`);
     }
     const { transporter, from } = prepared;
     try {
-      const info = await transporter.sendMail({ from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text });
+      const info = await transporter.sendMail({
+        from,
+        to: mail.to,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+      });
       return { messageId: String(info.messageId ?? '') };
     } catch (err) {
       throw classifySmtpError(err);
@@ -89,7 +97,9 @@ export function classifySmtpError(err: unknown): SmtpSendError {
     if (e.responseCode >= 400) return new SmtpSendError('TEMPORARY', message);
   }
   // Connection problems before the DATA phase: the message was certainly not accepted.
-  if (['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNECTION', 'EDNS', 'ETLS', 'EAUTH'].includes(e?.code ?? '')) {
+  if (
+    ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNECTION', 'EDNS', 'ETLS', 'EAUTH'].includes(e?.code ?? '')
+  ) {
     return new SmtpSendError(e.code === 'EAUTH' ? 'PERMANENT' : 'TEMPORARY', message);
   }
   if (e?.code === 'ETIMEDOUT' && e.command && e.command !== 'DATA' && e.command !== 'DATA_END') {

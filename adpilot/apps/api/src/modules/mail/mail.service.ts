@@ -27,11 +27,21 @@ export class MailService {
     return `${this.config.appUrl}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
-  async enqueue(to: string, email: RenderedEmail, tag: string, opts: { sensitive?: boolean; userId?: string } = {}) {
+  async enqueue(
+    to: string,
+    email: RenderedEmail,
+    tag: string,
+    opts: { sensitive?: boolean; userId?: string } = {},
+  ) {
     const message = { to, subject: email.subject, html: email.html, text: email.text };
     // One-time links must not sit in Redis in clear text: sensitive messages are sealed with the platform key.
     const data: EmailJob = opts.sensitive
-      ? { kind: 'sealed', sealed: this.encryption.encrypt(JSON.stringify(message), Aad.mailJob()), tag, userId: opts.userId }
+      ? {
+          kind: 'sealed',
+          sealed: this.encryption.encrypt(JSON.stringify(message), Aad.mailJob()),
+          tag,
+          userId: opts.userId,
+        }
       : { kind: 'system', ...message, tag, userId: opts.userId };
     await this.queue.add(QUEUES.EMAIL, JOBS.EMAIL_SEND, data, {
       attempts: 5,
@@ -51,10 +61,15 @@ export class MailService {
 
   async sendPasswordReset(to: string, token: string, minutes: number, userId: string): Promise<void> {
     const url = this.link(`/reset-password#token=${encodeURIComponent(token)}`);
-    await this.enqueue(to, MailTemplates.passwordReset(await this.platformName(), url, minutes), 'password_reset', {
-      sensitive: true,
-      userId,
-    });
+    await this.enqueue(
+      to,
+      MailTemplates.passwordReset(await this.platformName(), url, minutes),
+      'password_reset',
+      {
+        sensitive: true,
+        userId,
+      },
+    );
   }
 
   async sendEmailChangeConfirmation(to: string, token: string, userId: string): Promise<void> {
@@ -66,8 +81,13 @@ export class MailService {
   }
 
   async sendSecurityNotice(to: string, title: string, message: string, userId?: string): Promise<void> {
-    await this.enqueue(to, MailTemplates.securityNotice(await this.platformName(), title, message), 'security_notice', {
-      userId,
-    });
+    await this.enqueue(
+      to,
+      MailTemplates.securityNotice(await this.platformName(), title, message),
+      'security_notice',
+      {
+        userId,
+      },
+    );
   }
 }

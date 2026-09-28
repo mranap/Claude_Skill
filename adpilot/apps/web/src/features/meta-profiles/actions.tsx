@@ -23,8 +23,12 @@ export function useProfileActions() {
   const validate = useMutation({
     mutationFn: (profile: MetaProfileDto) => metaProfilesApi.validate(profile.id),
     onSuccess: async (inspection, profile) => {
-      if (inspection.valid && !inspection.missingRequired.length) toast.success(`Token of “${profile.name}” is valid`, { description: inspection.message });
-      else if (inspection.valid) toast.warning('Token works, but permissions are missing', { description: inspection.missingRequired.join(', ') });
+      if (inspection.valid && !inspection.missingRequired.length)
+        toast.success(`Token of “${profile.name}” is valid`, { description: inspection.message });
+      else if (inspection.valid)
+        toast.warning('Token works, but permissions are missing', {
+          description: inspection.missingRequired.join(', '),
+        });
       else toast.error('Token check failed', { description: inspection.message });
       await invalidate();
     },
@@ -34,7 +38,9 @@ export function useProfileActions() {
   const sync = useMutation({
     mutationFn: (profile: MetaProfileDto) => metaProfilesApi.sync(profile.id),
     onSuccess: async (_res, profile) => {
-      toast.success('Synchronisation started', { description: `Business Managers, ad accounts, pages and pixels of “${profile.name}” are being refreshed.` });
+      toast.success('Synchronisation started', {
+        description: `Business Managers, ad accounts, pages and pixels of “${profile.name}” are being refreshed.`,
+      });
       await invalidate();
     },
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
@@ -53,7 +59,17 @@ export function useProfileActions() {
   return { validate, sync, testProxy, invalidate };
 }
 
-export function DeleteProfileDialog({ profile, open, onOpenChange, redirectTo }: { profile: MetaProfileDto; open: boolean; onOpenChange: (open: boolean) => void; redirectTo?: string }) {
+export function DeleteProfileDialog({
+  profile,
+  open,
+  onOpenChange,
+  redirectTo,
+}: {
+  profile: MetaProfileDto;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  redirectTo?: string;
+}) {
   const queryClient = useQueryClient();
   const router = useRouter();
   return (

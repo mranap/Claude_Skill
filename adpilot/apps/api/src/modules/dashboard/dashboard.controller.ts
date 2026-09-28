@@ -12,7 +12,10 @@ export class DashboardController {
 
   @Get()
   @RequirePermissions('app.statistics.view')
-  get(@CurrentUser() user: AuthUser, @Query(zod(dateRangeQuerySchema)) q: z.infer<typeof dateRangeQuerySchema>) {
+  get(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(dateRangeQuerySchema)) q: z.infer<typeof dateRangeQuerySchema>,
+  ) {
     return this.dashboard.get(user.id, q.range, { from: q.from, to: q.to });
   }
 }

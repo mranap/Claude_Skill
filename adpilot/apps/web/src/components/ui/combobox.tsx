@@ -81,7 +81,9 @@ export function Combobox({
         >
           <span className="truncate">
             {selected ? selected.label : placeholder}
-            {selected?.hint ? <span className="ml-2 text-xs text-muted-foreground">{selected.hint}</span> : null}
+            {selected?.hint ? (
+              <span className="ml-2 text-xs text-muted-foreground">{selected.hint}</span>
+            ) : null}
           </span>
           <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
         </button>
@@ -105,7 +107,9 @@ export function Combobox({
                   <Check className={cn('size-4', option.value === value ? 'opacity-100' : 'opacity-0')} />
                   <span className="truncate">{option.label}</span>
                   {option.hint ? (
-                    <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{option.hint}</span>
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {option.hint}
+                    </span>
                   ) : null}
                 </CommandItem>
               ))}

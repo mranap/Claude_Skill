@@ -8,7 +8,13 @@ import { cn } from '@/lib/utils/cn';
 export const Accordion = AccordionPrimitive.Root;
 
 export function AccordionItem({ className, ...props }: React.ComponentProps<typeof AccordionPrimitive.Item>) {
-  return <AccordionPrimitive.Item data-slot="accordion-item" className={cn('border-b last:border-b-0', className)} {...props} />;
+  return (
+    <AccordionPrimitive.Item
+      data-slot="accordion-item"
+      className={cn('border-b last:border-b-0', className)}
+      {...props}
+    />
+  );
 }
 
 export function AccordionTrigger({

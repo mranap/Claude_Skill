@@ -23,12 +23,15 @@ export class EncryptionService {
   private readonly activeKeyId: string;
 
   constructor(config: AppConfig) {
-    for (const entry of config.env.ENCRYPTION_KEYS.split(',').map((s) => s.trim()).filter(Boolean)) {
+    for (const entry of config.env.ENCRYPTION_KEYS.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)) {
       const idx = entry.indexOf(':');
       if (idx <= 0) throw new Error('ENCRYPTION_KEYS entries must look like "<id>:<base64-32-bytes>"');
       const id = entry.slice(0, idx);
       const key = Buffer.from(entry.slice(idx + 1), 'base64');
-      if (key.length !== 32) throw new Error(`Encryption key "${id}" must be exactly 32 bytes (base64 encoded)`);
+      if (key.length !== 32)
+        throw new Error(`Encryption key "${id}" must be exactly 32 bytes (base64 encoded)`);
       if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) throw new Error(`Invalid encryption key id "${id}"`);
       this.keys.set(id, key);
     }
@@ -45,9 +48,13 @@ export class EncryptionService {
     cipher.setAAD(Buffer.from(aad, 'utf8'));
     const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
-    return [PREFIX, this.activeKeyId, iv.toString('base64url'), tag.toString('base64url'), ct.toString('base64url')].join(
-      ':',
-    );
+    return [
+      PREFIX,
+      this.activeKeyId,
+      iv.toString('base64url'),
+      tag.toString('base64url'),
+      ct.toString('base64url'),
+    ].join(':');
   }
 
   decrypt(envelope: string, aad: string): string {
@@ -63,11 +70,15 @@ export class EncryptionService {
     const decipher = createDecipheriv(ALGO, key, iv, { authTagLength: TAG_BYTES });
     decipher.setAAD(Buffer.from(aad, 'utf8'));
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64url')), decipher.final()]).toString('utf8');
+    return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64url')), decipher.final()]).toString(
+      'utf8',
+    );
   }
 
   encryptNullable(plaintext: string | null | undefined, aad: string): string | null {
-    return plaintext === null || plaintext === undefined || plaintext === '' ? null : this.encrypt(plaintext, aad);
+    return plaintext === null || plaintext === undefined || plaintext === ''
+      ? null
+      : this.encrypt(plaintext, aad);
   }
 
   decryptNullable(envelope: string | null | undefined, aad: string): string | null {

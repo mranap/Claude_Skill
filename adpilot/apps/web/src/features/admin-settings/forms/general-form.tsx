@@ -10,7 +10,13 @@ import { pickSchemaValues, useSaveSettings } from '../api';
 import { managePermission } from '../categories';
 import { FieldGrid, SettingsFormCard } from '../settings-form-card';
 
-export function GeneralSettingsForm({ values, readOnly }: { values: AdminSettingGroup<'general'>; readOnly: boolean }) {
+export function GeneralSettingsForm({
+  values,
+  readOnly,
+}: {
+  values: AdminSettingGroup<'general'>;
+  readOnly: boolean;
+}) {
   const save = useSaveSettings('general');
   const form = useForm({
     resolver: zodResolver(generalSettingsSchema),
@@ -27,7 +33,13 @@ export function GeneralSettingsForm({ values, readOnly }: { values: AdminSetting
       onSubmit={(v) => save.mutateAsync({ values: v })}
     >
       <FieldGrid>
-        <TextField control={form.control} name="platformName" label="Platform name" description="Used in e-mail subjects and the 2FA issuer name." maxLength={60} />
+        <TextField
+          control={form.control}
+          name="platformName"
+          label="Platform name"
+          description="Used in e-mail subjects and the 2FA issuer name."
+          maxLength={60}
+        />
         <TextField
           control={form.control}
           name="supportEmail"
@@ -42,7 +54,12 @@ export function GeneralSettingsForm({ values, readOnly }: { values: AdminSetting
           label="Default time zone"
           description="Pre-selected for new users."
           render={({ field, controlProps }) => (
-            <TimeZoneSelect id={controlProps.id} value={field.value} onValueChange={field.onChange} disabled={readOnly} />
+            <TimeZoneSelect
+              id={controlProps.id}
+              value={field.value}
+              onValueChange={field.onChange}
+              disabled={readOnly}
+            />
           )}
         />
       </FieldGrid>

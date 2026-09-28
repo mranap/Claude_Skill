@@ -22,7 +22,15 @@ export const FACEBOOK_POSITIONS = [
   'instream_video',
   'search',
 ] as const;
-export const INSTAGRAM_POSITIONS = ['stream', 'profile_feed', 'story', 'reels', 'explore_home', 'ig_search', 'profile_reels'] as const;
+export const INSTAGRAM_POSITIONS = [
+  'stream',
+  'profile_feed',
+  'story',
+  'reels',
+  'explore_home',
+  'ig_search',
+  'profile_reels',
+] as const;
 export const AUDIENCE_NETWORK_POSITIONS = ['classic', 'rewarded_video'] as const;
 export const THREADS_POSITIONS = ['threads_stream'] as const;
 export const DEVICE_PLATFORMS = ['mobile', 'desktop'] as const;
@@ -67,31 +75,71 @@ export interface ManualPlacements {
  * Combination rules from Meta's placement targeting reference ("Limitations"). Returns human readable
  * problems keyed by field; an empty position list means "all positions of that platform".
  */
-export function placementIssues(p: ManualPlacements): { path: string; message: string; severity: 'error' | 'warning' }[] {
+export function placementIssues(
+  p: ManualPlacements,
+): { path: string; message: string; severity: 'error' | 'warning' }[] {
   const out: { path: string; message: string; severity: 'error' | 'warning' }[] = [];
   const has = (platform: string) => p.publisherPlatforms.includes(platform);
-  const fb = (pos: string) => has('facebook') && (p.facebookPositions.length === 0 || p.facebookPositions.includes(pos));
-  const ig = (pos: string) => has('instagram') && (p.instagramPositions.length === 0 || p.instagramPositions.includes(pos));
+  const fb = (pos: string) =>
+    has('facebook') && (p.facebookPositions.length === 0 || p.facebookPositions.includes(pos));
+  const ig = (pos: string) =>
+    has('instagram') && (p.instagramPositions.length === 0 || p.instagramPositions.includes(pos));
   const mobileAllowed = p.devicePlatforms.length === 0 || p.devicePlatforms.includes('mobile');
 
   if (p.publisherPlatforms.length === 1 && has('audience_network')) {
-    out.push({ path: 'publisherPlatforms', message: 'Audience Network cannot be the only platform', severity: 'error' });
+    out.push({
+      path: 'publisherPlatforms',
+      message: 'Audience Network cannot be the only platform',
+      severity: 'error',
+    });
   }
   if (has('threads') && !ig('stream')) {
-    out.push({ path: 'threadsPositions', message: 'The Threads feed requires the Instagram feed placement as well', severity: 'error' });
+    out.push({
+      path: 'threadsPositions',
+      message: 'The Threads feed requires the Instagram feed placement as well',
+      severity: 'error',
+    });
   }
-  if (has('facebook') && p.facebookPositions.includes('story') && (!(fb('feed') || ig('story')) || !mobileAllowed)) {
-    out.push({ path: 'facebookPositions', message: 'Facebook Stories require Facebook Feed or Instagram Stories, on mobile devices', severity: 'error' });
+  if (
+    has('facebook') &&
+    p.facebookPositions.includes('story') &&
+    (!(fb('feed') || ig('story')) || !mobileAllowed)
+  ) {
+    out.push({
+      path: 'facebookPositions',
+      message: 'Facebook Stories require Facebook Feed or Instagram Stories, on mobile devices',
+      severity: 'error',
+    });
   }
-  const needFeed = p.facebookPositions.filter((pos) => ['marketplace', 'search', 'profile_feed'].includes(pos));
+  const needFeed = p.facebookPositions.filter((pos) =>
+    ['marketplace', 'search', 'profile_feed'].includes(pos),
+  );
   if (needFeed.length && !p.facebookPositions.includes('feed')) {
-    out.push({ path: 'facebookPositions', message: `${needFeed.join(', ')} can only be used together with Facebook Feed`, severity: 'error' });
+    out.push({
+      path: 'facebookPositions',
+      message: `${needFeed.join(', ')} can only be used together with Facebook Feed`,
+      severity: 'error',
+    });
   }
-  if (p.publisherPlatforms.length === 1 && has('instagram') && p.devicePlatforms.length === 1 && p.devicePlatforms[0] === 'desktop') {
-    out.push({ path: 'devicePlatforms', message: 'Instagram placements are not available on desktop only', severity: 'error' });
+  if (
+    p.publisherPlatforms.length === 1 &&
+    has('instagram') &&
+    p.devicePlatforms.length === 1 &&
+    p.devicePlatforms[0] === 'desktop'
+  ) {
+    out.push({
+      path: 'devicePlatforms',
+      message: 'Instagram placements are not available on desktop only',
+      severity: 'error',
+    });
   }
   if (p.facebookPositions.includes('right_hand_column')) {
-    out.push({ path: 'facebookPositions', message: 'The right column is only used for website traffic/sales objectives with image, video or carousel ads', severity: 'warning' });
+    out.push({
+      path: 'facebookPositions',
+      message:
+        'The right column is only used for website traffic/sales objectives with image, video or carousel ads',
+      severity: 'warning',
+    });
   }
   return out;
 }

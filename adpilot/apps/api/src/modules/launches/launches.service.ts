@@ -24,7 +24,8 @@ function displayPayload(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(displayPayload);
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>;
-    if (typeof o.$ref === 'string') return `‹${typeof o.field === 'string' ? o.field : 'value'} of ${o.$ref}›`;
+    if (typeof o.$ref === 'string')
+      return `‹${typeof o.field === 'string' ? o.field : 'value'} of ${o.$ref}›`;
     return Object.fromEntries(Object.entries(o).map(([k, val]) => [k, displayPayload(val)]));
   }
   return v;
@@ -45,7 +46,14 @@ export class LaunchesService {
     if (draftId) {
       await this.prisma.launchDraft.updateMany({
         where: { id: draftId, userId },
-        data: { lastValidatedAt: new Date(), validationResult: { ok: res.ok, errors: res.errors, warnings: res.warnings } as unknown as Prisma.InputJsonValue },
+        data: {
+          lastValidatedAt: new Date(),
+          validationResult: {
+            ok: res.ok,
+            errors: res.errors,
+            warnings: res.warnings,
+          } as unknown as Prisma.InputJsonValue,
+        },
       });
     }
     return { ok: res.ok, errors: res.errors, warnings: res.warnings };
@@ -61,7 +69,13 @@ export class LaunchesService {
       errors: [],
       warnings: res.warnings,
       summary: plan.summary,
-      items: plan.items.map((i) => ({ key: i.key, kind: i.kind, name: i.name, parentKey: i.parentKey, payload: displayPayload(i.payload) })),
+      items: plan.items.map((i) => ({
+        key: i.key,
+        kind: i.kind,
+        name: i.name,
+        parentKey: i.parentKey,
+        payload: displayPayload(i.payload),
+      })),
     };
   }
 
@@ -71,12 +85,17 @@ export class LaunchesService {
    * worker is notified.
    */
   async launch(userId: string, input: z.infer<typeof launchRequestSchema>) {
-    const existing = await this.prisma.launchJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } } });
+    const existing = await this.prisma.launchJob.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+    });
     if (existing) return { job: await this.get(userId, existing.id), duplicate: true };
 
     const res = await this.validator.validate(userId, input.config);
     if (!res.ok || !res.context) {
-      throw AppError.validation('The launch configuration has errors', { errors: res.errors, warnings: res.warnings });
+      throw AppError.validation('The launch configuration has errors', {
+        errors: res.errors,
+        warnings: res.warnings,
+      });
     }
     const ctx = res.context;
 
@@ -88,8 +107,12 @@ export class LaunchesService {
           if (input.draftId) {
             const draft = await tx.launchDraft.findFirst({ where: { id: input.draftId, userId } });
             if (!draft) throw AppError.notFound('Draft');
-            const moved = await tx.launchDraft.updateMany({ where: { id: input.draftId, status: 'DRAFT' }, data: { status: 'LAUNCHED' } });
-            if (moved.count !== 1) throw AppError.conflict('This draft has already been launched. Clone it to launch again.');
+            const moved = await tx.launchDraft.updateMany({
+              where: { id: input.draftId, status: 'DRAFT' },
+              data: { status: 'LAUNCHED' },
+            });
+            if (moved.count !== 1)
+              throw AppError.conflict('This draft has already been launched. Clone it to launch again.');
           }
           const created = await tx.launchJob.create({
             data: {
@@ -122,7 +145,10 @@ export class LaunchesService {
           return created;
         });
         if (ctx.config.templateId) {
-          await this.prisma.campaignTemplate.updateMany({ where: { id: ctx.config.templateId, userId }, data: { lastUsedAt: new Date() } });
+          await this.prisma.campaignTemplate.updateMany({
+            where: { id: ctx.config.templateId, userId },
+            data: { lastUsedAt: new Date() },
+          });
         }
         await this.enqueue(job.id, userId, 0);
         await this.audit.log({
@@ -131,12 +157,22 @@ export class LaunchesService {
           subjectUserId: userId,
           targetType: 'launch_job',
           targetId: job.id,
-          metadata: { code, adAccount: ctx.adAccount.metaAccountId, adSets: plan.summary.adSets, ads: plan.summary.ads },
+          metadata: {
+            code,
+            adAccount: ctx.adAccount.metaAccountId,
+            adSets: plan.summary.adSets,
+            ads: plan.summary.ads,
+          },
         });
         return { job: await this.get(userId, job.id), duplicate: false };
       } catch (err) {
-        if (isUniqueViolation(err, 'idempotencyKey') || (isUniqueViolation(err) && String(err).includes('idempotency'))) {
-          const winner = await this.prisma.launchJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } } });
+        if (
+          isUniqueViolation(err, 'idempotencyKey') ||
+          (isUniqueViolation(err) && String(err).includes('idempotency'))
+        ) {
+          const winner = await this.prisma.launchJob.findUnique({
+            where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+          });
           if (winner) return { job: await this.get(userId, winner.id), duplicate: true };
         }
         if (isUniqueViolation(err, 'code')) continue; // extremely rare launch code collision
@@ -147,7 +183,10 @@ export class LaunchesService {
   }
 
   async list(userId: string, q: z.infer<typeof paginationQuerySchema>) {
-    const where: Prisma.LaunchJobWhereInput = { userId, ...(q.q ? { OR: [{ name: { contains: q.q, mode: 'insensitive' } }, { code: q.q.toUpperCase() }] } : {}) };
+    const where: Prisma.LaunchJobWhereInput = {
+      userId,
+      ...(q.q ? { OR: [{ name: { contains: q.q, mode: 'insensitive' } }, { code: q.q.toUpperCase() }] } : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.launchJob.findMany({
         where,
@@ -179,7 +218,22 @@ export class LaunchesService {
     const job = await this.prisma.launchJob.findFirst({
       where: { id, userId },
       include: {
-        items: { orderBy: { position: 'asc' }, select: { id: true, kind: true, key: true, parentKey: true, name: true, status: true, metaId: true, attemptCount: true, lastError: true, errorCategory: true, updatedAt: true } },
+        items: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            kind: true,
+            key: true,
+            parentKey: true,
+            name: true,
+            status: true,
+            metaId: true,
+            attemptCount: true,
+            lastError: true,
+            errorCategory: true,
+            updatedAt: true,
+          },
+        },
         adAccount: { select: { id: true, name: true, metaAccountId: true, currency: true } },
       },
     });
@@ -191,9 +245,16 @@ export class LaunchesService {
   async cancel(userId: string, id: string) {
     const job = await this.prisma.launchJob.findFirst({ where: { id, userId } });
     if (!job) throw AppError.notFound('Launch');
-    if (LAUNCH_JOB_TERMINAL_STATUSES.includes(job.status)) throw AppError.conflict('This launch has already finished');
+    if (LAUNCH_JOB_TERMINAL_STATUSES.includes(job.status))
+      throw AppError.conflict('This launch has already finished');
     await this.prisma.launchJob.update({ where: { id }, data: { cancelRequestedAt: new Date() } });
-    await this.audit.log({ action: 'campaign.launch_cancel_requested', actorUserId: userId, subjectUserId: userId, targetType: 'launch_job', targetId: id });
+    await this.audit.log({
+      action: 'campaign.launch_cancel_requested',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'launch_job',
+      targetId: id,
+    });
     return { ok: true };
   }
 
@@ -201,21 +262,46 @@ export class LaunchesService {
   async retry(userId: string, id: string) {
     const job = await this.prisma.launchJob.findFirst({ where: { id, userId } });
     if (!job) throw AppError.notFound('Launch');
-    if (job.status !== 'FAILED' && job.status !== 'PARTIAL_FAILURE') throw AppError.conflict('Only failed launches can be retried');
+    if (job.status !== 'FAILED' && job.status !== 'PARTIAL_FAILURE')
+      throw AppError.conflict('Only failed launches can be retried');
     const moved = await this.prisma.launchJob.updateMany({
       where: { id, status: job.status },
-      data: { status: 'QUEUED', finishedAt: null, error: Prisma.DbNull, cancelRequestedAt: null, leaseOwner: null, leaseExpiresAt: null },
+      data: {
+        status: 'QUEUED',
+        finishedAt: null,
+        error: Prisma.DbNull,
+        cancelRequestedAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      },
     });
     if (moved.count !== 1) throw AppError.conflict('The launch is already being retried');
-    await this.prisma.launchJobItem.updateMany({ where: { launchJobId: id, status: { in: ['FAILED', 'SKIPPED'] } }, data: { status: 'PENDING', lastError: Prisma.DbNull, errorCategory: null } });
+    await this.prisma.launchJobItem.updateMany({
+      where: { launchJobId: id, status: { in: ['FAILED', 'SKIPPED'] } },
+      data: { status: 'PENDING', lastError: Prisma.DbNull, errorCategory: null },
+    });
     // Every wait for Meta starts over (items still IN_FLIGHT keep their state and are verified first).
-    await this.prisma.launchJobItem.updateMany({ where: { launchJobId: id, deferredSince: { not: null } }, data: { deferredSince: null } });
+    await this.prisma.launchJobItem.updateMany({
+      where: { launchJobId: id, deferredSince: { not: null } },
+      data: { deferredSince: null },
+    });
     await this.enqueue(id, userId, job.attempt + 1);
-    await this.audit.log({ action: 'campaign.launch_retried', actorUserId: userId, subjectUserId: userId, targetType: 'launch_job', targetId: id });
+    await this.audit.log({
+      action: 'campaign.launch_retried',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'launch_job',
+      targetId: id,
+    });
     return this.get(userId, id);
   }
 
   private async enqueue(launchJobId: string, userId: string, round: number) {
-    await this.queue.add(QUEUES.CAMPAIGN_LAUNCH, JOBS.CAMPAIGN_CREATE, { launchJobId, userId }, { jobId: jobId('launch', launchJobId, round), attempts: 8 });
+    await this.queue.add(
+      QUEUES.CAMPAIGN_LAUNCH,
+      JOBS.CAMPAIGN_CREATE,
+      { launchJobId, userId },
+      { jobId: jobId('launch', launchJobId, round), attempts: 8 },
+    );
   }
 }

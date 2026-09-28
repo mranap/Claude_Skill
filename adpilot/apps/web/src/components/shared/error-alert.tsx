@@ -36,7 +36,9 @@ function MetaTechnicalDetails({ meta }: { meta: MetaErrorDetails }) {
               .map((r) => (
                 <div key={r.label} className="contents">
                   <dt className="text-muted-foreground">{r.label}</dt>
-                  <dd className={cn('flex min-w-0 items-center gap-1 text-foreground', r.mono && 'font-mono')}>
+                  <dd
+                    className={cn('flex min-w-0 items-center gap-1 text-foreground', r.mono && 'font-mono')}
+                  >
                     <span className="break-all">{String(r.value)}</span>
                     {r.copy ? <CopyButton value={String(r.value)} /> : null}
                   </dd>
@@ -83,7 +85,9 @@ export function ErrorAlert({
     <Alert variant={variant} className={className}>
       <AlertTitle>{title ?? getErrorTitle(error)}</AlertTitle>
       <AlertDescription className="text-foreground/80">
-        <p>{meta?.userMessage && meta.userMessage !== message ? `${message} ${meta.userMessage}` : message}</p>
+        <p>
+          {meta?.userMessage && meta.userMessage !== message ? `${message} ${meta.userMessage}` : message}
+        </p>
         {fieldErrors.length > 0 ? (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs">
             {fieldErrors.map((fe) => (

@@ -16,10 +16,13 @@ import { managePermission } from '../categories';
 import { SelectField } from '../fields';
 import { FieldGrid, SettingsFormCard } from '../settings-form-card';
 
-const schema = accountCheckSettingsSchema.refine((v) => v.allowedIntervalsMinutes.includes(v.defaultIntervalMinutes), {
-  path: ['defaultIntervalMinutes'],
-  message: 'Pick one of the allowed intervals',
-});
+const schema = accountCheckSettingsSchema.refine(
+  (v) => v.allowedIntervalsMinutes.includes(v.defaultIntervalMinutes),
+  {
+    path: ['defaultIntervalMinutes'],
+    message: 'Pick one of the allowed intervals',
+  },
+);
 
 const SUGGESTIONS = [30, 60, 120, 180, 360, 720, 1440, 2880, 10080];
 
@@ -43,7 +46,13 @@ function IntervalEditor({
   };
 
   return (
-    <div className={invalid ? 'grid gap-3 rounded-lg border border-destructive/60 p-3' : 'grid gap-3 rounded-lg border p-3'}>
+    <div
+      className={
+        invalid
+          ? 'grid gap-3 rounded-lg border border-destructive/60 p-3'
+          : 'grid gap-3 rounded-lg border p-3'
+      }
+    >
       <div className="flex flex-wrap gap-2">
         {sorted.length ? (
           sorted.map((minutes) => (
@@ -82,26 +91,52 @@ function IntervalEditor({
             placeholder="Minutes"
             className="h-8 pr-10"
           />
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">min</span>
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+            min
+          </span>
         </div>
-        <Button type="button" variant="outline" size="sm" disabled={disabled || !draft} onClick={() => add(Number(draft))}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || !draft}
+          onClick={() => add(Number(draft))}
+        >
           <Plus />
           Add
         </Button>
         <span className="text-xs text-muted-foreground">Quick add:</span>
-        {SUGGESTIONS.filter((m) => !value.includes(m)).slice(0, 4).map((m) => (
-          <Button key={m} type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => add(m)}>
-            {formatMinutes(m)}
-          </Button>
-        ))}
+        {SUGGESTIONS.filter((m) => !value.includes(m))
+          .slice(0, 4)
+          .map((m) => (
+            <Button
+              key={m}
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={disabled}
+              onClick={() => add(m)}
+            >
+              {formatMinutes(m)}
+            </Button>
+          ))}
       </div>
     </div>
   );
 }
 
-export function AccountChecksSettingsForm({ values, readOnly }: { values: AdminSettingGroup<'accountChecks'>; readOnly: boolean }) {
+export function AccountChecksSettingsForm({
+  values,
+  readOnly,
+}: {
+  values: AdminSettingGroup<'accountChecks'>;
+  readOnly: boolean;
+}) {
   const save = useSaveSettings('accountChecks');
-  const form = useForm({ resolver: zodResolver(schema), values: pickSchemaValues(accountCheckSettingsSchema.shape, values) });
+  const form = useForm({
+    resolver: zodResolver(schema),
+    values: pickSchemaValues(accountCheckSettingsSchema.shape, values),
+  });
   const allowed = useWatch({ control: form.control, name: 'allowedIntervalsMinutes' }) ?? [];
 
   return (
@@ -119,7 +154,12 @@ export function AccountChecksSettingsForm({ values, readOnly }: { values: AdminS
         label="Allowed intervals"
         description="Between 15 minutes and 7 days."
         render={({ field, fieldState }) => (
-          <IntervalEditor value={field.value ?? []} onChange={field.onChange} disabled={readOnly} invalid={!!fieldState.error} />
+          <IntervalEditor
+            value={field.value ?? []}
+            onChange={field.onChange}
+            disabled={readOnly}
+            invalid={!!fieldState.error}
+          />
         )}
       />
       <FieldGrid>
@@ -129,7 +169,9 @@ export function AccountChecksSettingsForm({ values, readOnly }: { values: AdminS
           label="Default interval"
           description="Applied to newly connected ad accounts."
           numeric
-          options={[...allowed].sort((a, b) => a - b).map((m) => ({ value: String(m), label: formatMinutes(m) }))}
+          options={[...allowed]
+            .sort((a, b) => a - b)
+            .map((m) => ({ value: String(m), label: formatMinutes(m) }))}
         />
       </FieldGrid>
     </SettingsFormCard>

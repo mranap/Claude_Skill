@@ -60,7 +60,10 @@ export function UserAvatar({
   return (
     <Avatar className={cn(SIZES[size], className)}>
       <AvatarFallback
-        className={cn('flex size-full items-center justify-center rounded-full font-semibold select-none', toneFor(key))}
+        className={cn(
+          'flex size-full items-center justify-center rounded-full font-semibold select-none',
+          toneFor(key),
+        )}
       >
         {initials(name, email)}
       </AvatarFallback>

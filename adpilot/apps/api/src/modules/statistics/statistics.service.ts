@@ -12,7 +12,21 @@ import { toMetrics } from './metrics';
 
 type Query = z.infer<typeof statsQuerySchema>;
 
-const SORTABLE: (keyof MetricsDto)[] = ['spend', 'impressions', 'clicks', 'linkClicks', 'ctr', 'cpc', 'cpm', 'leads', 'cpl', 'purchases', 'roas', 'results', 'costPerResult'];
+const SORTABLE: (keyof MetricsDto)[] = [
+  'spend',
+  'impressions',
+  'clicks',
+  'linkClicks',
+  'ctr',
+  'cpc',
+  'cpm',
+  'leads',
+  'cpl',
+  'purchases',
+  'roas',
+  'results',
+  'costPerResult',
+];
 
 @Injectable()
 export class StatisticsService {
@@ -25,8 +39,22 @@ export class StatisticsService {
 
   private async accounts(userId: string, adAccountId?: string) {
     const accounts = await this.prisma.adAccount.findMany({
-      where: { userId, isConnected: true, profile: { deletedAt: null }, ...(adAccountId ? { id: adAccountId } : {}) },
-      select: { id: true, name: true, timezoneName: true, currency: true, lastStatsSyncAt: true, statsSyncStatus: true, lastManualRefreshAt: true },
+      where: {
+        userId,
+        isConnected: true,
+        profile: { deletedAt: null },
+        ...(adAccountId ? { id: adAccountId } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        timezoneName: true,
+        currency: true,
+        lastStatsSyncAt: true,
+        statsSyncStatus: true,
+        statsSyncError: true,
+        lastManualRefreshAt: true,
+      },
     });
     if (adAccountId && !accounts.length) throw AppError.notFound('Ad account');
     return accounts;
@@ -34,7 +62,11 @@ export class StatisticsService {
 
   async table(userId: string, q: Query) {
     const accounts = await this.accounts(userId, q.adAccountId);
-    const byObject = await this.stats.byObject(accounts, q.range, q.level, { custom: { from: q.from, to: q.to }, metaCampaignId: q.campaignId });
+    const { manualRefreshCooldownMinutes } = await this.settings.get('statistics');
+    const byObject = await this.stats.byObject(accounts, q.range, q.level, {
+      custom: { from: q.from, to: q.to },
+      metaCampaignId: q.campaignId,
+    });
     const accountName = new Map(accounts.map((a) => [a.id, a.name]));
     let rows = [...byObject.values()].map((o) => ({
       metaObjectId: o.metaObjectId,
@@ -47,7 +79,9 @@ export class StatisticsService {
     }));
     if (q.q) {
       const needle = q.q.toLowerCase();
-      rows = rows.filter((r) => (r.name ?? '').toLowerCase().includes(needle) || r.metaObjectId.includes(needle));
+      rows = rows.filter(
+        (r) => (r.name ?? '').toLowerCase().includes(needle) || r.metaObjectId.includes(needle),
+      );
     }
     const [field, dir] = (q.sort ?? 'spend:desc').split(':') as [keyof MetricsDto, 'asc' | 'desc'];
     const sortField = SORTABLE.includes(field) ? field : 'spend';
@@ -64,7 +98,10 @@ export class StatisticsService {
     const enriched = await this.enrich(userId, q.level, pageRows);
     const totals = await this.stats.totals(accounts, q.range, { from: q.from, to: q.to });
     const perCurrency = [...totals.byCurrency.entries()].map(([currency, c]) => toMetrics(c, currency));
-    const primary = perCurrency.sort((a, b) => new Decimal(b.spend).cmp(a.spend))[0]?.currency ?? accounts[0]?.currency ?? 'USD';
+    const primary =
+      perCurrency.sort((a, b) => new Decimal(b.spend).cmp(a.spend))[0]?.currency ??
+      accounts[0]?.currency ??
+      'USD';
     return {
       items: enriched,
       total,
@@ -74,27 +111,74 @@ export class StatisticsService {
       series: totals.days.map((date) => {
         const c = totals.byDay.get(date)?.get(primary);
         const m = c ? toMetrics(c, primary) : null;
-        return { date, spend: m?.spend ?? '0', leads: m?.leads ?? 0, cpl: m?.cpl ?? null, clicks: m?.linkClicks ?? 0, impressions: m?.impressions ?? 0 };
+        return {
+          date,
+          spend: m?.spend ?? '0',
+          leads: m?.leads ?? 0,
+          cpl: m?.cpl ?? null,
+          clicks: m?.linkClicks ?? 0,
+          impressions: m?.impressions ?? 0,
+        };
       }),
       primaryCurrency: primary,
-      sync: accounts.map((a) => ({ adAccountId: a.id, name: a.name, lastStatsSyncAt: a.lastStatsSyncAt, status: a.statsSyncStatus, lastManualRefreshAt: a.lastManualRefreshAt })),
+      sync: accounts.map((a) => ({
+        adAccountId: a.id,
+        name: a.name,
+        timezoneName: a.timezoneName,
+        lastStatsSyncAt: a.lastStatsSyncAt,
+        status: a.statsSyncStatus,
+        error: a.statsSyncError,
+        lastManualRefreshAt: a.lastManualRefreshAt,
+        // When "Refresh" is allowed again (the backend enforces it; this only drives the countdown).
+        nextManualRefreshAt: a.lastManualRefreshAt
+          ? new Date(a.lastManualRefreshAt.getTime() + manualRefreshCooldownMinutes * 60_000)
+          : null,
+      })),
     };
   }
 
-  private async enrich<T extends { metaObjectId: string }>(userId: string, level: 'CAMPAIGN' | 'ADSET' | 'AD', rows: T[]) {
+  private async enrich<T extends { metaObjectId: string }>(
+    userId: string,
+    level: 'CAMPAIGN' | 'ADSET' | 'AD',
+    rows: T[],
+  ) {
     const ids = rows.map((r) => r.metaObjectId);
     if (!ids.length) return rows.map((r) => ({ ...r, entity: null }));
     if (level === 'CAMPAIGN') {
-      const list = await this.prisma.campaign.findMany({ where: { userId, metaCampaignId: { in: ids } }, select: { id: true, metaCampaignId: true, effectiveStatus: true, status: true, dailyBudget: true, lifetimeBudget: true } });
+      const list = await this.prisma.campaign.findMany({
+        where: { userId, metaCampaignId: { in: ids } },
+        select: {
+          id: true,
+          metaCampaignId: true,
+          effectiveStatus: true,
+          status: true,
+          dailyBudget: true,
+          lifetimeBudget: true,
+        },
+      });
       const map = new Map(list.map((c) => [c.metaCampaignId, c]));
       return rows.map((r) => ({ ...r, entity: map.get(r.metaObjectId) ?? null }));
     }
     if (level === 'ADSET') {
-      const list = await this.prisma.adSet.findMany({ where: { userId, metaAdSetId: { in: ids } }, select: { id: true, metaAdSetId: true, campaignId: true, effectiveStatus: true, status: true, dailyBudget: true, lifetimeBudget: true } });
+      const list = await this.prisma.adSet.findMany({
+        where: { userId, metaAdSetId: { in: ids } },
+        select: {
+          id: true,
+          metaAdSetId: true,
+          campaignId: true,
+          effectiveStatus: true,
+          status: true,
+          dailyBudget: true,
+          lifetimeBudget: true,
+        },
+      });
       const map = new Map(list.map((c) => [c.metaAdSetId, c]));
       return rows.map((r) => ({ ...r, entity: map.get(r.metaObjectId) ?? null }));
     }
-    const list = await this.prisma.ad.findMany({ where: { userId, metaAdId: { in: ids } }, select: { id: true, metaAdId: true, campaignId: true, effectiveStatus: true, status: true } });
+    const list = await this.prisma.ad.findMany({
+      where: { userId, metaAdId: { in: ids } },
+      select: { id: true, metaAdId: true, campaignId: true, effectiveStatus: true, status: true },
+    });
     const map = new Map(list.map((c) => [c.metaAdId, c]));
     return rows.map((r) => ({ ...r, entity: map.get(r.metaObjectId) ?? null }));
   }
@@ -110,14 +194,26 @@ export class StatisticsService {
     const results: { adAccountId: string; queued: boolean; retryAfterSeconds?: number }[] = [];
     for (const a of accounts) {
       const claimed = await this.prisma.adAccount.updateMany({
-        where: { id: a.id, userId, OR: [{ lastManualRefreshAt: null }, { lastManualRefreshAt: { lt: cutoff } }] },
+        where: {
+          id: a.id,
+          userId,
+          OR: [{ lastManualRefreshAt: null }, { lastManualRefreshAt: { lt: cutoff } }],
+        },
         data: { lastManualRefreshAt: new Date(), statsSyncStatus: 'QUEUED' },
       });
       if (claimed.count === 1) {
-        await this.queue.add(QUEUES.STATISTICS, JOBS.STATISTICS_SYNC, { adAccountId: a.id, userId, reason: 'manual' }, { jobId: jobId('stats-manual', a.id, Date.now()), priority: 1, attempts: 3 });
+        await this.queue.add(
+          QUEUES.STATISTICS,
+          JOBS.STATISTICS_SYNC,
+          { adAccountId: a.id, userId, reason: 'manual' },
+          { jobId: jobId('stats-manual', a.id, Date.now()), priority: 1, attempts: 3 },
+        );
         results.push({ adAccountId: a.id, queued: true });
       } else {
-        const retry = Math.ceil(((a.lastManualRefreshAt?.getTime() ?? 0) + manualRefreshCooldownMinutes * 60_000 - Date.now()) / 1000);
+        const retry = Math.ceil(
+          ((a.lastManualRefreshAt?.getTime() ?? 0) + manualRefreshCooldownMinutes * 60_000 - Date.now()) /
+            1000,
+        );
         results.push({ adAccountId: a.id, queued: false, retryAfterSeconds: Math.max(retry, 1) });
       }
     }

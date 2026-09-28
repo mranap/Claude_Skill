@@ -11,7 +11,8 @@ import type { RuleDto, RuleExecutionDto } from './types';
 export type RuleInput = z.output<typeof ruleCreateSchema>;
 
 export const rulesApi = {
-  list: (params: Record<string, string | number>, signal?: AbortSignal) => api.get<Paginated<RuleDto>>('/rules', params, { signal }),
+  list: (params: Record<string, string | number>, signal?: AbortSignal) =>
+    api.get<Paginated<RuleDto>>('/rules', params, { signal }),
   get: (id: string) => api.get<RuleDto>(`/rules/${id}`),
   create: (body: RuleInput) => api.post<RuleDto>('/rules', body),
   update: (id: string, body: RuleInput) => api.put<RuleDto>(`/rules/${id}`, body),
@@ -32,7 +33,11 @@ export function useRules(params: Record<string, string | number>) {
 }
 
 export function useRule(id: string | null | undefined) {
-  return useQuery({ queryKey: queryKeys.rules.detail(id ?? ''), queryFn: () => rulesApi.get(id as string), enabled: !!id });
+  return useQuery({
+    queryKey: queryKeys.rules.detail(id ?? ''),
+    queryFn: () => rulesApi.get(id as string),
+    enabled: !!id,
+  });
 }
 
 export function useRuleExecutions(params: Record<string, string | number>, options: { poll?: boolean } = {}) {

@@ -5,7 +5,15 @@ import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/avatar';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandLoading } from '@/components/ui/command';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandLoading,
+} from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { adminUsersApi } from '@/features/admin-users/api';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
@@ -35,7 +43,8 @@ export function UserMultiSelect({
   const debounced = useDebouncedValue(query.trim(), 250);
   const results = useQuery({
     queryKey: queryKeys.admin.users.search(debounced),
-    queryFn: ({ signal }) => adminUsersApi.list({ q: debounced, pageSize: 20, status: 'ACTIVE', sort: 'email:asc' }, signal),
+    queryFn: ({ signal }) =>
+      adminUsersApi.list({ q: debounced, pageSize: 20, status: 'ACTIVE', sort: 'email:asc' }, signal),
     enabled: open,
     staleTime: 30_000,
   });
@@ -60,7 +69,9 @@ export function UserMultiSelect({
             )}
           >
             <span className={value.length ? 'text-foreground' : 'text-muted-foreground'}>
-              {value.length ? `${value.length} user${value.length === 1 ? '' : 's'} selected` : 'Search users by e-mail or name…'}
+              {value.length
+                ? `${value.length} user${value.length === 1 ? '' : 's'} selected`
+                : 'Search users by e-mail or name…'}
             </span>
             <ChevronsUpDown className="size-4 text-muted-foreground" />
           </button>
@@ -70,17 +81,30 @@ export function UserMultiSelect({
             <CommandInput placeholder="Type to search…" value={query} onValueChange={setQuery} />
             <CommandList>
               {results.isFetching && !results.data ? <CommandLoading>Searching…</CommandLoading> : null}
-              {results.data && !results.data.items.length ? <CommandEmpty>No active users found</CommandEmpty> : null}
+              {results.data && !results.data.items.length ? (
+                <CommandEmpty>No active users found</CommandEmpty>
+              ) : null}
               {results.data?.items.length ? (
                 <CommandGroup heading={debounced ? 'Results' : 'Active users'}>
                   {results.data.items.map((u) => (
-                    <CommandItem key={u.id} value={u.id} onSelect={() => toggle({ id: u.id, email: u.email, name: u.name })}>
+                    <CommandItem
+                      key={u.id}
+                      value={u.id}
+                      onSelect={() => toggle({ id: u.id, email: u.email, name: u.name })}
+                    >
                       <UserAvatar name={u.name} email={u.email} seed={u.id} size="xs" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{u.name || u.email}</span>
-                        {u.name ? <span className="block truncate text-xs text-muted-foreground">{u.email}</span> : null}
+                        {u.name ? (
+                          <span className="block truncate text-xs text-muted-foreground">{u.email}</span>
+                        ) : null}
                       </span>
-                      <Check className={cn('size-4 text-primary-fg', selectedIds.has(u.id) ? 'opacity-100' : 'opacity-0')} />
+                      <Check
+                        className={cn(
+                          'size-4 text-primary-fg',
+                          selectedIds.has(u.id) ? 'opacity-100' : 'opacity-0',
+                        )}
+                      />
                     </CommandItem>
                   ))}
                 </CommandGroup>

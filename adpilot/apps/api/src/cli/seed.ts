@@ -17,7 +17,9 @@ async function main(): Promise<void> {
     const { createdPermissions } = await seedRbac(prisma);
     console.log(`RBAC seeded (${createdPermissions.length} new permissions).`);
 
-    const activeSuperAdmins = await prisma.user.count({ where: { role: { key: SYSTEM_ROLES.SUPER_ADMIN }, status: 'ACTIVE' } });
+    const activeSuperAdmins = await prisma.user.count({
+      where: { role: { key: SYSTEM_ROLES.SUPER_ADMIN }, status: 'ACTIVE' },
+    });
     if (activeSuperAdmins === 0) {
       if (env.SUPER_ADMIN_EMAIL && env.SUPER_ADMIN_PASSWORD) {
         const result = await ensureSuperAdmin(prisma, {
@@ -25,9 +27,13 @@ async function main(): Promise<void> {
           password: env.SUPER_ADMIN_PASSWORD,
           name: env.SUPER_ADMIN_NAME || undefined,
         });
-        console.log(`Super Admin ${env.SUPER_ADMIN_EMAIL}: ${result}. Remove SUPER_ADMIN_PASSWORD from the environment now.`);
+        console.log(
+          `Super Admin ${env.SUPER_ADMIN_EMAIL}: ${result}. Remove SUPER_ADMIN_PASSWORD from the environment now.`,
+        );
       } else {
-        console.warn('No Super Admin exists. Set SUPER_ADMIN_EMAIL/SUPER_ADMIN_PASSWORD and re-run, or use `pnpm admin:create`.');
+        console.warn(
+          'No Super Admin exists. Set SUPER_ADMIN_EMAIL/SUPER_ADMIN_PASSWORD and re-run, or use `pnpm admin:create`.',
+        );
       }
     }
   } finally {

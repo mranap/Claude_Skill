@@ -32,8 +32,18 @@ type BroadcastInput = z.input<typeof broadcastSchema>;
 type BroadcastOutput = z.output<typeof broadcastSchema>;
 
 const CHANNELS = [
-  { value: 'EMAIL' as const, label: 'E-mail', description: 'Sent through the configured SMTP server.', icon: Mail },
-  { value: 'TELEGRAM' as const, label: 'Telegram', description: 'Only for users who linked Telegram.', icon: Send },
+  {
+    value: 'EMAIL' as const,
+    label: 'E-mail',
+    description: 'Sent through the configured SMTP server.',
+    icon: Mail,
+  },
+  {
+    value: 'TELEGRAM' as const,
+    label: 'Telegram',
+    description: 'Only for users who linked Telegram.',
+    icon: Send,
+  },
 ];
 
 const columns: DataTableColumn<BroadcastDto>[] = [
@@ -81,7 +91,12 @@ const columns: DataTableColumn<BroadcastDto>[] = [
     header: 'Audience',
     cell: (b) => (b.audience === 'ALL' ? 'All users' : `${formatNumber(b.userIds.length)} selected`),
   },
-  { id: 'recipients', header: 'Recipients', align: 'right', cell: (b) => <span className="tabular-nums">{formatNumber(b.recipientCount)}</span> },
+  {
+    id: 'recipients',
+    header: 'Recipients',
+    align: 'right',
+    cell: (b) => <span className="tabular-nums">{formatNumber(b.recipientCount)}</span>,
+  },
   { id: 'status', header: 'Status', cell: (b) => <StatusBadge status={b.status} /> },
 ];
 
@@ -92,7 +107,8 @@ export function BroadcastsPage() {
     queryKey: queryKeys.admin.broadcasts.list(table.params),
     queryFn: () => api.get<Paginated<BroadcastDto>>('/admin/broadcasts', table.params),
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => (query.state.data?.items.some((b) => b.status === 'QUEUED' || b.status === 'RUNNING') ? 5000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.items.some((b) => b.status === 'QUEUED' || b.status === 'RUNNING') ? 5000 : false,
   });
 
   const [picked, setPicked] = useState<PickedUser[]>([]);
@@ -119,23 +135,33 @@ export function BroadcastsPage() {
   const send = async () => {
     if (!confirm) return;
     await api.post<BroadcastDto>('/admin/broadcasts', confirm);
-    toast.success('Broadcast queued', { description: 'Delivery runs in the background; the status updates below.' });
+    toast.success('Broadcast queued', {
+      description: 'Delivery runs in the background; the status updates below.',
+    });
     form.reset();
     setPicked([]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.admin.broadcasts.all });
   };
 
   const channelText = (values: BroadcastOutput) =>
-    [...(values.inApp ? ['in-app'] : []), ...values.channels.map((c) => (c === 'EMAIL' ? 'e-mail' : 'Telegram'))].join(', ');
+    [
+      ...(values.inApp ? ['in-app'] : []),
+      ...values.channels.map((c) => (c === 'EMAIL' ? 'e-mail' : 'Telegram')),
+    ].join(', ');
 
   return (
     <>
-      <PageHeader title="Broadcasts" description="Send an announcement to platform users — maintenance windows, policy changes, new features." />
+      <PageHeader
+        title="Broadcasts"
+        description="Send an announcement to platform users — maintenance windows, policy changes, new features."
+      />
 
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>New message</CardTitle>
-          <CardDescription>Messages go only to platform users with active accounts. Blocked and deleted users are skipped.</CardDescription>
+          <CardDescription>
+            Messages go only to platform users with active accounts. Blocked and deleted users are skipped.
+          </CardDescription>
         </CardHeader>
         <Form form={form} onSubmit={onSubmit}>
           <CardContent className="grid gap-5">
@@ -144,14 +170,23 @@ export function BroadcastsPage() {
               control={form.control}
               name="subject"
               label="Subject"
-              render={({ field, controlProps }) => <Input {...field} {...controlProps} maxLength={200} placeholder="Scheduled maintenance on Sunday" />}
+              render={({ field, controlProps }) => (
+                <Input
+                  {...field}
+                  {...controlProps}
+                  maxLength={200}
+                  placeholder="Scheduled maintenance on Sunday"
+                />
+              )}
             />
             <FormField
               control={form.control}
               name="body"
               label="Message"
               description={`${body.length}/4000 characters. Plain text; line breaks are kept.`}
-              render={({ field, controlProps }) => <Textarea {...field} {...controlProps} maxLength={4000} rows={5} />}
+              render={({ field, controlProps }) => (
+                <Textarea {...field} {...controlProps} maxLength={4000} rows={5} />
+              )}
             />
             <div className="grid gap-5 lg:grid-cols-2">
               <FormField
@@ -166,11 +201,17 @@ export function BroadcastsPage() {
                       name="inApp"
                       render={({ field: inApp }) => (
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-field p-3 hover:bg-accent/40">
-                          <Checkbox className="mt-0.5" checked={inApp.value !== false} onCheckedChange={(v) => inApp.onChange(v === true)} />
+                          <Checkbox
+                            className="mt-0.5"
+                            checked={inApp.value !== false}
+                            onCheckedChange={(v) => inApp.onChange(v === true)}
+                          />
                           <Bell className="mt-0.5 size-4 text-muted-foreground" />
                           <span>
                             <span className="block text-sm font-medium">In-app notification</span>
-                            <span className="block text-xs text-muted-foreground">Shown in the bell menu and the Notification Center.</span>
+                            <span className="block text-xs text-muted-foreground">
+                              Shown in the bell menu and the Notification Center.
+                            </span>
                           </span>
                         </label>
                       )}
@@ -178,7 +219,10 @@ export function BroadcastsPage() {
                     {CHANNELS.map((channel) => {
                       const checked = (field.value ?? []).includes(channel.value);
                       return (
-                        <label key={channel.value} className="flex cursor-pointer items-start gap-3 rounded-lg border bg-field p-3 hover:bg-accent/40">
+                        <label
+                          key={channel.value}
+                          className="flex cursor-pointer items-start gap-3 rounded-lg border bg-field p-3 hover:bg-accent/40"
+                        >
                           <Checkbox
                             className="mt-0.5"
                             checked={checked}
@@ -207,9 +251,23 @@ export function BroadcastsPage() {
                   name="audience"
                   label="Audience"
                   render={({ field }) => (
-                    <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-2 sm:grid-cols-2">
-                      <RadioCard value="ALL" icon={<Users />} title="All users" description="Every active account." />
-                      <RadioCard value="SELECTED" icon={<UsersRound />} title="Selected users" description="Pick recipients." />
+                    <RadioGroup
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="grid gap-2 sm:grid-cols-2"
+                    >
+                      <RadioCard
+                        value="ALL"
+                        icon={<Users />}
+                        title="All users"
+                        description="Every active account."
+                      />
+                      <RadioCard
+                        value="SELECTED"
+                        icon={<UsersRound />}
+                        title="Selected users"
+                        description="Pick recipients."
+                      />
                     </RadioGroup>
                   )}
                 />
@@ -235,7 +293,8 @@ export function BroadcastsPage() {
             </div>
             <Alert variant="info">
               <AlertDescription className="text-foreground/80">
-                Broadcasts ignore users’ notification preferences for the channels you pick. Use them sparingly — at most 10 per hour.
+                Broadcasts ignore users’ notification preferences for the channels you pick. Use them
+                sparingly — at most 10 per hour.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -264,12 +323,23 @@ export function BroadcastsPage() {
         minWidth={860}
         renderExpanded={(b) => (
           <div className="grid gap-2 pt-1">
-            <p className="rounded-md border bg-card p-3 text-sm leading-relaxed whitespace-pre-wrap">{b.body}</p>
+            <p className="rounded-md border bg-card p-3 text-sm leading-relaxed whitespace-pre-wrap">
+              {b.body}
+            </p>
             {b.error ? <p className="text-xs text-destructive-fg">Error: {b.error}</p> : null}
-            {b.completedAt ? <p className="text-xs text-muted-foreground">Completed {formatDateTime(b.completedAt)}</p> : null}
+            {b.completedAt ? (
+              <p className="text-xs text-muted-foreground">Completed {formatDateTime(b.completedAt)}</p>
+            ) : null}
           </div>
         )}
-        emptyState={<EmptyState icon={Inbox} title="No broadcasts yet" description="Messages you send appear here with their delivery status." compact />}
+        emptyState={
+          <EmptyState
+            icon={Inbox}
+            title="No broadcasts yet"
+            description="Messages you send appear here with their delivery status."
+            compact
+          />
+        }
       />
 
       <ConfirmDialog
@@ -282,7 +352,9 @@ export function BroadcastsPage() {
               <p>
                 <span className="font-medium text-foreground">“{confirm.subject}”</span> will be sent to{' '}
                 <span className="font-medium text-foreground">
-                  {confirm.audience === 'ALL' ? 'all active users' : `${confirm.userIds.length} selected user${confirm.userIds.length === 1 ? '' : 's'}`}
+                  {confirm.audience === 'ALL'
+                    ? 'all active users'
+                    : `${confirm.userIds.length} selected user${confirm.userIds.length === 1 ? '' : 's'}`}
                 </span>{' '}
                 via {channelText(confirm)}.
               </p>

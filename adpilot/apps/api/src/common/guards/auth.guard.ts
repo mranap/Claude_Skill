@@ -28,7 +28,10 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType() !== 'http') return true;
     const req = context.switchToHttp().getRequest<Request & { user?: AuthUser }>();
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()]);
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     const user = await this.authenticate(req);
     if (user) {
@@ -43,7 +46,10 @@ export class AuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (user.mustChangePassword && !allowPending) {
-      throw new AppError('PASSWORD_CHANGE_REQUIRED', 'Please change the temporary password before continuing');
+      throw new AppError(
+        'PASSWORD_CHANGE_REQUIRED',
+        'Please change the temporary password before continuing',
+      );
     }
     return true;
   }

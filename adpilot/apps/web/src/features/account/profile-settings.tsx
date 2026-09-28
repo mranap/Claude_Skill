@@ -11,7 +11,15 @@ import type { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -37,7 +45,10 @@ export function ProfileSettings() {
   });
 
   const onSubmit = async (values: z.output<typeof updateProfileSchema>) => {
-    const updated = await accountApi.updateProfile({ name: values.name ? values.name : null, timezone: values.timezone });
+    const updated = await accountApi.updateProfile({
+      name: values.name ? values.name : null,
+      timezone: values.timezone,
+    });
     queryClient.setQueryData(queryKeys.me, updated);
     form.reset({ name: updated.name ?? '', timezone: updated.timezone });
     toast.success('Profile saved');
@@ -51,7 +62,9 @@ export function ProfileSettings() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Your name is shown to administrators; the time zone is used for dates, schedules and reports.</CardDescription>
+          <CardDescription>
+            Your name is shown to administrators; the time zone is used for dates, schedules and reports.
+          </CardDescription>
         </CardHeader>
         <Form form={form} onSubmit={onSubmit}>
           <CardContent className="grid gap-5">
@@ -64,7 +77,14 @@ export function ProfileSettings() {
               </div>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
-              <TextField control={form.control} name="name" label="Full name" placeholder="Jane Doe" autoComplete="name" maxLength={100} />
+              <TextField
+                control={form.control}
+                name="name"
+                label="Full name"
+                placeholder="Jane Doe"
+                autoComplete="name"
+                maxLength={100}
+              />
               <FormField
                 control={form.control}
                 name="timezone"
@@ -72,7 +92,8 @@ export function ProfileSettings() {
                 description={
                   detectedZone !== selectedZone ? (
                     <>
-                      Your browser uses {detectedZone.replace(/_/g, ' ')} ({timeZoneOffset(detectedZone).replace('GMT', 'UTC')}).{' '}
+                      Your browser uses {detectedZone.replace(/_/g, ' ')} (
+                      {timeZoneOffset(detectedZone).replace('GMT', 'UTC')}).{' '}
                       <button
                         type="button"
                         className="font-medium text-primary-fg hover:underline"
@@ -102,11 +123,18 @@ export function ProfileSettings() {
                   Change e-mail
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">You sign in with this address. Changes must be confirmed from the new inbox.</p>
+              <p className="text-xs text-muted-foreground">
+                You sign in with this address. Changes must be confirmed from the new inbox.
+              </p>
             </div>
           </CardContent>
           <CardFooter className="justify-end gap-2">
-            <Button type="button" variant="ghost" disabled={!form.formState.isDirty} onClick={() => form.reset()}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!form.formState.isDirty}
+              onClick={() => form.reset()}
+            >
               Discard
             </Button>
             <Button type="submit" loading={form.formState.isSubmitting} disabled={!form.formState.isDirty}>
@@ -124,10 +152,17 @@ export function ProfileSettings() {
         <CardContent>
           <KeyValueList
             items={[
-              { label: 'Role', value: <Badge variant={user.isAdmin ? 'default' : 'secondary'}>{humanize(user.role)}</Badge> },
+              {
+                label: 'Role',
+                value: <Badge variant={user.isAdmin ? 'default' : 'secondary'}>{humanize(user.role)}</Badge>,
+              },
               {
                 label: 'Two-factor authentication',
-                value: user.twoFactorEnabled ? <Badge variant="success">Enabled</Badge> : <Badge variant="warning">Not enabled</Badge>,
+                value: user.twoFactorEnabled ? (
+                  <Badge variant="success">Enabled</Badge>
+                ) : (
+                  <Badge variant="warning">Not enabled</Badge>
+                ),
               },
               { label: 'Permissions', value: `${user.permissions.length} granted` },
               { label: 'User ID', value: user.id, mono: true, copy: user.id },
@@ -151,7 +186,10 @@ function ChangeEmailDialog({
   currentEmail: string;
 }) {
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const form = useForm({ resolver: zodResolver(changeEmailSchema), defaultValues: { newEmail: '', password: '' } });
+  const form = useForm({
+    resolver: zodResolver(changeEmailSchema),
+    defaultValues: { newEmail: '', password: '' },
+  });
 
   const onSubmit = async (values: z.output<typeof changeEmailSchema>) => {
     await accountApi.changeEmail(values);
@@ -177,8 +215,9 @@ function ChangeEmailDialog({
                 Confirm your new e-mail
               </DialogTitle>
               <DialogDescription>
-                We sent a confirmation link to <span className="font-medium text-foreground">{sentTo}</span>. Your login e-mail
-                changes after you open that link (valid for 24 hours). Until then, keep signing in with {currentEmail}.
+                We sent a confirmation link to <span className="font-medium text-foreground">{sentTo}</span>.
+                Your login e-mail changes after you open that link (valid for 24 hours). Until then, keep
+                signing in with {currentEmail}.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">
@@ -189,16 +228,27 @@ function ChangeEmailDialog({
           <Form form={form} onSubmit={onSubmit} className="flex min-h-0 flex-col">
             <DialogHeader>
               <DialogTitle>Change e-mail address</DialogTitle>
-              <DialogDescription>Enter the new address and your current password. We’ll send a confirmation link.</DialogDescription>
+              <DialogDescription>
+                Enter the new address and your current password. We’ll send a confirmation link.
+              </DialogDescription>
             </DialogHeader>
             <DialogBody className="grid gap-4">
               <FormRootError />
-              <TextField control={form.control} name="newEmail" label="New e-mail" type="email" autoComplete="email" autoFocus />
+              <TextField
+                control={form.control}
+                name="newEmail"
+                label="New e-mail"
+                type="email"
+                autoComplete="email"
+                autoFocus
+              />
               <FormField
                 control={form.control}
                 name="password"
                 label="Current password"
-                render={({ field, controlProps }) => <PasswordInput {...field} {...controlProps} autoComplete="current-password" />}
+                render={({ field, controlProps }) => (
+                  <PasswordInput {...field} {...controlProps} autoComplete="current-password" />
+                )}
               />
             </DialogBody>
             <DialogFooter>

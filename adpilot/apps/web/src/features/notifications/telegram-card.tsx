@@ -45,7 +45,9 @@ export function TelegramCard() {
     queryKey: queryKeys.notifications.telegram,
     queryFn: notificationsApi.telegramStatus,
     refetchInterval: (query) =>
-      pendingLink && !query.state.data?.connected && new Date(pendingLink.expiresAt).getTime() > Date.now() ? 3000 : false,
+      pendingLink && !query.state.data?.connected && new Date(pendingLink.expiresAt).getTime() > Date.now()
+        ? 3000
+        : false,
   });
 
   const connected = !!status.data?.connected;
@@ -81,10 +83,13 @@ export function TelegramCard() {
   const test = useMutation({
     mutationFn: notificationsApi.sendTest,
     onSuccess: () => {
-      toast.success('Test notification sent', { description: 'It appears in the Notification Center and in your enabled channels.' });
+      toast.success('Test notification sent', {
+        description: 'It appears in the Notification Center and in your enabled channels.',
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
     },
-    onError: (err) => toast.error('Could not send a test notification', { description: (err as Error).message }),
+    onError: (err) =>
+      toast.error('Could not send a test notification', { description: (err as Error).message }),
   });
 
   return (
@@ -120,11 +125,15 @@ export function TelegramCard() {
           <Alert variant="warning">
             <AlertTitle>Telegram notifications are not available yet</AlertTitle>
             <AlertDescription>
-              An administrator needs to configure the Telegram bot first. E-mail and in-app notifications keep working.
+              An administrator needs to configure the Telegram bot first. E-mail and in-app notifications keep
+              working.
               {can(['admin.settings.view', 'admin.telegram.manage']) ? (
                 <>
                   {' '}
-                  <Link href="/admin/settings/telegram" className="font-medium text-primary-fg hover:underline">
+                  <Link
+                    href="/admin/settings/telegram"
+                    className="font-medium text-primary-fg hover:underline"
+                  >
                     Configure the bot
                   </Link>
                 </>
@@ -137,7 +146,9 @@ export function TelegramCard() {
               <TelegramGlyph className="flex size-10 items-center justify-center rounded-full bg-info/10 text-info-fg" />
               <div>
                 <p className="text-sm font-medium">
-                  {status.data.username ? `@${status.data.username}` : (status.data.firstName ?? 'Telegram account')}
+                  {status.data.username
+                    ? `@${status.data.username}`
+                    : (status.data.firstName ?? 'Telegram account')}
                   {status.data.username && status.data.firstName ? (
                     <span className="font-normal text-muted-foreground"> · {status.data.firstName}</span>
                   ) : null}
@@ -147,7 +158,9 @@ export function TelegramCard() {
                   {status.data.botUsername ? ` · via @${status.data.botUsername}` : ''}
                 </p>
                 {status.data.lastError ? (
-                  <p className="mt-1 text-xs text-destructive-fg">Last delivery error: {status.data.lastError}</p>
+                  <p className="mt-1 text-xs text-destructive-fg">
+                    Last delivery error: {status.data.lastError}
+                  </p>
                 ) : null}
               </div>
             </div>
@@ -165,15 +178,19 @@ export function TelegramCard() {
                     <Spinner />
                     Waiting for confirmation from Telegram…
                   </div>
-                  <span className="text-xs text-muted-foreground tabular-nums">Link expires in {formatCountdown(remaining)}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    Link expires in {formatCountdown(remaining)}
+                  </span>
                 </div>
                 <Progress value={(remaining / LINK_TTL_MS) * 100} className="h-1" />
                 <ol className="grid gap-1.5 text-[13px] text-muted-foreground">
                   <li>
-                    1. Click <span className="font-medium text-foreground">Open Telegram</span> (or open the link on your phone).
+                    1. Click <span className="font-medium text-foreground">Open Telegram</span> (or open the
+                    link on your phone).
                   </li>
                   <li>
-                    2. In the chat with <span className="font-medium text-foreground">@{link.botUsername}</span>, press{' '}
+                    2. In the chat with{' '}
+                    <span className="font-medium text-foreground">@{link.botUsername}</span>, press{' '}
                     <span className="font-medium text-foreground">Start</span>.
                   </li>
                   <li>3. This page updates automatically once the bot confirms the link.</li>
@@ -195,7 +212,9 @@ export function TelegramCard() {
               </>
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">The link expired before Telegram confirmed it.</p>
+                <p className="text-sm text-muted-foreground">
+                  The link expired before Telegram confirmed it.
+                </p>
                 <Button onClick={() => createLink.mutate()} loading={createLink.isPending}>
                   <RefreshCw />
                   Generate a new link
@@ -206,8 +225,9 @@ export function TelegramCard() {
         ) : (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              We’ll create a one-time link to <span className="font-medium text-foreground">@{status.data.botUsername}</span>. Only
-              the chat that opens it is linked to your account.
+              We’ll create a one-time link to{' '}
+              <span className="font-medium text-foreground">@{status.data.botUsername}</span>. Only the chat
+              that opens it is linked to your account.
             </p>
             <Button onClick={() => createLink.mutate()} loading={createLink.isPending} className="shrink-0">
               <Send />

@@ -61,7 +61,12 @@ export function totpStep(nowMs = Date.now()): number {
 }
 
 /** Returns the matched time step (for replay protection) or null. Accepts ±`window` steps of clock drift. */
-export function verifyTotp(secretBase32: string, code: string, nowMs = Date.now(), window = 1): number | null {
+export function verifyTotp(
+  secretBase32: string,
+  code: string,
+  nowMs = Date.now(),
+  window = 1,
+): number | null {
   if (!/^\d{6}$/.test(code)) return null;
   const key = base32Decode(secretBase32);
   const current = totpStep(nowMs);

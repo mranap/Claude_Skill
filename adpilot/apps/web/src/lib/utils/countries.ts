@@ -30,7 +30,11 @@ let options: CountryOption[] | null = null;
 /** Every country the Marketing API accepts, sorted by display name. */
 export function countryOptions(): CountryOption[] {
   options ??= [...COUNTRY_CODES]
-    .map((code) => ({ code, name: countryName(code), eu: (EU_COUNTRY_CODES as readonly string[]).includes(code) }))
+    .map((code) => ({
+      code,
+      name: countryName(code),
+      eu: (EU_COUNTRY_CODES as readonly string[]).includes(code),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return options;
 }

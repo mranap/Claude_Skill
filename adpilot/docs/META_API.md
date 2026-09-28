@@ -10,21 +10,23 @@ limitation is listed in [section 9](#9-limitations-and-supported-alternatives).
 
 ## 1. Integration map
 
-| Purpose | Endpoint(s) | Permission |
-|---|---|---|
-| Token inspection | `GET /me`, `GET /me/permissions`, `GET /debug_token?input_token=<the token>` (called with the token itself) | any |
-| Businesses | `GET /me/businesses` | `business_management` |
-| Ad accounts | `GET /me/adaccounts`, `GET /{business}/owned_ad_accounts`, `GET /{business}/client_ad_accounts`, batched `GET /?ids=act_…` | `ads_read` |
-| Pages / Instagram | `GET /me/accounts`, `GET /{business}/owned_pages`, `client_pages`, `GET /act_{id}/promote_pages` | `pages_show_list`, `pages_read_engagement` |
-| Pixels / datasets | `GET /act_{id}/adspixels` | `ads_read` |
-| Custom audiences | `GET /act_{id}/customaudiences` | `ads_read` |
-| Account status | `GET /?ids=act_…&fields=account_status,disable_reason,…` (50 per call) | `ads_read` |
-| Images | `POST /act_{id}/adimages` | `ads_management` |
-| Videos | `POST graph-video…/act_{id}/advideos` (`upload_phase=start/transfer/finish`), `GET /{video}?fields=status`, `GET /{video}/thumbnails` | `ads_management` |
-| Create | `POST /act_{id}/campaigns`, `/adsets`, `/adcreatives`, `/ads` | `ads_management` |
-| Read tree | `GET /act_{id}/campaigns|adsets|ads`, `GET /{campaign}/adsets|ads`, `GET /{object}` | `ads_read` |
-| Update | `POST /{object}` with `status` or `daily_budget` / `lifetime_budget` | `ads_management` |
-| Insights | `GET /act_{id}/insights` (`level`, `time_range`, `time_increment`, `filtering`) | `ads_read` |
+| Purpose           | Endpoint(s)                                                                                                                           | Permission                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Token inspection  | `GET /me`, `GET /me/permissions`, `GET /debug_token?input_token=<the token>` (called with the token itself)                           | any                                                   |
+| Businesses        | `GET /me/businesses`                                                                                                                  | `business_management`                                 |
+| Ad accounts       | `GET /me/adaccounts`, `GET /{business}/owned_ad_accounts`, `GET /{business}/client_ad_accounts`, batched `GET /?ids=act_…`            | `ads_read`                                            |
+| Pages / Instagram | `GET /me/accounts`, `GET /{business}/owned_pages`, `client_pages`, `GET /act_{id}/promote_pages`                                      | `pages_show_list`, `pages_read_engagement`            |
+| Pixels / datasets | `GET /act_{id}/adspixels`                                                                                                             | `ads_read`                                            |
+| Custom audiences  | `GET /act_{id}/customaudiences`                                                                                                       | `ads_read`                                            |
+| Account status    | `GET /?ids=act_…&fields=account_status,disable_reason,…` (50 per call)                                                                | `ads_read`                                            |
+| Images            | `POST /act_{id}/adimages`                                                                                                             | `ads_management`                                      |
+| Videos            | `POST graph-video…/act_{id}/advideos` (`upload_phase=start/transfer/finish`), `GET /{video}?fields=status`, `GET /{video}/thumbnails` | `ads_management`                                      |
+| Create            | `POST /act_{id}/campaigns`, `/adsets`, `/adcreatives`, `/ads`                                                                         | `ads_management`                                      |
+| Read tree         | `GET /act_{id}/campaigns`, `/adsets`, `/ads`; `GET /{campaign}/adsets`, `/ads`; `GET /{object}`                                       | `ads_read`                                            |
+| Update            | `POST /{object}` with `status` or `daily_budget` / `lifetime_budget`                                                                  | `ads_management`                                      |
+| Insights          | `GET /act_{id}/insights` (`level`, `time_range`, `time_increment`, `filtering`)                                                       | `ads_read`                                            |
+| Targeting search  | `GET /search` with `type=adinterest` (interests) or `type=adlocale` (languages)                                                       | any Marketing API token                               |
+| Instant Forms     | `GET /{page}?fields=access_token` (Page token, kept in memory for the call), `GET /{page}/leadgen_forms`                              | `pages_manage_ads` and a Page task that can advertise |
 
 Authentication: `access_token` in the query/body; `appsecret_proof` (HMAC-SHA256 of the token with the app
 secret) is added when the secret of **the app that issued the token** is known (checked via `debug_token`).
@@ -32,6 +34,7 @@ secret) is added when the secret of **the app that issued the token** is known (
 ## 2. Campaign creation rules
 
 Campaign (`POST /act_{id}/campaigns`) ✔
+
 - `objective` (ODAX): `OUTCOME_LEADS`, `OUTCOME_SALES`, `OUTCOME_TRAFFIC`, `OUTCOME_AWARENESS`, `OUTCOME_ENGAGEMENT`.
 - `special_ad_categories` always sent (`[]` when none); with a category, `special_ad_category_country` is required.
   Values: `EMPLOYMENT`, `HOUSING`, `FINANCIAL_PRODUCTS_SERVICES` (replaced `CREDIT`), `ISSUES_ELECTIONS_POLITICS`,
@@ -47,6 +50,7 @@ Campaign (`POST /act_{id}/campaigns`) ✔
   the account's `min_campaign_group_spend_cap` (error 2446307).
 
 Ad set (`POST /act_{id}/adsets`) ✔
+
 - `optimization_goal`, `billing_event`, `destination_type`, `promoted_object` (`pixel_id` + `custom_event_type` for
   website conversions/value; `page_id` for lead forms and awareness goals), budget for ABO, `bid_amount` for
   cost cap / bid cap, `bid_constraints.roas_average_floor` = ROAS × 10 000 (0.01–1000) for minimum ROAS (value
@@ -71,6 +75,7 @@ Ad set (`POST /act_{id}/adsets`) ✔
   Marketplace/Search/Profile feed require Facebook Feed; Instagram cannot be desktop-only.
 
 Creative (`POST /act_{id}/adcreatives`) ✔
+
 - `object_story_spec` with `page_id` (+ `instagram_user_id`), and `video_data` (`video_id`, `image_url`
   thumbnail — required by Meta, taken from `/{video}/thumbnails`), `link_data` (`image_hash`) or carousel
   `link_data.child_attachments` (video cards need `picture` or `image_hash`).
@@ -102,7 +107,7 @@ interrupted request (see ARCHITECTURE.md → launch engine).
 
 - Daily rows (`time_increment=1`) per level with `time_range` in the ad account time zone; fields:
   `spend, impressions, reach, clicks, inline_link_clicks, actions, action_values, video_thruplay_watched_actions,
-  results` + ids/names, `objective`, `optimization_goal`.
+results` + ids/names, `objective`, `optimization_goal`.
 - Leads = `lead` (aggregated) or `onsite_conversion.lead_grouped` + `offsite_conversion.fb_pixel_lead`;
   purchases/value = `omni_purchase` → `purchase` → `offsite_conversion.fb_pixel_purchase` (never summed).
 - "Results" = Meta's `results` field (the outcome of the ad set's goal and conversion event), ThruPlays from
@@ -121,19 +126,19 @@ mapped to readable texts (unknown future codes are shown as "Reason #N"). Only r
 
 ## 6. Error handling
 
-| Code / subcode | Category | Behaviour |
-|---|---|---|
-| 4, 17, 32, 613, 80000–80014; subcodes 2446079, 1487742, 1504022, 1504039 | RATE_LIMIT | scope blocked for the header-provided or back-off time; jobs defer |
-| 613 / 1487632 (budget changed more than 4 times per hour) | RATE_LIMIT | only that object's budget changes are blocked for an hour; rules skip it and continue |
-| 613 / 1487225 (daily ad-creation limit) | VALIDATION | not retried; the launch fails the remaining objects with a clear message |
-| 190 (subcodes 458, 459, 460, 463 expired, 464, 467, 492), 102 | AUTH | profile marked expired/invalid, owner notified, not retried |
-| 10, 200–299, 294 | PERMISSION | the operation fails; the profile's token check is brought forward, and only `debug_token` (missing scopes) marks the profile *permission revoked* — an object-level error such as 200/1870034 never suspends a whole profile |
-| 368 | POLICY | not retried; Meta's message shown |
-| 803 | NOT_FOUND | object missing |
-| 100 / 33 | VALIDATION | "deleted or no access" (can also be a missing permission, so the object is not marked deleted) |
-| 1, 2, 3910001, `is_transient=true`, HTTP 5xx | TRANSIENT | retried with back-off (creation is reconciled first) |
-| 100, other 4xx | VALIDATION | not retried; `error_user_title`/`error_user_msg` shown to the user |
-| network before sending / through the proxy | NETWORK / PROXY | retried; proxy problems point to the profile's proxy |
+| Code / subcode                                                           | Category        | Behaviour                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4, 17, 32, 613, 80000–80014; subcodes 2446079, 1487742, 1504022, 1504039 | RATE_LIMIT      | scope blocked for the header-provided or back-off time; jobs defer                                                                                                                                                           |
+| 613 / 1487632 (budget changed more than 4 times per hour)                | RATE_LIMIT      | only that object's budget changes are blocked for an hour; rules skip it and continue                                                                                                                                        |
+| 613 / 1487225 (daily ad-creation limit)                                  | VALIDATION      | not retried; the launch fails the remaining objects with a clear message                                                                                                                                                     |
+| 190 (subcodes 458, 459, 460, 463 expired, 464, 467, 492), 102            | AUTH            | profile marked expired/invalid, owner notified, not retried                                                                                                                                                                  |
+| 10, 200–299, 294                                                         | PERMISSION      | the operation fails; the profile's token check is brought forward, and only `debug_token` (missing scopes) marks the profile _permission revoked_ — an object-level error such as 200/1870034 never suspends a whole profile |
+| 368                                                                      | POLICY          | not retried; Meta's message shown                                                                                                                                                                                            |
+| 803                                                                      | NOT_FOUND       | object missing                                                                                                                                                                                                               |
+| 100 / 33                                                                 | VALIDATION      | "deleted or no access" (can also be a missing permission, so the object is not marked deleted)                                                                                                                               |
+| 1, 2, 3910001, `is_transient=true`, HTTP 5xx                             | TRANSIENT       | retried with back-off (creation is reconciled first)                                                                                                                                                                         |
+| 100, other 4xx                                                           | VALIDATION      | not retried; `error_user_title`/`error_user_msg` shown to the user                                                                                                                                                           |
+| network before sending / through the proxy                               | NETWORK / PROXY | retried; proxy problems point to the profile's proxy                                                                                                                                                                         |
 
 Profile status changes and token inspections are written only if the token they were made with is still the
 profile's current token (fingerprint compare-and-set): a late error from a replaced token never marks the new one
@@ -145,6 +150,7 @@ fbtrace_id, duration, retries, usage) for the Super Admin.
 The rate-limit manager (Redis, shared by all workers) reads `X-App-Usage`, `X-Ad-Account-Usage`
 (`acc_id_util_pct`, `reset_time_duration`), `X-Business-Use-Case-Usage` (`estimated_time_to_regain_access`) and
 `X-FB-Ads-Insights-Throttle`:
+
 - above the throttle threshold (75 %, configurable) calls to that scope are paced;
 - above the pause threshold (90 %) or after a throttling error, the scope (app / token / ad account / business
   use case per ad account) is blocked until the regain time (or exponential back-off 1–30 min) — requests are
@@ -162,16 +168,16 @@ schedule; expiring tokens trigger a warning 7 days before expiry.
 
 ## 9. Limitations and supported alternatives
 
-| Requirement / expectation | Reality in v26.0 | What AdPilot does |
-|---|---|---|
-| Messenger placements | No Messenger placement is available for new ads | Not offered; stored templates are cleaned on read |
-| Instagram Explore feed | Removed in v26.0 | Only Explore home is offered |
-| Long view attribution windows | Only 1-day view (and 1-day engage-through) | Offered windows are limited accordingly |
-| "Maximum age" with Advantage+ audience | Fixed at 65+ | Validation error with explanation |
-| Location exclusions for housing/employment/financial ads | Not supported | Validation error |
-| Guaranteed immediate delivery after launch | Ads go through Meta review (`PENDING_REVIEW`) | Status shown; review results synced |
-| Hourly statistics for any range | Hourly breakdowns are limited (no reach, 13 months of history) | Rules with "last N hours" use the hourly breakdown for up to 48 h |
-| Faster statistics than Meta allows | Insights has its own throttle | Minimum 35 min interval + manual refresh cooldown |
+| Requirement / expectation                                | Reality in v26.0                                               | What AdPilot does                                                 |
+| -------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Messenger placements                                     | No Messenger placement is available for new ads                | Not offered; stored templates are cleaned on read                 |
+| Instagram Explore feed                                   | Removed in v26.0                                               | Only Explore home is offered                                      |
+| Long view attribution windows                            | Only 1-day view (and 1-day engage-through)                     | Offered windows are limited accordingly                           |
+| "Maximum age" with Advantage+ audience                   | Fixed at 65+                                                   | Validation error with explanation                                 |
+| Location exclusions for housing/employment/financial ads | Not supported                                                  | Validation error                                                  |
+| Guaranteed immediate delivery after launch               | Ads go through Meta review (`PENDING_REVIEW`)                  | Status shown; review results synced                               |
+| Hourly statistics for any range                          | Hourly breakdowns are limited (no reach, 13 months of history) | Rules with "last N hours" use the hourly breakdown for up to 48 h |
+| Faster statistics than Meta allows                       | Insights has its own throttle                                  | Minimum 35 min interval + manual refresh cooldown                 |
 
 ## 10. Upgrading the Graph API version
 

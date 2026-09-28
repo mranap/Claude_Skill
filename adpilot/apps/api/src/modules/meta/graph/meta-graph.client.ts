@@ -103,7 +103,11 @@ export class MetaGraphClient {
   }
 
   private scope(conn: MetaConnection, req: GraphRequest): RateScope {
-    const useCase = req.category.startsWith('insights') ? 'ads_insights' : req.metaAccountId ? 'ads_management' : 'other';
+    const useCase = req.category.startsWith('insights')
+      ? 'ads_insights'
+      : req.metaAccountId
+        ? 'ads_management'
+        : 'other';
     // An edit of one object (`POST /<id>`), e.g. an ad set budget change: Meta limits some edits per object.
     const objectId = req.method === 'POST' ? /^\/(\d+)$/.exec(req.path)?.[1] : undefined;
     return {
@@ -134,7 +138,11 @@ export class MetaGraphClient {
     }
   }
 
-  private async callOnce<T>(conn: MetaConnection, req: GraphRequest, retryCount: number): Promise<GraphResult<T>> {
+  private async callOnce<T>(
+    conn: MetaConnection,
+    req: GraphRequest,
+    retryCount: number,
+  ): Promise<GraphResult<T>> {
     const scope = this.scope(conn, req);
     await this.rateLimits.beforeRequest(scope);
 
@@ -146,7 +154,9 @@ export class MetaGraphClient {
     const url = `${this.baseUrl(req.host)}${req.path}`;
     const authParams: Record<string, string> = { access_token: conn.accessToken };
     if (conn.appSecret) {
-      authParams.appsecret_proof = createHmac('sha256', conn.appSecret).update(conn.accessToken).digest('hex');
+      authParams.appsecret_proof = createHmac('sha256', conn.appSecret)
+        .update(conn.accessToken)
+        .digest('hex');
     }
 
     const axiosConfig: AxiosRequestConfig = {
@@ -162,12 +172,14 @@ export class MetaGraphClient {
     };
     if (req.multipart) {
       for (const [k, v] of Object.entries(authParams)) req.multipart.append(k, v);
-      for (const [k, v] of Object.entries(req.params ?? {})) if (v !== undefined) req.multipart.append(k, toParamValue(v));
+      for (const [k, v] of Object.entries(req.params ?? {}))
+        if (v !== undefined) req.multipart.append(k, toParamValue(v));
       axiosConfig.data = req.multipart;
       axiosConfig.headers = { ...axiosConfig.headers, ...req.multipart.getHeaders() };
     } else if (req.method === 'POST') {
       const body = new URLSearchParams();
-      for (const [k, v] of Object.entries({ ...req.params, ...authParams })) if (v !== undefined) body.append(k, toParamValue(v));
+      for (const [k, v] of Object.entries({ ...req.params, ...authParams }))
+        if (v !== undefined) body.append(k, toParamValue(v));
       axiosConfig.data = body.toString();
       axiosConfig.headers = { ...axiosConfig.headers, 'Content-Type': 'application/x-www-form-urlencoded' };
     } else {
@@ -221,7 +233,8 @@ export class MetaGraphClient {
       if (id) return id;
       if (Date.now() > deadline) {
         throw new MetaApiError({
-          friendlyMessage: 'Too many parallel Meta requests for this ad account; the operation was postponed.',
+          friendlyMessage:
+            'Too many parallel Meta requests for this ad account; the operation was postponed.',
           category: 'RATE_LIMIT',
           retryable: true,
           retryAfterMs: 30_000,
@@ -233,12 +246,28 @@ export class MetaGraphClient {
 
   private toNetworkError(err: AxiosError, viaProxy: boolean): MetaNetworkError {
     const code = err.code ?? (err.cause as { code?: string } | undefined)?.code;
-    const notSent = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ERR_SOCKS_CONNECTION_REFUSED', 'ERR_TLS_CERT_ALTNAME_INVALID'].includes(code ?? '');
+    const notSent = [
+      'ECONNREFUSED',
+      'ENOTFOUND',
+      'EAI_AGAIN',
+      'EHOSTUNREACH',
+      'ENETUNREACH',
+      'ERR_SOCKS_CONNECTION_REFUSED',
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+    ].includes(code ?? '');
     const message = /socks|proxy/i.test(err.message) ? `proxy error: ${err.message}` : err.message;
     return new MetaNetworkError(message, !notSent, viaProxy, code);
   }
 
-  private log(conn: MetaConnection, req: GraphRequest, started: number, retryCount: number, status: number | undefined, err: MetaApiError | undefined, usage: ParsedUsage): void {
+  private log(
+    conn: MetaConnection,
+    req: GraphRequest,
+    started: number,
+    retryCount: number,
+    status: number | undefined,
+    err: MetaApiError | undefined,
+    usage: ParsedUsage,
+  ): void {
     const ctx = RequestContext.get();
     this.apiLog.record({
       userId: conn.userId,
@@ -260,17 +289,36 @@ export class MetaGraphClient {
       jobId: ctx?.jobId,
     });
     if (err && err.category !== 'RATE_LIMIT' && err.category !== 'VALIDATION') {
-      this.logger.warn('Meta API call failed', { category: req.category, path: pathTemplate(req.path), code: err.metaCode, subcode: err.metaSubcode, errCategory: err.category });
+      this.logger.warn('Meta API call failed', {
+        category: req.category,
+        path: pathTemplate(req.path),
+        code: err.metaCode,
+        subcode: err.metaSubcode,
+        errCategory: err.category,
+      });
     }
   }
 
   // ───────────── convenience helpers ─────────────
 
-  async get<T>(conn: MetaConnection, path: string, params: Record<string, unknown>, category: string, extra: Partial<GraphRequest> = {}): Promise<T> {
-    return (await this.call<T>(conn, { method: 'GET', path, params, category, safeToRetry: true, ...extra })).data;
+  async get<T>(
+    conn: MetaConnection,
+    path: string,
+    params: Record<string, unknown>,
+    category: string,
+    extra: Partial<GraphRequest> = {},
+  ): Promise<T> {
+    return (await this.call<T>(conn, { method: 'GET', path, params, category, safeToRetry: true, ...extra }))
+      .data;
   }
 
-  async post<T>(conn: MetaConnection, path: string, params: Record<string, unknown>, category: string, extra: Partial<GraphRequest> = {}): Promise<T> {
+  async post<T>(
+    conn: MetaConnection,
+    path: string,
+    params: Record<string, unknown>,
+    category: string,
+    extra: Partial<GraphRequest> = {},
+  ): Promise<T> {
     return (await this.call<T>(conn, { method: 'POST', path, params, category, ...extra })).data;
   }
 
@@ -301,11 +349,20 @@ export class MetaGraphClient {
   }
 
   /** Reads up to 50 objects in one request (`GET /?ids=a,b,c&fields=...`). */
-  async getMany<T>(conn: MetaConnection, ids: string[], fields: string, category: string, extra: Partial<GraphRequest> = {}): Promise<Record<string, T>> {
+  async getMany<T>(
+    conn: MetaConnection,
+    ids: string[],
+    fields: string,
+    category: string,
+    extra: Partial<GraphRequest> = {},
+  ): Promise<Record<string, T>> {
     const out: Record<string, T> = {};
     for (let i = 0; i < ids.length; i += 50) {
       const chunk = ids.slice(i, i + 50);
-      Object.assign(out, await this.get<Record<string, T>>(conn, '/', { ids: chunk.join(','), fields }, category, extra));
+      Object.assign(
+        out,
+        await this.get<Record<string, T>>(conn, '/', { ids: chunk.join(','), fields }, category, extra),
+      );
     }
     return out;
   }

@@ -19,7 +19,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
       <main className="flex flex-1 flex-col items-center px-4 pt-4 pb-12 sm:justify-center sm:pt-0 sm:pb-24">
         <div className="w-full max-w-[400px]">
-          <Link href="/login" className="mx-auto mb-8 flex w-fit rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          <Link
+            href="/login"
+            className="mx-auto mb-8 flex w-fit rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
             <Logo />
           </Link>
           {children}

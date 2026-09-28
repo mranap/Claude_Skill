@@ -50,7 +50,9 @@ export class HashingService {
   }
 
   hmac(value: string, purpose: string): string {
-    return createHmac('sha256', this.config.env.CSRF_SECRET).update(`${purpose}:${value}`).digest('base64url');
+    return createHmac('sha256', this.config.env.CSRF_SECRET)
+      .update(`${purpose}:${value}`)
+      .digest('base64url');
   }
 
   safeEqual(a: string, b: string): boolean {

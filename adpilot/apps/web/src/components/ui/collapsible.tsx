@@ -7,7 +7,10 @@ import { cn } from '@/lib/utils/cn';
 export const Collapsible = CollapsiblePrimitive.Root;
 export const CollapsibleTrigger = CollapsiblePrimitive.Trigger;
 
-export function CollapsibleContent({ className, ...props }: React.ComponentProps<typeof CollapsiblePrimitive.Content>) {
+export function CollapsibleContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof CollapsiblePrimitive.Content>) {
   return (
     <CollapsiblePrimitive.Content
       data-slot="collapsible-content"

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { adSetDailyMinimum, lifetimeMinimum, type AdSetMinimumInput } from '../../src/modules/launches/budget-rules';
+import {
+  adSetDailyMinimum,
+  lifetimeMinimum,
+  type AdSetMinimumInput,
+} from '../../src/modules/launches/budget-rules';
 import { inFlightAmbiguityMs } from '../../src/modules/launches/launch-executor.service';
 import { MetaMediaService } from '../../src/modules/creatives/meta-media.service';
 import { classifyGraphError, MetaApiError } from '../../src/modules/meta/graph/meta-errors';
@@ -7,7 +11,12 @@ import { classifyGraphError, MetaApiError } from '../../src/modules/meta/graph/m
 const DAY = 86_400_000;
 
 describe('Meta budget minimums (Ad Set reference, "Bid/Budget Validations")', () => {
-  const base: AdSetMinimumInput = { accountMinDaily: 100n, billingEvent: 'IMPRESSIONS', bidStrategy: 'LOWEST_COST_WITHOUT_CAP', bidAmount: null };
+  const base: AdSetMinimumInput = {
+    accountMinDaily: 100n,
+    billingEvent: 'IMPRESSIONS',
+    bidStrategy: 'LOWEST_COST_WITHOUT_CAP',
+    bidAmount: null,
+  };
 
   it('impression billing needs the account minimum, click and ThruPlay billing five times as much', () => {
     expect(adSetDailyMinimum(base)).toMatchObject({ daily: 100n, basis: 'the ad account minimum' });
@@ -18,13 +27,22 @@ describe('Meta budget minimums (Ad Set reference, "Bid/Budget Validations")', ()
 
   it('a bid cap needs at least the bid (impressions) or five times the bid (clicks and actions)', () => {
     const bidCap: AdSetMinimumInput = { ...base, bidStrategy: 'LOWEST_COST_WITH_BID_CAP' };
-    expect(adSetDailyMinimum({ ...bidCap, bidAmount: 1000n })).toMatchObject({ daily: 1000n, basis: 'the bid cap' });
+    expect(adSetDailyMinimum({ ...bidCap, bidAmount: 1000n })).toMatchObject({
+      daily: 1000n,
+      basis: 'the bid cap',
+    });
     expect(adSetDailyMinimum({ ...bidCap, billingEvent: 'LINK_CLICKS', bidAmount: 500n })?.daily).toBe(2500n);
-    expect(adSetDailyMinimum({ ...bidCap, billingEvent: 'THRUPLAY', accountMinDaily: null, bidAmount: 30n })?.daily).toBe(150n);
+    expect(
+      adSetDailyMinimum({ ...bidCap, billingEvent: 'THRUPLAY', accountMinDaily: null, bidAmount: 30n })
+        ?.daily,
+    ).toBe(150n);
     // The account minimum still applies below a small bid.
     expect(adSetDailyMinimum({ ...bidCap, bidAmount: 10n })?.daily).toBe(100n);
     // Meta documents no other multiplier: cost-per-result goals only need the account minimum.
-    expect(adSetDailyMinimum({ ...base, bidStrategy: 'COST_CAP', billingEvent: 'LINK_CLICKS', bidAmount: 500n })?.daily).toBe(100n);
+    expect(
+      adSetDailyMinimum({ ...base, bidStrategy: 'COST_CAP', billingEvent: 'LINK_CLICKS', bidAmount: 500n })
+        ?.daily,
+    ).toBe(100n);
   });
 
   it('a lifetime budget covers the daily minimum over the scheduled duration', () => {
@@ -44,10 +62,21 @@ describe('launch ambiguity window', () => {
 
 describe('video thumbnail lookup', () => {
   const conn = { userId: 'u', profileId: 'p', accessToken: 'token' };
-  const metaError = (code: number, subcode?: number) => new MetaApiError(classifyGraphError({ code, error_subcode: subcode, message: 'x' }, 400));
+  const metaError = (code: number, subcode?: number) =>
+    new MetaApiError(classifyGraphError({ code, error_subcode: subcode, message: 'x' }, 400));
   /** The service with a Graph client whose thumbnail lookup fails with `err` (no other dependency is used). */
-  const failingLookup = (err: Error) => new MetaMediaService(undefined as never, undefined as never, undefined as never, { get: () => Promise.reject(err) } as never, undefined as never);
-  const lookup = (err: Error) => failingLookup(err).preferredThumbnail(conn, '123').catch((e: unknown) => e);
+  const failingLookup = (err: Error) =>
+    new MetaMediaService(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      { get: () => Promise.reject(err) } as never,
+      undefined as never,
+    );
+  const lookup = (err: Error) =>
+    failingLookup(err)
+      .preferredThumbnail(conn, '123')
+      .catch((e: unknown) => e);
 
   it('throws throttling and token errors instead of reporting "no thumbnail yet"', async () => {
     expect(((await lookup(metaError(17, 2446079))) as MetaApiError).category).toBe('RATE_LIMIT');

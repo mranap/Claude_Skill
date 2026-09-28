@@ -11,10 +11,17 @@ export function ScrollArea({
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & { viewportClassName?: string }) {
   return (
-    <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn('relative overflow-hidden', className)} {...props}>
+    <ScrollAreaPrimitive.Root
+      data-slot="scroll-area"
+      className={cn('relative overflow-hidden', className)}
+      {...props}
+    >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className={cn('size-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring/50', viewportClassName)}
+        className={cn(
+          'size-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+          viewportClassName,
+        )}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

@@ -17,11 +17,19 @@ export function CooldownButton({
   cooldownPrefix = 'Again in',
   disabled,
   ...props
-}: ButtonProps & { cooldown: Cooldown; cooldownHint?: string; cooldownPrefix?: string; children: React.ReactNode }) {
+}: ButtonProps & {
+  cooldown: Cooldown;
+  cooldownHint?: string;
+  cooldownPrefix?: string;
+  children: React.ReactNode;
+}) {
   if (cooldown.active) {
     return (
       <SimpleTooltip content={cooldownHint}>
-        <span tabIndex={0} className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        <span
+          tabIndex={0}
+          className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
           <Button {...props} disabled aria-live="polite" className={props.className}>
             <Timer />
             <span>

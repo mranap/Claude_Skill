@@ -25,7 +25,9 @@ export function NewLaunchPage() {
   useEffect(() => {
     let promise = pending.get(visit);
     if (!promise) {
-      promise = template ? draftsApi.fromTemplate(template) : draftsApi.create({ name: 'Untitled launch', config: { version: 1 } });
+      promise = template
+        ? draftsApi.fromTemplate(template)
+        : draftsApi.create({ name: 'Untitled launch', config: { version: 1 } });
       pending.set(visit, promise);
     }
     let active = true;
@@ -46,7 +48,10 @@ export function NewLaunchPage() {
 
   return (
     <>
-      <PageHeader title="New launch" breadcrumbs={[{ label: 'Launch', href: '/launch' }, { label: 'New launch' }]} />
+      <PageHeader
+        title="New launch"
+        breadcrumbs={[{ label: 'Launch', href: '/launch' }, { label: 'New launch' }]}
+      />
       {error ? (
         <div className="grid gap-4">
           <ErrorAlert error={error} title="The draft could not be created" />
@@ -61,7 +66,11 @@ export function NewLaunchPage() {
           </Button>
         </div>
       ) : (
-        <EmptyState icon={Rocket} title={template ? 'Preparing the launch from your template…' : 'Preparing a new launch…'} description="A draft is created so your progress is saved as you go.">
+        <EmptyState
+          icon={Rocket}
+          title={template ? 'Preparing the launch from your template…' : 'Preparing a new launch…'}
+          description="A draft is created so your progress is saved as you go."
+        >
           <Spinner className="mt-4" />
         </EmptyState>
       )}

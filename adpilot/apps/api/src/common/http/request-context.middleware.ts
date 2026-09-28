@@ -8,7 +8,8 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 /** Assigns a request id, runs the request inside the async context and writes one access-log line. */
 export function requestContextMiddleware(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.headers['x-request-id'];
-  const requestId = typeof incoming === 'string' && REQUEST_ID_PATTERN.test(incoming) ? incoming : randomUUID();
+  const requestId =
+    typeof incoming === 'string' && REQUEST_ID_PATTERN.test(incoming) ? incoming : randomUUID();
   res.setHeader('X-Request-Id', requestId);
   const started = process.hrtime.bigint();
   const ua = req.headers['user-agent'];

@@ -6,11 +6,16 @@ import { queryKeys } from '@/lib/api/query-keys';
 import type { StatsRefreshResponse, StatsTableResponse } from './types';
 
 export const statisticsApi = {
-  table: (params: Record<string, string | number>, signal?: AbortSignal) => api.get<StatsTableResponse>('/statistics', params, { signal }),
-  refresh: (adAccountId?: string) => api.post<StatsRefreshResponse>('/statistics/refresh', adAccountId ? { adAccountId } : {}),
+  table: (params: Record<string, string | number>, signal?: AbortSignal) =>
+    api.get<StatsTableResponse>('/statistics', params, { signal }),
+  refresh: (adAccountId?: string) =>
+    api.post<StatsRefreshResponse>('/statistics/refresh', adAccountId ? { adAccountId } : {}),
 };
 
-export function useStatistics(params: Record<string, string | number>, options: { enabled?: boolean; poll?: boolean } = {}) {
+export function useStatistics(
+  params: Record<string, string | number>,
+  options: { enabled?: boolean; poll?: boolean } = {},
+) {
   return useQuery({
     queryKey: queryKeys.statistics.table(params),
     queryFn: ({ signal }) => statisticsApi.table(params, signal),

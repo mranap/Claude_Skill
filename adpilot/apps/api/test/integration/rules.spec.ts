@@ -39,14 +39,29 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
     user = await stack.createUser(admin);
     const world = stack.meta.seed();
     metaAccountId = world.accountIds[0]!;
-    const profileId = expectStatus(await user.client.post('/api/meta-profiles', { name: 'Rules BM', accessToken: world.token }), 201).body.profile.id;
+    const profileId = expectStatus(
+      await user.client.post('/api/meta-profiles', { name: 'Rules BM', accessToken: world.token }),
+      201,
+    ).body.profile.id;
     await stack.waitFor(async () => (await stack.prisma.adAccount.count({ where: { profileId } })) === 2);
-    expectStatus(await user.client.post('/api/ad-accounts/connect', { profileId, connect: [metaAccountId] }), 200);
+    expectStatus(
+      await user.client.post('/api/ad-accounts/connect', { profileId, connect: [metaAccountId] }),
+      200,
+    );
     accountId = (await stack.prisma.adAccount.findFirstOrThrow({ where: { profileId, metaAccountId } })).id;
 
     // A campaign built outside the platform (e.g. in Ads Manager) with three ad sets.
-    const campaign = stack.meta.createObject('campaign', metaAccountId, { name: 'Evergreen', objective: 'OUTCOME_LEADS', status: 'ACTIVE', special_ad_categories: [] });
-    for (const [key, budget] of [['expensive', '4000'], ['cheap', '6000'], ['pausable', '5000']] as const) {
+    const campaign = stack.meta.createObject('campaign', metaAccountId, {
+      name: 'Evergreen',
+      objective: 'OUTCOME_LEADS',
+      status: 'ACTIVE',
+      special_ad_categories: [],
+    });
+    for (const [key, budget] of [
+      ['expensive', '4000'],
+      ['cheap', '6000'],
+      ['pausable', '5000'],
+    ] as const) {
       sets[key] = stack.meta.createObject('adset', metaAccountId, {
         name: `Ad set ${key}`,
         campaign_id: campaign.id,
@@ -63,42 +78,70 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
 
     await stack.prisma.adAccount.update({ where: { id: accountId }, data: { nextStatsSyncAt: null } });
     await stack.runTask(StatisticsSyncTask);
-    await stack.waitFor(async () => (await stack.prisma.adSet.count({ where: { adAccountId: accountId } })) === 3, { timeoutMs: 30_000 });
+    await stack.waitFor(
+      async () => (await stack.prisma.adSet.count({ where: { adAccountId: accountId } })) === 3,
+      { timeoutMs: 30_000 },
+    );
   });
   afterAll(() => stack.stop());
 
   it('validates rules: no budget actions on ads, no foreign ad accounts, minimum check interval', async () => {
     expect((await user.client.post('/api/rules', rule({ targetLevel: 'AD' }))).status).toBe(400);
     expect((await user.client.post('/api/rules', rule({ checkIntervalMinutes: 15 }))).status).toBe(400);
-    expect((await user.client.post('/api/rules', rule({ scope: { adAccountIds: ['00000000-0000-4000-8000-000000000000'] } }))).status).toBe(404);
+    expect(
+      (
+        await user.client.post(
+          '/api/rules',
+          rule({ scope: { adAccountIds: ['00000000-0000-4000-8000-000000000000'] } }),
+        )
+      ).status,
+    ).toBe(404);
   });
 
   it('acts only on matching objects, applies the minimum budget floor, notifies once and respects the cooldown', async () => {
     const created = expectStatus(await user.client.post('/api/rules', rule({ minBudget: '35' })), 201).body;
     expectStatus(await user.client.post(`/api/rules/${created.id}/run`), 202);
-    await stack.waitFor(async () => (await stack.prisma.autoRuleExecution.count({ where: { ruleId: created.id, result: 'SUCCESS' } })) === 1);
+    await stack.waitFor(
+      async () =>
+        (await stack.prisma.autoRuleExecution.count({ where: { ruleId: created.id, result: 'SUCCESS' } })) ===
+        1,
+    );
 
     // 40.00 − 20 % = 32.00, kept at the rule minimum of 35.00; the cheap ad set does not match.
     expect(budgetOf('expensive')).toBe('3500');
     expect(budgetOf('cheap')).toBe('6000');
-    const exec = await stack.prisma.autoRuleExecution.findFirstOrThrow({ where: { ruleId: created.id, result: 'SUCCESS' } });
+    const exec = await stack.prisma.autoRuleExecution.findFirstOrThrow({
+      where: { ruleId: created.id, result: 'SUCCESS' },
+    });
     expect(exec).toMatchObject({ oldValue: '4000', newValue: '3500' });
     expect(exec.reason).toMatch(/minimum 35\.00 USD/);
     // One summary notification per run, sent after all matching objects were handled.
-    await stack.waitFor(async () => (await stack.prisma.notification.count({ where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' } })) > 0);
-    const notes = await stack.prisma.notification.findMany({ where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' } });
+    await stack.waitFor(
+      async () =>
+        (await stack.prisma.notification.count({ where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' } })) >
+        0,
+    );
+    const notes = await stack.prisma.notification.findMany({
+      where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' },
+    });
     expect(notes).toHaveLength(1);
 
     // "Run now" twice within a minute is refused with a clear cooldown message.
     expect((await user.client.post(`/api/rules/${created.id}/run`)).status).toBe(429);
+    // The rule tells the UI when "Run now" is allowed again (countdown before the server refuses).
+    const detail = expectStatus(await user.client.get(`/api/rules/${created.id}`), 200).body;
+    expect(new Date(detail.nextManualRunAt).getTime()).toBeGreaterThan(Date.now());
 
     // A second evaluation within the cooldown does nothing.
-    const posts = () => stack.meta.requests.filter((r) => r.method === 'POST' && r.path === `/${sets.expensive}`).length;
+    const posts = () =>
+      stack.meta.requests.filter((r) => r.method === 'POST' && r.path === `/${sets.expensive}`).length;
     const before = posts();
     await engine().run(created.id, { manual: true });
     expect(posts()).toBe(before);
     expect(budgetOf('expensive')).toBe('3500');
-    const skipped = await stack.prisma.autoRuleExecution.findFirst({ where: { ruleId: created.id, result: 'SKIPPED' } });
+    const skipped = await stack.prisma.autoRuleExecution.findFirst({
+      where: { ruleId: created.id, result: 'SKIPPED' },
+    });
     expect(skipped?.reason).toMatch(/Cooldown/);
   });
 
@@ -106,7 +149,13 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
     // The budget was changed in Ads Manager after the last sync; the local mirror still says 60.00.
     stack.meta.objects.get(sets.cheap)!.fields.daily_budget = '9000';
     stack.meta.insightOverrides.set(`${sets.cheap}|${today()}`, { spend: '90.00', leads: 1 }); // CPL 90
-    const created = expectStatus(await user.client.post('/api/rules', rule({ name: 'Live state', scope: { adAccountIds: [accountId], nameContains: 'cheap' } })), 201).body;
+    const created = expectStatus(
+      await user.client.post(
+        '/api/rules',
+        rule({ name: 'Live state', scope: { adAccountIds: [accountId], nameContains: 'cheap' } }),
+      ),
+      201,
+    ).body;
     await engine().run(created.id, { manual: true });
     expect(budgetOf('cheap')).toBe('7200'); // 90.00 − 20 %, not 60.00 − 20 %
     const mirror = await stack.prisma.adSet.findFirstOrThrow({ where: { metaAdSetId: sets.cheap } });
@@ -115,7 +164,18 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
 
   it('dry run records what would happen without touching Meta', async () => {
     const created = expectStatus(
-      await user.client.post('/api/rules', rule({ name: 'Scale winners', isDryRun: true, conditions: [{ metric: 'spend', operator: 'gte', value: '1' }], action: 'INCREASE_BUDGET', actionValue: '100', maxBudgetChangePercent: '30', maxBudget: '80' })),
+      await user.client.post(
+        '/api/rules',
+        rule({
+          name: 'Scale winners',
+          isDryRun: true,
+          conditions: [{ metric: 'spend', operator: 'gte', value: '1' }],
+          action: 'INCREASE_BUDGET',
+          actionValue: '100',
+          maxBudgetChangePercent: '30',
+          maxBudget: '80',
+        }),
+      ),
       201,
     ).body;
     const budgets = Object.keys(sets).map(budgetOf);
@@ -130,7 +190,19 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
   });
 
   it('an action interrupted by a crash is verified in Meta before anything is repeated', async () => {
-    const created = expectStatus(await user.client.post('/api/rules', rule({ name: 'Stop spenders', conditions: [{ metric: 'spend', operator: 'gt', value: '40' }], action: 'PAUSE', actionValue: undefined, scope: { adAccountIds: [accountId], nameContains: 'pausable' } })), 201).body;
+    const created = expectStatus(
+      await user.client.post(
+        '/api/rules',
+        rule({
+          name: 'Stop spenders',
+          conditions: [{ metric: 'spend', operator: 'gt', value: '40' }],
+          action: 'PAUSE',
+          actionValue: undefined,
+          scope: { adAccountIds: [accountId], nameContains: 'pausable' },
+        }),
+      ),
+      201,
+    ).body;
     // A previous worker recorded the intent and died before Meta was called (Meta still shows ACTIVE).
     await stack.prisma.autoRuleExecution.create({
       data: {
@@ -150,18 +222,32 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
       },
     });
     await engine().run(created.id, { manual: true });
-    const rows = await stack.prisma.autoRuleExecution.findMany({ where: { ruleId: created.id }, orderBy: { executedAt: 'asc' } });
+    const rows = await stack.prisma.autoRuleExecution.findMany({
+      where: { ruleId: created.id },
+      orderBy: { executedAt: 'asc' },
+    });
     expect(rows[0].result).toBe('FAILED');
     expect(rows[0].errorMessage).toMatch(/not applied/);
     expect(rows.filter((r) => r.result === 'SUCCESS')).toHaveLength(1);
     expect(stack.meta.objects.get(sets.pausable)!.fields.status).toBe('PAUSED');
-    const pauseCalls = stack.meta.requests.filter((r) => r.method === 'POST' && r.path === `/${sets.pausable}` && r.params.status === 'PAUSED');
+    const pauseCalls = stack.meta.requests.filter(
+      (r) => r.method === 'POST' && r.path === `/${sets.pausable}` && r.params.status === 'PAUSED',
+    );
     expect(pauseCalls).toHaveLength(1);
   });
 
   it('two workers never evaluate the same rule at the same time', async () => {
-    const created = expectStatus(await user.client.post('/api/rules', rule({ name: 'Notify only', action: 'NOTIFY_ONLY', actionValue: undefined })), 201).body;
-    const [a, b] = await Promise.all([engine().run(created.id, { manual: true }), engine().run(created.id, { manual: true })]);
+    const created = expectStatus(
+      await user.client.post(
+        '/api/rules',
+        rule({ name: 'Notify only', action: 'NOTIFY_ONLY', actionValue: undefined }),
+      ),
+      201,
+    ).body;
+    const [a, b] = await Promise.all([
+      engine().run(created.id, { manual: true }),
+      engine().run(created.id, { manual: true }),
+    ]);
     // The loser gets { skipped: '<reason>' } (a completed run reports a numeric `skipped` counter).
     const skipped = [a, b].filter((r) => typeof (r as { skipped: unknown }).skipped === 'string');
     expect(skipped).toHaveLength(1);

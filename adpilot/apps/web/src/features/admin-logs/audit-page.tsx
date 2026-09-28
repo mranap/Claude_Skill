@@ -41,7 +41,8 @@ const ACTION_PREFIXES = [
 ];
 
 function actionTone(action: string): 'danger' | 'warning' | 'success' | 'secondary' {
-  if (/(failed|blocked|deleted|reuse|locked|revoked)/.test(action)) return action.includes('failed') || action.includes('reuse') ? 'danger' : 'warning';
+  if (/(failed|blocked|deleted|reuse|locked|revoked)/.test(action))
+    return action.includes('failed') || action.includes('reuse') ? 'danger' : 'warning';
   if (/(success|created|enabled|unblocked)/.test(action)) return 'success';
   return 'secondary';
 }
@@ -49,7 +50,11 @@ function actionTone(action: string): 'danger' | 'warning' | 'success' | 'seconda
 function UserLink({ id, label }: { id: string | null; label: string | null }) {
   if (!id) return <span className="text-muted-foreground">{label ?? '—'}</span>;
   return (
-    <Link href={`/admin/users/${id}`} className="hover:text-primary-fg hover:underline" onClick={(e) => e.stopPropagation()}>
+    <Link
+      href={`/admin/users/${id}`}
+      className="hover:text-primary-fg hover:underline"
+      onClick={(e) => e.stopPropagation()}
+    >
       {label ?? shortId(id)}
     </Link>
   );
@@ -108,7 +113,10 @@ const columns: DataTableColumn<AuditLogDto>[] = [
 export function AuditPage() {
   const table = useUrlTableState({ filterKeys: ['action', 'range'], defaultPageSize: 50 });
   const { range, ...rest } = table.params;
-  const params = { ...rest, ...rangeToQuery(parseRange(typeof range === 'string' ? range : undefined, true)) };
+  const params = {
+    ...rest,
+    ...rangeToQuery(parseRange(typeof range === 'string' ? range : undefined, true)),
+  };
   const audit = useQuery({
     queryKey: queryKeys.admin.audit(params),
     queryFn: ({ signal }) => adminLogsApi.audit(params, signal),
@@ -117,7 +125,10 @@ export function AuditPage() {
 
   return (
     <>
-      <PageHeader title="Audit log" description="Security-relevant actions by users, administrators and the system. Entries cannot be edited." />
+      <PageHeader
+        title="Audit log"
+        description="Security-relevant actions by users, administrators and the system. Entries cannot be edited."
+      />
       <DataTable
         aria-label="Audit log"
         columns={columns}
@@ -139,13 +150,22 @@ export function AuditPage() {
                 { label: 'Actor', value: e.actorEmail ?? e.actorLabel ?? e.actorType },
                 { label: 'Actor ID', value: e.actorUserId, mono: true, copy: e.actorUserId },
                 { label: 'Subject ID', value: e.subjectUserId, mono: true, copy: e.subjectUserId },
-                { label: 'Target', value: e.targetType ? `${e.targetType} ${e.targetId ?? ''}` : null, mono: true, copy: e.targetId },
+                {
+                  label: 'Target',
+                  value: e.targetType ? `${e.targetType} ${e.targetId ?? ''}` : null,
+                  mono: true,
+                  copy: e.targetId,
+                },
                 { label: 'Device', value: e.userAgent ? describeUserAgent(e.userAgent).label : null },
               ]}
             />
             <div className="grid content-start gap-1.5">
               <p className="text-xs font-medium text-muted-foreground">Metadata</p>
-              {e.metadata ? <JsonViewer value={e.metadata} maxHeightClass="max-h-72" /> : <p className="text-sm text-muted-foreground">No metadata.</p>}
+              {e.metadata ? (
+                <JsonViewer value={e.metadata} maxHeightClass="max-h-72" />
+              ) : (
+                <p className="text-sm text-muted-foreground">No metadata.</p>
+              )}
             </div>
           </div>
         )}
@@ -155,7 +175,13 @@ export function AuditPage() {
             searchPlaceholder="Search e-mail, action, target ID…"
             filters={
               <>
-                <FilterSelect state={table} filterKey="action" allLabel="All actions" aria-label="Action" options={ACTION_PREFIXES} />
+                <FilterSelect
+                  state={table}
+                  filterKey="action"
+                  allLabel="All actions"
+                  aria-label="Action"
+                  options={ACTION_PREFIXES}
+                />
                 <DateRangeFilter state={table} />
               </>
             }
@@ -163,7 +189,12 @@ export function AuditPage() {
         }
         emptyState={
           table.hasActiveFilters ? undefined : (
-            <EmptyState icon={FileClock} title="No audit events yet" description="Sign-ins, admin actions and setting changes will appear here." compact />
+            <EmptyState
+              icon={FileClock}
+              title="No audit events yet"
+              description="Sign-ins, admin actions and setting changes will appear here."
+              compact
+            />
           )
         }
       />

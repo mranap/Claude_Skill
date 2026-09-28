@@ -30,8 +30,9 @@ export function ForcedPasswordChange() {
           title="Set a new password"
           description={
             <>
-              Your administrator set a temporary password for <span className="font-medium text-foreground">{user.email}</span>.
-              Choose your own password to continue.
+              Your administrator set a temporary password for{' '}
+              <span className="font-medium text-foreground">{user.email}</span>. Choose your own password to
+              continue.
             </>
           }
           footer={

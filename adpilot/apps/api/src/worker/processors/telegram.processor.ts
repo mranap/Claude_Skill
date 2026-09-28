@@ -46,7 +46,8 @@ export class TelegramProcessor implements QueueProcessor {
       await this.bot.sendMessage(conn.chatId, text);
     } catch (err) {
       // Only a Bot API error can mean "maybe sent"; anything else failed before the message left.
-      const e = err instanceof TelegramSendError ? err : new TelegramSendError('TEMPORARY', (err as Error).message);
+      const e =
+        err instanceof TelegramSendError ? err : new TelegramSendError('TEMPORARY', (err as Error).message);
       if (e.kind === 'RATE_LIMITED') {
         // Definitely not delivered: release and retry after Telegram's retry_after.
         await this.deliveries.release(deliveryId, e.message);
@@ -58,11 +59,21 @@ export class TelegramProcessor implements QueueProcessor {
         throw e;
       }
       if (e.kind === 'CHAT_UNAVAILABLE') {
-        await this.prisma.telegramConnection.update({ where: { userId: user.id }, data: { isActive: false, lastError: e.message } });
+        await this.prisma.telegramConnection.update({
+          where: { userId: user.id },
+          data: { isActive: false, lastError: e.message },
+        });
       }
-      const status = e.kind === 'AMBIGUOUS' ? 'UNCERTAIN' : e.kind === 'NOT_CONFIGURED' ? 'SKIPPED' : 'FAILED';
+      const status =
+        e.kind === 'AMBIGUOUS' ? 'UNCERTAIN' : e.kind === 'NOT_CONFIGURED' ? 'SKIPPED' : 'FAILED';
       await this.deliveries.markFinal(deliveryId, status, e.message);
-      if (status === 'FAILED') await this.systemLog.warn('telegram', `Telegram delivery failed: ${e.message}`, { deliveryId }, user.id);
+      if (status === 'FAILED')
+        await this.systemLog.warn(
+          'telegram',
+          `Telegram delivery failed: ${e.message}`,
+          { deliveryId },
+          user.id,
+        );
       if (status === 'FAILED' && e.kind === 'PERMANENT') throw new UnrecoverableError(e.message);
       return { status };
     }

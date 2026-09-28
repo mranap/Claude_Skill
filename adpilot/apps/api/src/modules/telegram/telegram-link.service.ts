@@ -4,7 +4,12 @@ import { HashingService } from '../../infra/crypto/hashing.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { AppLogger } from '../../infra/logger/logger';
-import { TelegramBotService, TelegramUpdate, assertTelegramConfigured, tgEscape } from './telegram-bot.service';
+import {
+  TelegramBotService,
+  TelegramUpdate,
+  assertTelegramConfigured,
+  tgEscape,
+} from './telegram-bot.service';
 
 const LINK_TTL_MS = 10 * 60_000;
 
@@ -31,8 +36,13 @@ export class TelegramLinkService {
     const code = this.hashing.randomToken(24); // 32 url-safe chars (Telegram allows up to 64)
     const expiresAt = new Date(Date.now() + LINK_TTL_MS);
     await this.prisma.$transaction([
-      this.prisma.telegramLinkCode.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } }),
-      this.prisma.telegramLinkCode.create({ data: { userId, codeHash: this.hashing.sha256(code), expiresAt } }),
+      this.prisma.telegramLinkCode.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.telegramLinkCode.create({
+        data: { userId, codeHash: this.hashing.sha256(code), expiresAt },
+      }),
     ]);
     return { url: `https://t.me/${botUsername}?start=${code}`, expiresAt, botUsername };
   }
@@ -64,12 +74,18 @@ export class TelegramLinkService {
     const chatId = String(msg.chat.id);
 
     if (!text.startsWith('/start')) {
-      await this.reply(chatId, 'This bot only sends notifications from the ads platform. Open Settings → Notifications on the website to link your account.');
+      await this.reply(
+        chatId,
+        'This bot only sends notifications from the ads platform. Open Settings → Notifications on the website to link your account.',
+      );
       return;
     }
     const code = text.split(/\s+/)[1];
     if (!code) {
-      await this.reply(chatId, 'Hi! To receive notifications, open Settings → Notifications on the website and press “Connect Telegram”.');
+      await this.reply(
+        chatId,
+        'Hi! To receive notifications, open Settings → Notifications on the website and press “Connect Telegram”.',
+      );
       return;
     }
 
@@ -81,7 +97,10 @@ export class TelegramLinkService {
       });
       if (consumed.count !== 1) return null;
       const row = await tx.telegramLinkCode.findUniqueOrThrow({ where: { codeHash } });
-      const user = await tx.user.findUnique({ where: { id: row.userId }, select: { id: true, email: true, status: true } });
+      const user = await tx.user.findUnique({
+        where: { id: row.userId },
+        select: { id: true, email: true, status: true },
+      });
       if (!user || user.status !== 'ACTIVE') return null;
       await tx.telegramConnection.upsert({
         where: { userId: user.id },
@@ -105,7 +124,10 @@ export class TelegramLinkService {
     });
 
     if (!linked) {
-      await this.reply(chatId, 'This link is invalid or has expired. Generate a new one in Settings → Notifications.');
+      await this.reply(
+        chatId,
+        'This link is invalid or has expired. Generate a new one in Settings → Notifications.',
+      );
       return;
     }
     await this.audit.log({
@@ -115,7 +137,10 @@ export class TelegramLinkService {
       metadata: { username: msg.from?.username ?? null },
     });
     const masked = linked.email.replace(/^(.{2}).*(@.*)$/, '$1***$2');
-    await this.reply(chatId, `✅ Telegram is now linked to <b>${tgEscape(masked)}</b>. You will receive notifications here.`);
+    await this.reply(
+      chatId,
+      `✅ Telegram is now linked to <b>${tgEscape(masked)}</b>. You will receive notifications here.`,
+    );
   }
 
   private async reply(chatId: string, html: string): Promise<void> {

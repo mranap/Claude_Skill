@@ -35,18 +35,35 @@ function config(overrides: Record<string, unknown> = {}, variants?: unknown[]): 
         key: 'en',
         label: 'EN',
         countries: ['US', 'CA'],
-        ads: [{ key: 'a1', creativeFileId: VIDEO, primaryText: 'Hello', headline: 'Title', link: 'https://example.com/lp' }],
+        ads: [
+          {
+            key: 'a1',
+            creativeFileId: VIDEO,
+            primaryText: 'Hello',
+            headline: 'Title',
+            link: 'https://example.com/lp',
+          },
+        ],
       },
     ],
   });
 }
 
-const refs = { mediaKey: (id: string) => `media:${id}`, typeOf: (id: string) => (id === VIDEO ? ('VIDEO' as const) : ('IMAGE' as const)) };
+const refs = {
+  mediaKey: (id: string) => `media:${id}`,
+  typeOf: (id: string) => (id === VIDEO ? ('VIDEO' as const) : ('IMAGE' as const)),
+};
 
 describe('campaign payload', () => {
   it('creates the campaign PAUSED with explicit ad set budget sharing flag for ad set budgets', () => {
     const p = buildCampaignPayload(config(), 'Camp', 'USD');
-    expect(p).toMatchObject({ name: 'Camp', objective: 'OUTCOME_LEADS', status: 'PAUSED', buying_type: 'AUCTION', special_ad_categories: [] });
+    expect(p).toMatchObject({
+      name: 'Camp',
+      objective: 'OUTCOME_LEADS',
+      status: 'PAUSED',
+      buying_type: 'AUCTION',
+      special_ad_categories: [],
+    });
     expect(p.is_adset_budget_sharing_enabled).toBe(false);
     expect(p.daily_budget).toBeUndefined();
     expect(p.special_ad_category_country).toBeUndefined();
@@ -54,7 +71,15 @@ describe('campaign payload', () => {
 
   it('puts the budget on the campaign (minor units as string) for campaign budgets', () => {
     const p = buildCampaignPayload(
-      config({ budget: { level: 'CAMPAIGN', type: 'LIFETIME', amount: '1500', bidStrategy: 'COST_CAP', bidAmount: '3' } }),
+      config({
+        budget: {
+          level: 'CAMPAIGN',
+          type: 'LIFETIME',
+          amount: '1500',
+          bidStrategy: 'COST_CAP',
+          bidAmount: '3',
+        },
+      }),
       'Camp',
       'JPY',
     );
@@ -89,8 +114,18 @@ describe('ad set payload', () => {
   });
 
   it('adds DSA beneficiary/payor for EU targeting, falling back to the ad account defaults', () => {
-    const c = config({}, [{ key: 'de', label: 'DE', countries: ['DE'], ads: [{ key: 'a', creativeFileId: VIDEO, primaryText: 'x', link: 'https://e.com' }] }]);
-    const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'EUR', { dsaBeneficiary: 'Acme GmbH', dsaPayor: 'Acme GmbH' });
+    const c = config({}, [
+      {
+        key: 'de',
+        label: 'DE',
+        countries: ['DE'],
+        ads: [{ key: 'a', creativeFileId: VIDEO, primaryText: 'x', link: 'https://e.com' }],
+      },
+    ]);
+    const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'EUR', {
+      dsaBeneficiary: 'Acme GmbH',
+      dsaPayor: 'Acme GmbH',
+    });
     expect(p.dsa_beneficiary).toBe('Acme GmbH');
     expect(p.dsa_payor).toBe('Acme GmbH');
   });
@@ -101,10 +136,24 @@ describe('ad set payload', () => {
         objective: 'OUTCOME_SALES',
         optimizationGoal: 'VALUE',
         conversion: { pixelId: '555', event: 'PURCHASE' },
-        budget: { level: 'ADSET', type: 'DAILY', amount: '10', bidStrategy: 'LOWEST_COST_WITH_MIN_ROAS', roasFloor: '1.5' },
+        budget: {
+          level: 'ADSET',
+          type: 'DAILY',
+          amount: '10',
+          bidStrategy: 'LOWEST_COST_WITH_MIN_ROAS',
+          roasFloor: '1.5',
+        },
         attribution: { mode: 'CUSTOM', clickDays: 1, viewDays: 0, engagedViewDays: 0 },
       },
-      [{ key: 'v', label: 'V', countries: ['US'], budgetAmount: '40', ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'x', link: 'https://e.com' }] }],
+      [
+        {
+          key: 'v',
+          label: 'V',
+          countries: ['US'],
+          budgetAmount: '40',
+          ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'x', link: 'https://e.com' }],
+        },
+      ],
     );
     const p = buildAdSetPayload(c, c.variants[0], 'AdSet', 'USD', {});
     expect(p.daily_budget).toBe('4000');
@@ -114,7 +163,14 @@ describe('ad set payload', () => {
 
   it('builds targeting with an explicit Advantage+ audience flag, genders, locales and manual placements', () => {
     const c = config({
-      targeting: { countries: ['US'], genders: 'FEMALE', ageMin: 25, ageMax: 54, locales: [{ key: 6, name: 'English (US)' }], advantageAudience: false },
+      targeting: {
+        countries: ['US'],
+        genders: 'FEMALE',
+        ageMin: 25,
+        ageMax: 54,
+        locales: [{ key: 6, name: 'English (US)' }],
+        advantageAudience: false,
+      },
       placements: {
         mode: 'MANUAL',
         publisherPlatforms: ['facebook', 'instagram'],
@@ -162,11 +218,22 @@ describe('creative and ad payloads', () => {
   });
 
   it('image creative uses the image hash and Meta default enhancements send no opt-out spec', () => {
-    const c = config({ creative: { format: 'SINGLE_IMAGE', enhancements: 'META_DEFAULT', urlParameters: 'utm_source=fb' } }, [
-      { key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'Buy', link: 'https://e.com' }] },
-    ]);
+    const c = config(
+      { creative: { format: 'SINGLE_IMAGE', enhancements: 'META_DEFAULT', urlParameters: 'utm_source=fb' } },
+      [
+        {
+          key: 'v',
+          label: 'V',
+          countries: ['US'],
+          ads: [{ key: 'a', creativeFileId: IMAGE, primaryText: 'Buy', link: 'https://e.com' }],
+        },
+      ],
+    );
     const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
-    expect(p.object_story_spec.link_data).toMatchObject({ link: 'https://e.com', image_hash: { $ref: `media:${IMAGE}`, field: 'imageHash' } });
+    expect(p.object_story_spec.link_data).toMatchObject({
+      link: 'https://e.com',
+      image_hash: { $ref: `media:${IMAGE}`, field: 'imageHash' },
+    });
     expect(p.url_tags).toBe('utm_source=fb');
     expect(p.degrees_of_freedom_spec).toBeUndefined();
   });
@@ -193,34 +260,64 @@ describe('creative and ad payloads', () => {
     const p = buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any;
     const cards = p.object_story_spec.link_data.child_attachments;
     expect(cards).toHaveLength(2);
-    expect(cards[0]).toMatchObject({ link: 'https://e.com', name: 'One', image_hash: { field: 'imageHash' } });
-    expect(cards[1]).toMatchObject({ link: 'https://e.com/2', video_id: { field: 'videoId' }, picture: { field: 'thumbnailUrl' } });
+    expect(cards[0]).toMatchObject({
+      link: 'https://e.com',
+      name: 'One',
+      image_hash: { field: 'imageHash' },
+    });
+    expect(cards[1]).toMatchObject({
+      link: 'https://e.com/2',
+      video_id: { field: 'videoId' },
+      picture: { field: 'thumbnailUrl' },
+    });
   });
 
   it('lead form ads use lead_gen_form_id and the Lead Ads placeholder link (image, video, carousel)', () => {
     const lead = (format: string, ad: Record<string, unknown>) => {
       const c = config(
-        { destination: 'ON_AD', optimizationGoal: 'LEAD_GENERATION', creative: { format, callToAction: 'SIGN_UP', leadFormId: '999' } },
+        {
+          destination: 'ON_AD',
+          optimizationGoal: 'LEAD_GENERATION',
+          creative: { format, callToAction: 'SIGN_UP', leadFormId: '999' },
+        },
         [{ key: 'v', label: 'V', countries: ['US'], ads: [{ key: 'a', primaryText: 'x', ...ad }] }],
       );
-      return (buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any).object_story_spec;
+      return (buildCreativePayload(c, c.variants[0], c.variants[0].ads[0], 'Creative', refs) as any)
+        .object_story_spec;
     };
     expect(LEAD_FORM_LINK).toBe('http://fb.me/');
     // video_data has no link field: the call to action carries it next to the form.
-    expect(lead('SINGLE_VIDEO', { creativeFileId: VIDEO }).video_data.call_to_action).toEqual({ type: 'SIGN_UP', value: { link: LEAD_FORM_LINK, lead_gen_form_id: '999' } });
+    expect(lead('SINGLE_VIDEO', { creativeFileId: VIDEO }).video_data.call_to_action).toEqual({
+      type: 'SIGN_UP',
+      value: { link: LEAD_FORM_LINK, lead_gen_form_id: '999' },
+    });
     const image = lead('SINGLE_IMAGE', { creativeFileId: IMAGE }).link_data;
     expect(image.link).toBe(LEAD_FORM_LINK);
     expect(image.call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
-    const carousel = lead('CAROUSEL', { cards: [{ creativeFileId: IMAGE }, { creativeFileId: VIDEO, link: 'https://e.com/2' }] }).link_data;
+    const carousel = lead('CAROUSEL', {
+      cards: [{ creativeFileId: IMAGE }, { creativeFileId: VIDEO, link: 'https://e.com/2' }],
+    }).link_data;
     expect(carousel.link).toBe(LEAD_FORM_LINK);
     expect(carousel.child_attachments.map((a: any) => a.link)).toEqual([LEAD_FORM_LINK, LEAD_FORM_LINK]);
-    expect(carousel.child_attachments[0].call_to_action).toEqual({ type: 'SIGN_UP', value: { lead_gen_form_id: '999' } });
+    expect(carousel.child_attachments[0].call_to_action).toEqual({
+      type: 'SIGN_UP',
+      value: { lead_gen_form_id: '999' },
+    });
   });
 
   it('opts out of every verified enhancement that changes how the ad looks', () => {
-    expect(ENHANCEMENT_OPT_OUT_FEATURES.IMAGE).toEqual(expect.arrayContaining(['image_background_gen', 'creative_stickers', 'reveal_details_over_time', 'text_translation']));
+    expect(ENHANCEMENT_OPT_OUT_FEATURES.IMAGE).toEqual(
+      expect.arrayContaining([
+        'image_background_gen',
+        'creative_stickers',
+        'reveal_details_over_time',
+        'text_translation',
+      ]),
+    );
     for (const kind of ['VIDEO', 'CAROUSEL'] as const) {
-      expect(ENHANCEMENT_OPT_OUT_FEATURES[kind]).toEqual(expect.arrayContaining(['creative_stickers', 'reveal_details_over_time', 'text_translation']));
+      expect(ENHANCEMENT_OPT_OUT_FEATURES[kind]).toEqual(
+        expect.arrayContaining(['creative_stickers', 'reveal_details_over_time', 'text_translation']),
+      );
     }
     // Image-only features are never sent for other formats.
     expect(ENHANCEMENT_OPT_OUT_FEATURES.VIDEO).not.toContain('image_background_gen');
@@ -238,14 +335,22 @@ describe('creative and ad payloads', () => {
 
 describe('helpers', () => {
   it('resolves references deeply and fails loudly on missing ones', () => {
-    const payload = { a: { $ref: 'x', field: 'metaId' }, list: [{ b: { $ref: 'y', field: 'videoId' } }], n: 1 };
+    const payload = {
+      a: { $ref: 'x', field: 'metaId' },
+      list: [{ b: { $ref: 'y', field: 'videoId' } }],
+      n: 1,
+    };
     const resolved = resolveRefs(payload, (r) => (r.$ref === 'x' ? '123' : r.$ref === 'y' ? '456' : null));
     expect(resolved).toEqual({ a: '123', list: [{ b: '456' }], n: 1 });
-    expect(() => resolveRefs({ a: { $ref: 'z', field: 'metaId' } }, () => null)).toThrow(/Unresolved reference z/);
+    expect(() => resolveRefs({ a: { $ref: 'z', field: 'metaId' } }, () => null)).toThrow(
+      /Unresolved reference z/,
+    );
   });
 
   it('renders naming patterns and keeps unknown placeholders', () => {
-    expect(renderName('{name} | {date} | #{code}', { name: 'Spring', date: '2026-09-28', code: 'AB12' })).toBe('Spring | 2026-09-28 | #AB12');
+    expect(
+      renderName('{name} | {date} | #{code}', { name: 'Spring', date: '2026-09-28', code: 'AB12' }),
+    ).toBe('Spring | 2026-09-28 | #AB12');
     expect(renderName('{name}  {unknown}', { name: 'X' })).toBe('X {unknown}');
     expect(renderName('x'.repeat(400), {})).toHaveLength(250);
   });

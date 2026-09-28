@@ -17,7 +17,13 @@ export class SystemLogService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async write(level: Level, source: string, message: string, context?: Record<string, unknown>, userId?: string): Promise<void> {
+  async write(
+    level: Level,
+    source: string,
+    message: string,
+    context?: Record<string, unknown>,
+    userId?: string,
+  ): Promise<void> {
     const ctx = RequestContext.get();
     const payload = context ? (sanitize(context) as Prisma.InputJsonValue) : undefined;
     if (level === 'ERROR') this.logger.error(message, { source, ...context });

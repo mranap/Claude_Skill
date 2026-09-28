@@ -21,10 +21,7 @@ export class HealthController {
   @Public()
   @Get('ready')
   async ready() {
-    const [db, redis] = await Promise.allSettled([
-      this.prisma.$queryRaw`SELECT 1`,
-      this.redis.client.ping(),
-    ]);
+    const [db, redis] = await Promise.allSettled([this.prisma.$queryRaw`SELECT 1`, this.redis.client.ping()]);
     const result = { database: db.status === 'fulfilled', redis: redis.status === 'fulfilled' };
     if (!result.database || !result.redis) {
       throw new HttpException({ status: 'unavailable', ...result }, HttpStatus.SERVICE_UNAVAILABLE);
@@ -41,7 +38,16 @@ export class SystemStatusController {
   @Public()
   @Get('status')
   async status() {
-    const [maintenance, general] = await Promise.all([this.settings.get('maintenance'), this.settings.get('general')]);
-    return { maintenance: { enabled: maintenance.enabled, message: maintenance.enabled ? maintenance.message : null }, platformName: general.platformName };
+    const [maintenance, general] = await Promise.all([
+      this.settings.get('maintenance'),
+      this.settings.get('general'),
+    ]);
+    return {
+      maintenance: {
+        enabled: maintenance.enabled,
+        message: maintenance.enabled ? maintenance.message : null,
+      },
+      platformName: general.platformName,
+    };
   }
 }

@@ -7,7 +7,8 @@ const SECRET_KEY_PATTERN =
   /pass(word)?|secret|token|authorization|cookie|appsecret|api[_-]?key|private[_-]?key|credential|signature|otp|recovery/i;
 const META_TOKEN_PATTERN = /\bEA[A-Za-z0-9]{20,}\b/g;
 const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9._~+/=-]{10,}/gi;
-const ACCESS_TOKEN_QS_PATTERN = /(access_token|appsecret_proof|input_token|client_secret|fb_exchange_token|token)=([^&\s"']+)/gi;
+const ACCESS_TOKEN_QS_PATTERN =
+  /(access_token|appsecret_proof|input_token|client_secret|fb_exchange_token|token)=([^&\s"']+)/gi;
 const URL_CREDENTIALS_PATTERN = /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi;
 
 export const REDACTED = '[REDACTED]';

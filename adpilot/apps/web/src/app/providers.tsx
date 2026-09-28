@@ -21,7 +21,13 @@ export function Providers({ children, nonce }: { children: React.ReactNode; nonc
   }, []);
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      nonce={nonce}
+    >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={250} skipDelayDuration={150}>
           {children}

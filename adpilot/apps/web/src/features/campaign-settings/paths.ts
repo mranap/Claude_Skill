@@ -104,7 +104,8 @@ export function describePath(path: string, variantLabels: (string | undefined)[]
       const adLabel = `Ad ${Number(ad[1]) + 1}`;
       if (!ad[2]) return `${group} · ${adLabel}`;
       const card = /^cards\.(\d+)(?:\.(.+))?$/.exec(ad[2]);
-      if (card) return `${group} · ${adLabel} · Card ${Number(card[1]) + 1}${card[2] ? ` · ${AD_FIELDS[card[2]] ?? humanize(card[2])}` : ''}`;
+      if (card)
+        return `${group} · ${adLabel} · Card ${Number(card[1]) + 1}${card[2] ? ` · ${AD_FIELDS[card[2]] ?? humanize(card[2])}` : ''}`;
       return `${group} · ${adLabel} · ${AD_FIELDS[ad[2]] ?? humanize(ad[2])}`;
     }
     return `${group} · ${VARIANT_FIELDS[rest] ?? humanize(rest)}`;

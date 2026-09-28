@@ -33,11 +33,19 @@ const AGES = Array.from({ length: 65 - 13 + 1 }, (_, i) => i + 13);
 export const COUNTRY_PRESETS = [{ label: 'All EU countries', values: [...EU_COUNTRY_CODES] }];
 
 export function countrySelectOptions() {
-  return countryOptions().map((c) => ({ value: c.code, label: c.name, hint: c.code, keywords: c.eu ? ['eu', 'europe'] : undefined }));
+  return countryOptions().map((c) => ({
+    value: c.code,
+    label: c.name,
+    hint: c.code,
+    keywords: c.eu ? ['eu', 'europe'] : undefined,
+  }));
 }
 
 export function ageOptions(min = 13, max = 65) {
-  return AGES.filter((a) => a >= min && a <= max).map((a) => ({ value: String(a), label: a === 65 ? '65+' : String(a) }));
+  return AGES.filter((a) => a >= min && a <= max).map((a) => ({
+    value: String(a),
+    label: a === 65 ? '65+' : String(a),
+  }));
 }
 
 export function AudienceSection() {
@@ -61,7 +69,15 @@ export function AudienceSection() {
   };
 
   return (
-    <SettingsSection id="audience" title="Audience" description={ui.mode === 'template' ? 'Default targeting. Each language/geo group can override countries, languages, ages and gender.' : 'Default targeting of every ad set. Groups can override countries, languages, ages and gender.'}>
+    <SettingsSection
+      id="audience"
+      title="Audience"
+      description={
+        ui.mode === 'template'
+          ? 'Default targeting. Each language/geo group can override countries, languages, ages and gender.'
+          : 'Default targeting of every ad set. Groups can override countries, languages, ages and gender.'
+      }
+    >
       <FormField
         control={form.control}
         name="settings.targeting.countries"
@@ -88,7 +104,13 @@ export function AudienceSection() {
           name="settings.targeting.ageMin"
           label="Minimum age"
           render={({ field, controlProps }) => (
-            <SelectInput controlProps={controlProps} value={String(field.value ?? 18)} onChange={(v) => field.onChange(Number(v))} options={advantage ? ageOptions(18, 25) : ageOptions(13, 65)} disabled={ui.disabled} />
+            <SelectInput
+              controlProps={controlProps}
+              value={String(field.value ?? 18)}
+              onChange={(v) => field.onChange(Number(v))}
+              options={advantage ? ageOptions(18, 25) : ageOptions(13, 65)}
+              disabled={ui.disabled}
+            />
           )}
         />
         <FormField
@@ -97,7 +119,13 @@ export function AudienceSection() {
           label="Maximum age"
           description={advantage ? 'Always 65+ with Advantage+ audience.' : undefined}
           render={({ field, controlProps }) => (
-            <SelectInput controlProps={controlProps} value={String(field.value ?? 65)} onChange={(v) => field.onChange(Number(v))} options={ageOptions(13, 65)} disabled={ui.disabled || !!advantage} />
+            <SelectInput
+              controlProps={controlProps}
+              value={String(field.value ?? 65)}
+              onChange={(v) => field.onChange(Number(v))}
+              options={ageOptions(13, 65)}
+              disabled={ui.disabled || !!advantage}
+            />
           )}
         />
         <FormField
@@ -131,21 +159,48 @@ export function AudienceSection() {
               </span>
             }
             description="Meta may reach people beyond your suggestions. Minimum age must be 18–25 and the maximum is always 65+; gender, interests and custom audiences become suggestions."
-            render={({ field, controlProps }) => <Switch {...controlProps} checked={!!field.value} onCheckedChange={setAdvantage} disabled={ui.disabled} />}
+            render={({ field, controlProps }) => (
+              <Switch
+                {...controlProps}
+                checked={!!field.value}
+                onCheckedChange={setAdvantage}
+                disabled={ui.disabled}
+              />
+            )}
           />
           <FormField
             control={form.control}
             name="settings.targeting.locales"
             label="Languages"
             description="Meta locale keys (e.g. 6 = English (US)). Leave empty to target all languages."
-            render={({ field }) => <PairListEditor value={field.value ?? []} onChange={field.onChange} idKey="key" numeric idLabel="Locale key" nameLabel="Language" disabled={ui.disabled} docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/targeting-search#locales" />}
+            render={({ field }) => (
+              <PairListEditor
+                value={field.value ?? []}
+                onChange={field.onChange}
+                idKey="key"
+                numeric
+                idLabel="Locale key"
+                nameLabel="Language"
+                disabled={ui.disabled}
+                docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/targeting-search#locales"
+              />
+            )}
           />
           <FormField
             control={form.control}
             name="settings.targeting.excludedCountries"
             label="Excluded countries"
             render={({ field, controlProps }) => (
-              <MultiCombobox {...controlProps} value={field.value ?? []} onValueChange={field.onChange} options={countrySelectOptions()} placeholder="None" addLabel="Add country" searchPlaceholder="Search countries" disabled={ui.disabled} />
+              <MultiCombobox
+                {...controlProps}
+                value={field.value ?? []}
+                onValueChange={field.onChange}
+                options={countrySelectOptions()}
+                placeholder="None"
+                addLabel="Add country"
+                searchPlaceholder="Search countries"
+                disabled={ui.disabled}
+              />
             )}
           />
           <div className="grid gap-4 lg:grid-cols-2">
@@ -155,7 +210,16 @@ export function AudienceSection() {
               label="Custom audiences"
               description={ui.assetsAccountId ? undefined : 'Choose an ad account to pick its audiences.'}
               render={({ field, controlProps }) => (
-                <MultiCombobox {...controlProps} value={field.value ?? []} onValueChange={field.onChange} options={audienceOptions} placeholder={audiences.isLoading ? 'Loading…' : 'None'} addLabel="Add audience" emptyText="No audiences in this ad account" disabled={ui.disabled || !ui.assetsAccountId} />
+                <MultiCombobox
+                  {...controlProps}
+                  value={field.value ?? []}
+                  onValueChange={field.onChange}
+                  options={audienceOptions}
+                  placeholder={audiences.isLoading ? 'Loading…' : 'None'}
+                  addLabel="Add audience"
+                  emptyText="No audiences in this ad account"
+                  disabled={ui.disabled || !ui.assetsAccountId}
+                />
               )}
             />
             <FormField
@@ -163,7 +227,16 @@ export function AudienceSection() {
               name="settings.targeting.excludedCustomAudienceIds"
               label="Excluded audiences"
               render={({ field, controlProps }) => (
-                <MultiCombobox {...controlProps} value={field.value ?? []} onValueChange={field.onChange} options={audienceOptions} placeholder="None" addLabel="Add audience" emptyText="No audiences in this ad account" disabled={ui.disabled || !ui.assetsAccountId} />
+                <MultiCombobox
+                  {...controlProps}
+                  value={field.value ?? []}
+                  onValueChange={field.onChange}
+                  options={audienceOptions}
+                  placeholder="None"
+                  addLabel="Add audience"
+                  emptyText="No audiences in this ad account"
+                  disabled={ui.disabled || !ui.assetsAccountId}
+                />
               )}
             />
           </div>
@@ -172,7 +245,17 @@ export function AudienceSection() {
             name="settings.targeting.interests"
             label="Detailed targeting (interests)"
             description="Interest ids from Meta's targeting search. Leave empty for broad targeting."
-            render={({ field }) => <PairListEditor value={field.value ?? []} onChange={field.onChange} idKey="id" idLabel="Interest id" nameLabel="Interest name" disabled={ui.disabled} docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting#interests" />}
+            render={({ field }) => (
+              <PairListEditor
+                value={field.value ?? []}
+                onChange={field.onChange}
+                idKey="id"
+                idLabel="Interest id"
+                nameLabel="Interest name"
+                disabled={ui.disabled}
+                docsHref="https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting#interests"
+              />
+            )}
           />
         </>
       ) : null}
@@ -180,7 +263,9 @@ export function AudienceSection() {
   );
 }
 
-type Pair<K extends 'key' | 'id'> = K extends 'key' ? { key: number; name: string } : { id: string; name: string };
+type Pair<K extends 'key' | 'id'> = K extends 'key'
+  ? { key: number; name: string }
+  : { id: string; name: string };
 
 /** Editable list of `{ key|id, name }` pairs (Meta locales / interests entered by id). */
 export function PairListEditor<K extends 'key' | 'id'>({
@@ -207,7 +292,11 @@ export function PairListEditor<K extends 'key' | 'id'>({
   const valid = numeric ? /^\d{1,9}$/.test(id) && Number(id) > 0 : /^\d{1,30}$/.test(id);
   const add = () => {
     if (!valid) return;
-    const item = (idKey === 'key' ? { key: Number(id), name: name.trim() || `Locale ${id}` } : { id, name: name.trim() || id }) as Pair<K>;
+    const item = (
+      idKey === 'key'
+        ? { key: Number(id), name: name.trim() || `Locale ${id}` }
+        : { id, name: name.trim() || id }
+    ) as Pair<K>;
     const exists = value.some((v) => String((v as Record<string, unknown>)[idKey]) === id);
     if (!exists) onChange([...value, item]);
     setId('');
@@ -220,9 +309,20 @@ export function PairListEditor<K extends 'key' | 'id'>({
           {value.map((v) => {
             const k = String((v as Record<string, unknown>)[idKey]);
             return (
-              <span key={k} className="inline-flex h-6 items-center gap-1 rounded bg-secondary pr-0.5 pl-2 text-xs font-medium">
+              <span
+                key={k}
+                className="inline-flex h-6 items-center gap-1 rounded bg-secondary pr-0.5 pl-2 text-xs font-medium"
+              >
                 {v.name} <span className="font-mono text-muted-foreground">{k}</span>
-                <button type="button" disabled={disabled} onClick={() => onChange(value.filter((x) => String((x as Record<string, unknown>)[idKey]) !== k))} className="flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground" aria-label={`Remove ${v.name}`}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange(value.filter((x) => String((x as Record<string, unknown>)[idKey]) !== k))
+                  }
+                  className="flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                  aria-label={`Remove ${v.name}`}
+                >
                   <X className="size-3" />
                 </button>
               </span>
@@ -231,7 +331,15 @@ export function PairListEditor<K extends 'key' | 'id'>({
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Input value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, ''))} placeholder={idLabel} inputMode="numeric" className="h-8 w-32" aria-label={idLabel} disabled={disabled} />
+        <Input
+          value={id}
+          onChange={(e) => setId(e.target.value.replace(/\D/g, ''))}
+          placeholder={idLabel}
+          inputMode="numeric"
+          className="h-8 w-32"
+          aria-label={idLabel}
+          disabled={disabled}
+        />
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -251,7 +359,12 @@ export function PairListEditor<K extends 'key' | 'id'>({
           Add
         </Button>
         {docsHref ? (
-          <a href={docsHref} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <a
+            href={docsHref}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
             Find ids <ExternalLink className="size-3" />
           </a>
         ) : null}
@@ -286,7 +399,8 @@ const POSITION_FIELD = {
 export function PlacementsSection() {
   const form = useSettingsForm();
   const ui = useSettingsUi();
-  const placements = useWatch({ control: form.control, name: 'settings.placements' }) as ({ mode: 'AUTOMATIC' } | ({ mode: 'MANUAL' } & Partial<ManualPlacements>)) | undefined;
+  const placements = useWatch({ control: form.control, name: 'settings.placements' }) as
+    ({ mode: 'AUTOMATIC' } | ({ mode: 'MANUAL' } & Partial<ManualPlacements>)) | undefined;
   const manual = placements?.mode === 'MANUAL' ? placements : null;
   const issues = manual
     ? placementIssues({
@@ -300,14 +414,35 @@ export function PlacementsSection() {
     : [];
 
   const setMode = (mode: string) => {
-    form.setValue('settings.placements', mode === 'MANUAL' ? { ...MANUAL_DEFAULT } : { mode: 'AUTOMATIC' }, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+    form.setValue('settings.placements', mode === 'MANUAL' ? { ...MANUAL_DEFAULT } : { mode: 'AUTOMATIC' }, {
+      shouldDirty: true,
+      shouldValidate: form.formState.isSubmitted,
+    });
   };
 
   return (
-    <SettingsSection id="placements" title="Placements" description="Where the ads appear. Advantage+ placements let Meta pick the placements with the best results.">
-      <RadioGroup value={placements?.mode ?? 'AUTOMATIC'} onValueChange={setMode} className="grid gap-2 sm:grid-cols-2" disabled={ui.disabled} aria-label="Placement mode">
-        <RadioCard value="AUTOMATIC" title="Advantage+ placements" description="Recommended. Ads can run on Facebook, Instagram, Audience Network and Threads." />
-        <RadioCard value="MANUAL" title="Manual placements" description="Choose platforms, positions and devices yourself." />
+    <SettingsSection
+      id="placements"
+      title="Placements"
+      description="Where the ads appear. Advantage+ placements let Meta pick the placements with the best results."
+    >
+      <RadioGroup
+        value={placements?.mode ?? 'AUTOMATIC'}
+        onValueChange={setMode}
+        className="grid gap-2 sm:grid-cols-2"
+        disabled={ui.disabled}
+        aria-label="Placement mode"
+      >
+        <RadioCard
+          value="AUTOMATIC"
+          title="Advantage+ placements"
+          description="Recommended. Ads can run on Facebook, Instagram, Audience Network and Threads."
+        />
+        <RadioCard
+          value="MANUAL"
+          title="Manual placements"
+          description="Choose platforms, positions and devices yourself."
+        />
       </RadioGroup>
       {manual ? (
         <div className="grid gap-5 rounded-lg border bg-surface-subtle p-4">
@@ -326,7 +461,8 @@ export function PlacementsSection() {
             )}
           />
           {(manual.publisherPlatforms ?? []).map((platform) => {
-            const name = `settings.placements.${POSITION_FIELD[platform as keyof typeof POSITION_FIELD]}` as never;
+            const name =
+              `settings.placements.${POSITION_FIELD[platform as keyof typeof POSITION_FIELD]}` as never;
             return (
               <FormField
                 key={platform}
@@ -340,7 +476,10 @@ export function PlacementsSection() {
                     onChange={field.onChange}
                     disabled={ui.disabled}
                     columns={2}
-                    options={(POSITIONS[platform] ?? []).map((pos) => ({ value: pos, label: PLACEMENT_LABELS[`${platform}:${pos}`] ?? pos }))}
+                    options={(POSITIONS[platform] ?? []).map((pos) => ({
+                      value: pos,
+                      label: PLACEMENT_LABELS[`${platform}:${pos}`] ?? pos,
+                    }))}
                   />
                 )}
               />
@@ -352,11 +491,20 @@ export function PlacementsSection() {
             label="Devices"
             description="Leave both unchecked for all devices."
             render={({ field }) => (
-              <CheckboxGroup value={(field.value as string[] | undefined) ?? []} onChange={field.onChange} disabled={ui.disabled} columns={2} options={DEVICE_PLATFORMS.map((d) => ({ value: d, label: PLACEMENT_LABELS[d] ?? d }))} />
+              <CheckboxGroup
+                value={(field.value as string[] | undefined) ?? []}
+                onChange={field.onChange}
+                disabled={ui.disabled}
+                columns={2}
+                options={DEVICE_PLATFORMS.map((d) => ({ value: d, label: PLACEMENT_LABELS[d] ?? d }))}
+              />
             )}
           />
           {issues.map((issue) => (
-            <Alert key={`${issue.path}:${issue.message}`} variant={issue.severity === 'error' ? 'destructive' : 'warning'}>
+            <Alert
+              key={`${issue.path}:${issue.message}`}
+              variant={issue.severity === 'error' ? 'destructive' : 'warning'}
+            >
               <AlertDescription className="text-foreground">{issue.message}</AlertDescription>
             </Alert>
           ))}

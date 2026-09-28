@@ -2,7 +2,20 @@
 
 import type { PermissionKey } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Archive, Cpu, DatabaseBackup, Eraser, Gauge, HardDrive, ListTree, Pause, Play, RotateCcw, Server, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  Cpu,
+  DatabaseBackup,
+  Eraser,
+  Gauge,
+  HardDrive,
+  ListTree,
+  Pause,
+  Play,
+  RotateCcw,
+  Server,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -31,7 +44,13 @@ import { getErrorMessage, getErrorTitle } from '@/lib/api/errors';
 import { useNow } from '@/lib/hooks/use-now';
 import { cn } from '@/lib/utils/cn';
 import { replaceQuery } from '@/lib/utils/url';
-import { formatBytes, formatCountdown, formatDateTime, formatDurationMs, formatNumber } from '@/lib/utils/format';
+import {
+  formatBytes,
+  formatCountdown,
+  formatDateTime,
+  formatDurationMs,
+  formatNumber,
+} from '@/lib/utils/format';
 import {
   adminOpsApi,
   JOB_STATES,
@@ -69,7 +88,10 @@ export function MonitoringPage() {
 
   return (
     <>
-      <PageHeader title="Monitoring" description="Background queues and failed jobs, worker heartbeats, Meta API usage, storage and backups." />
+      <PageHeader
+        title="Monitoring"
+        description="Background queues and failed jobs, worker heartbeats, Meta API usage, storage and backups."
+      />
       {can('admin.dashboard.view') ? <HealthChecksCard className="mb-4" /> : null}
       <NavTabs
         className="mb-4"
@@ -94,7 +116,11 @@ function QueuesTab() {
   const searchParams = useSearchParams();
   const queues = useQueues();
   const queryClient = useQueryClient();
-  const selected = searchParams.get('queue') ?? queues.data?.find((q) => q.counts.failed > 0)?.name ?? queues.data?.[0]?.name ?? null;
+  const selected =
+    searchParams.get('queue') ??
+    queues.data?.find((q) => q.counts.failed > 0)?.name ??
+    queues.data?.[0]?.name ??
+    null;
   const [cleaning, setCleaning] = useState<QueueSummary | null>(null);
 
   const select = (name: string) => {
@@ -116,16 +142,20 @@ function QueuesTab() {
   return (
     <div className="grid gap-4">
       <Card className="gap-0 overflow-hidden py-0">
-        {queues.error && !queues.data ? <ErrorAlert error={queues.error} onRetry={() => void queues.refetch()} className="m-4" /> : null}
+        {queues.error && !queues.data ? (
+          <ErrorAlert error={queues.error} onRetry={() => void queues.refetch()} className="m-4" />
+        ) : null}
         <Table aria-label="Queues" containerClassName="overflow-x-auto" style={{ minWidth: 880 }}>
           <TableHeader>
             <TableRow>
               <TableHead className="bg-surface-subtle">Queue</TableHead>
-              {(['waiting', 'active', 'delayed', 'prioritized', 'failed', 'completed'] as JobState[]).map((s) => (
-                <TableHead key={s} className="bg-surface-subtle text-right capitalize">
-                  {s}
-                </TableHead>
-              ))}
+              {(['waiting', 'active', 'delayed', 'prioritized', 'failed', 'completed'] as JobState[]).map(
+                (s) => (
+                  <TableHead key={s} className="bg-surface-subtle text-right capitalize">
+                    {s}
+                  </TableHead>
+                ),
+              )}
               <TableHead className="bg-surface-subtle text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -162,15 +192,26 @@ function QueuesTab() {
                     ) : null}
                   </span>
                 </TableCell>
-                {(['waiting', 'active', 'delayed', 'prioritized', 'failed', 'completed'] as JobState[]).map((s) => (
-                  <TableCell key={s} className={cn('text-right tabular-nums', s === 'failed' && q.counts.failed > 0 && 'font-medium text-destructive-fg', q.counts[s] === 0 && 'text-muted-foreground')}>
-                    {formatNumber(q.counts[s])}
-                  </TableCell>
-                ))}
+                {(['waiting', 'active', 'delayed', 'prioritized', 'failed', 'completed'] as JobState[]).map(
+                  (s) => (
+                    <TableCell
+                      key={s}
+                      className={cn(
+                        'text-right tabular-nums',
+                        s === 'failed' && q.counts.failed > 0 && 'font-medium text-destructive-fg',
+                        q.counts[s] === 0 && 'text-muted-foreground',
+                      )}
+                    >
+                      {formatNumber(q.counts[s])}
+                    </TableCell>
+                  ),
+                )}
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                   {canManage ? (
                     <span className="inline-flex gap-1">
-                      <SimpleTooltip content={q.paused ? 'Resume processing' : 'Pause processing (jobs keep queueing)'}>
+                      <SimpleTooltip
+                        content={q.paused ? 'Resume processing' : 'Pause processing (jobs keep queueing)'}
+                      >
                         <Button
                           variant="ghost"
                           size="icon-xs"
@@ -182,7 +223,12 @@ function QueuesTab() {
                         </Button>
                       </SimpleTooltip>
                       <SimpleTooltip content="Clean finished jobs">
-                        <Button variant="ghost" size="icon-xs" aria-label={`Clean ${q.name}`} onClick={() => setCleaning(q)}>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Clean ${q.name}`}
+                          onClick={() => setCleaning(q)}
+                        >
                           <Eraser />
                         </Button>
                       </SimpleTooltip>
@@ -245,7 +291,9 @@ function JobsPanel({ queue, canManage }: { queue: string; canManage: boolean }) 
       header: state === 'failed' ? 'Error' : 'Details',
       cell: (j) =>
         j.failedReason ? (
-          <span className="line-clamp-2 max-w-[28rem] text-xs whitespace-normal text-destructive-fg">{j.failedReason}</span>
+          <span className="line-clamp-2 max-w-[28rem] text-xs whitespace-normal text-destructive-fg">
+            {j.failedReason}
+          </span>
         ) : j.delay ? (
           <span className="text-xs text-muted-foreground">Delayed {formatDurationMs(j.delay)}</span>
         ) : (
@@ -282,13 +330,23 @@ function JobsPanel({ queue, canManage }: { queue: string; canManage: boolean }) 
             cell: (j: QueueJob) => (
               <span className="inline-flex gap-1">
                 {state === 'failed' ? (
-                  <Button variant="ghost" size="xs" onClick={() => retry.mutate(j)} disabled={retry.isPending}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => retry.mutate(j)}
+                    disabled={retry.isPending}
+                  >
                     <RotateCcw />
                     Retry
                   </Button>
                 ) : null}
                 {state !== 'active' ? (
-                  <Button variant="ghost" size="icon-xs" aria-label={`Remove job ${j.id}`} onClick={() => setRemoving(j)}>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove job ${j.id}`}
+                    onClick={() => setRemoving(j)}
+                  >
                     <Trash2 />
                   </Button>
                 ) : null}
@@ -305,7 +363,9 @@ function JobsPanel({ queue, canManage }: { queue: string; canManage: boolean }) 
         <CardTitle>
           Jobs in <span className="font-mono text-base">{queue}</span>
         </CardTitle>
-        <CardDescription>Refreshed every 5 seconds. Job payloads are shown without message contents or secrets.</CardDescription>
+        <CardDescription>
+          Refreshed every 5 seconds. Job payloads are shown without message contents or secrets.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         <SegmentedControl
@@ -340,14 +400,24 @@ function JobsPanel({ queue, canManage }: { queue: string; canManage: boolean }) 
               </div>
               <div className="grid content-start gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {j.stacktrace.length ? 'Last stack trace' : 'Timing'} · created {formatDateTime(new Date(j.timestamp), { seconds: true })}
+                  {j.stacktrace.length ? 'Last stack trace' : 'Timing'} · created{' '}
+                  {formatDateTime(new Date(j.timestamp), { seconds: true })}
                 </span>
-                {j.stacktrace.length ? <CodeBlock code={j.stacktrace.join('\n')} maxHeightClass="max-h-64" wrap /> : null}
+                {j.stacktrace.length ? (
+                  <CodeBlock code={j.stacktrace.join('\n')} maxHeightClass="max-h-64" wrap />
+                ) : null}
                 {j.failedReason ? <p className="text-sm text-destructive-fg">{j.failedReason}</p> : null}
               </div>
             </div>
           )}
-          emptyState={<EmptyState compact icon={Server} title={`No ${state} jobs`} description={state === 'failed' ? 'Nothing failed in this queue.' : undefined} />}
+          emptyState={
+            <EmptyState
+              compact
+              icon={Server}
+              title={`No ${state} jobs`}
+              description={state === 'failed' ? 'Nothing failed in this queue.' : undefined}
+            />
+          }
         />
       </CardContent>
       <ConfirmDialog
@@ -356,7 +426,11 @@ function JobsPanel({ queue, canManage }: { queue: string; canManage: boolean }) 
           if (!open) setRemoving(null);
         }}
         title="Remove this job?"
-        description={removing ? `${removing.name} (${removing.id}) is deleted from the queue and will not run again.` : undefined}
+        description={
+          removing
+            ? `${removing.name} (${removing.id}) is deleted from the queue and will not run again.`
+            : undefined
+        }
         confirmLabel="Remove job"
         destructive
         onConfirm={async () => {
@@ -427,7 +501,8 @@ function CleanDialog({ queue, onClose }: { queue: QueueSummary; onClose: () => v
 function WorkersTab() {
   const workers = useWorkers();
   const data = workers.data;
-  if (workers.error && !data) return <ErrorAlert error={workers.error} onRetry={() => void workers.refetch()} />;
+  if (workers.error && !data)
+    return <ErrorAlert error={workers.error} onRetry={() => void workers.refetch()} />;
   if (!data) return <Skeleton className="h-48 w-full rounded-lg" />;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -435,9 +510,16 @@ function WorkersTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Scheduler
-            <StatusBadge status={data.scheduler ? 'ACTIVE' : 'DOWN'} label={data.scheduler ? 'Running' : 'No heartbeat'} tone={data.scheduler ? 'success' : 'danger'} size="sm" />
+            <StatusBadge
+              status={data.scheduler ? 'ACTIVE' : 'DOWN'}
+              label={data.scheduler ? 'Running' : 'No heartbeat'}
+              tone={data.scheduler ? 'success' : 'danger'}
+              size="sm"
+            />
           </CardTitle>
-          <CardDescription>The leader process that enqueues periodic work. Its heartbeat expires after a minute.</CardDescription>
+          <CardDescription>
+            The leader process that enqueues periodic work. Its heartbeat expires after a minute.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           {data.scheduler ? (
@@ -457,14 +539,22 @@ function WorkersTab() {
               </div>
             </>
           ) : (
-            <p className="text-destructive-fg">No scheduler has reported in the last minute: periodic checks, syncs and rules are not being scheduled.</p>
+            <p className="text-destructive-fg">
+              No scheduler has reported in the last minute: periodic checks, syncs and rules are not being
+              scheduled.
+            </p>
           )}
         </CardContent>
       </Card>
       {data.workers.length === 0 ? (
         <Card>
           <CardContent className="py-8">
-            <EmptyState compact icon={Cpu} title="No worker processes" description="No worker has sent a heartbeat in the last 45 seconds. Background jobs are not being processed." />
+            <EmptyState
+              compact
+              icon={Cpu}
+              title="No worker processes"
+              description="No worker has sent a heartbeat in the last 45 seconds. Background jobs are not being processed."
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -491,7 +581,9 @@ function WorkersTab() {
             <dl className="grid grid-cols-3 gap-3 text-sm">
               <div>
                 <dt className="text-xs text-muted-foreground">Memory</dt>
-                <dd className="font-medium tabular-nums">{w.memoryMb !== undefined ? `${w.memoryMb} MB` : '—'}</dd>
+                <dd className="font-medium tabular-nums">
+                  {w.memoryMb !== undefined ? `${w.memoryMb} MB` : '—'}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Processed</dt>
@@ -499,14 +591,25 @@ function WorkersTab() {
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Failed attempts</dt>
-                <dd className={cn('font-medium tabular-nums', (w.failed ?? 0) > 0 && 'text-destructive-fg')}>{formatNumber(w.failed ?? 0)}</dd>
+                <dd className={cn('font-medium tabular-nums', (w.failed ?? 0) > 0 && 'text-destructive-fg')}>
+                  {formatNumber(w.failed ?? 0)}
+                </dd>
               </div>
             </dl>
             <ul className="grid gap-1 sm:grid-cols-2">
               {w.queues.map((q) => (
-                <li key={q.name} className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-xs">
+                <li
+                  key={q.name}
+                  className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-xs"
+                >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', q.running ? 'bg-success' : 'bg-destructive')} />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        q.running ? 'bg-success' : 'bg-destructive',
+                      )}
+                    />
                     <span className="truncate font-mono">{q.name}</span>
                   </span>
                   <span className="shrink-0 text-muted-foreground">×{q.concurrency}</span>
@@ -528,14 +631,16 @@ function describeScope(key: string): string {
   if (kind === 'acct') return `Ad account act_${rest.join(':')}`;
   if (kind === 'app') return `App ${rest.join(':')}`;
   if (kind === 'tok') return `Token of Meta profile ${rest.join(':').slice(0, 8)}`;
-  if (kind === 'buc') return `Business ${rest[0] ?? ''}${rest[1] ? ` · ${rest.slice(1).join(':').replace(/_/g, ' ').toLowerCase()}` : ''}`;
+  if (kind === 'buc')
+    return `Business ${rest[0] ?? ''}${rest[1] ? ` · ${rest.slice(1).join(':').replace(/_/g, ' ').toLowerCase()}` : ''}`;
   return key;
 }
 
 function RateLimitsTab() {
   const limits = useRateLimits();
   const now = useNow(1000);
-  if (limits.error && !limits.data) return <ErrorAlert error={limits.error} onRetry={() => void limits.refetch()} />;
+  if (limits.error && !limits.data)
+    return <ErrorAlert error={limits.error} onRetry={() => void limits.refetch()} />;
   if (!limits.data) return <Skeleton className="h-48 w-full rounded-lg" />;
   const rows = [...limits.data].sort((a, b) => b.state.pct - a.state.pct);
   return (
@@ -543,23 +648,30 @@ function RateLimitsTab() {
       <CardHeader>
         <CardTitle>Meta API usage</CardTitle>
         <CardDescription>
-          The highest usage reported in Meta&apos;s headers per scope during the last hour. Requests slow down near the throttle threshold and pause when a
-          scope is blocked (thresholds are in System settings → Meta API).
+          The highest usage reported in Meta&apos;s headers per scope during the last hour. Requests slow down
+          near the throttle threshold and pause when a scope is blocked (thresholds are in System settings →
+          Meta API).
         </CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <EmptyState compact icon={Gauge} title="No usage recorded" description="No Meta API calls reported usage headers in the last hour." />
+          <EmptyState
+            compact
+            icon={Gauge}
+            title="No usage recorded"
+            description="No Meta API calls reported usage headers in the last hour."
+          />
         ) : (
           <ul className="grid gap-3" aria-label="Rate limit scopes">
             {rows.map((r) => {
               const blocked = r.state.blockedUntil > now;
-              const tone = blocked || r.state.pct >= 90 ? 'danger' : r.state.pct >= 75 ? 'warning' : 'default';
+              const tone =
+                blocked || r.state.pct >= 90 ? 'danger' : r.state.pct >= 75 ? 'warning' : 'default';
               return (
                 <li key={r.key} className="grid gap-1.5">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="grid min-w-0">
-                      <span className="truncate font-medium">{describeScope(r.key)}</span>
+                      <span className="truncate font-medium">{r.label ?? describeScope(r.key)}</span>
                       <span className="truncate font-mono text-xs text-muted-foreground">{r.key}</span>
                     </span>
                     <span className="flex items-center gap-2">
@@ -590,7 +702,8 @@ function RateLimitsTab() {
 function StorageTab() {
   const storage = useStorageStats();
   const data = storage.data;
-  if (storage.error && !data) return <ErrorAlert error={storage.error} onRetry={() => void storage.refetch()} />;
+  if (storage.error && !data)
+    return <ErrorAlert error={storage.error} onRetry={() => void storage.refetch()} />;
   if (!data) return <Skeleton className="h-48 w-full rounded-lg" />;
   const total = data.byType.reduce((n, t) => n + Number(t.bytes), 0);
   return (
@@ -599,7 +712,12 @@ function StorageTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Bucket <span className="font-mono text-base">{data.bucket}</span>
-            <StatusBadge status={data.check.ok ? 'OK' : 'ERROR'} label={data.check.ok ? 'Reachable' : 'Unreachable'} tone={data.check.ok ? 'success' : 'danger'} size="sm" />
+            <StatusBadge
+              status={data.check.ok ? 'OK' : 'ERROR'}
+              label={data.check.ok ? 'Reachable' : 'Unreachable'}
+              tone={data.check.ok ? 'success' : 'danger'}
+              size="sm"
+            />
           </CardTitle>
           <CardDescription>{data.check.detail}</CardDescription>
           <CardAction>
@@ -616,9 +734,12 @@ function StorageTab() {
             </div>
             {data.byType.map((t) => (
               <div key={t.type}>
-                <dt className="text-xs text-muted-foreground">{t.type === 'IMAGE' ? 'Images' : t.type === 'VIDEO' ? 'Videos' : t.type}</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t.type === 'IMAGE' ? 'Images' : t.type === 'VIDEO' ? 'Videos' : t.type}
+                </dt>
                 <dd className="font-medium tabular-nums">
-                  {formatBytes(t.bytes)} <span className="font-normal text-muted-foreground">· {formatNumber(t.count)}</span>
+                  {formatBytes(t.bytes)}{' '}
+                  <span className="font-normal text-muted-foreground">· {formatNumber(t.count)}</span>
                 </dd>
               </div>
             ))}
@@ -631,7 +752,9 @@ function StorageTab() {
           <CardDescription>Storage used by creatives, against each user&apos;s quota.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {data.topUsers.length === 0 ? <p className="text-sm text-muted-foreground">No files stored yet.</p> : null}
+          {data.topUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No files stored yet.</p>
+          ) : null}
           {data.topUsers.map((u) => {
             const used = Number(u.storageUsedBytes);
             const quota = u.storageQuotaBytes ? Number(u.storageQuotaBytes) : null;
@@ -647,7 +770,13 @@ function StorageTab() {
                     {quota ? ` of ${formatBytes(quota)}` : ' · default quota'}
                   </span>
                 </div>
-                {pct !== null ? <Progress value={pct} tone={pct > 90 ? 'danger' : pct > 75 ? 'warning' : 'default'} aria-label={`Storage of ${u.email}`} /> : null}
+                {pct !== null ? (
+                  <Progress
+                    value={pct}
+                    tone={pct > 90 ? 'danger' : pct > 75 ? 'warning' : 'default'}
+                    aria-label={`Storage of ${u.email}`}
+                  />
+                ) : null}
               </div>
             );
           })}
@@ -667,14 +796,20 @@ function BackupsTab() {
   const backupNow = useMutation({
     mutationFn: adminOpsApi.backupNow,
     onSuccess: () => {
-      toast.success('Backup started', { description: 'The database dump runs in the background; its status updates below.' });
+      toast.success('Backup started', {
+        description: 'The database dump runs in the background; its status updates below.',
+      });
       void queryClient.invalidateQueries({ queryKey: opsKeys.backups });
     },
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
   });
   const retention = useMutation({
     mutationFn: adminOpsApi.retentionNow,
-    onSuccess: () => toast.success('Retention cleanup queued', { description: 'Old logs, notifications and statistics are removed according to the retention settings.' }),
+    onSuccess: () =>
+      toast.success('Retention cleanup queued', {
+        description:
+          'Old logs, notifications and statistics are removed according to the retention settings.',
+      }),
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
   });
 
@@ -682,21 +817,37 @@ function BackupsTab() {
     { id: 'started', header: 'Started', cell: (b) => <RelativeTime value={b.startedAt} /> },
     { id: 'kind', header: 'Kind', cell: (b) => <span className="capitalize">{b.kind.toLowerCase()}</span> },
     { id: 'status', header: 'Status', cell: (b) => <StatusBadge status={b.status} /> },
-    { id: 'size', header: 'Size', align: 'right', cell: (b) => <span className="tabular-nums">{formatBytes(b.sizeBytes)}</span> },
+    {
+      id: 'size',
+      header: 'Size',
+      align: 'right',
+      cell: (b) => <span className="tabular-nums">{formatBytes(b.sizeBytes)}</span>,
+    },
     {
       id: 'duration',
       header: 'Duration',
       align: 'right',
-      cell: (b) => <span className="tabular-nums">{b.finishedAt ? formatDurationMs(new Date(b.finishedAt).getTime() - new Date(b.startedAt).getTime()) : '—'}</span>,
+      cell: (b) => (
+        <span className="tabular-nums">
+          {b.finishedAt
+            ? formatDurationMs(new Date(b.finishedAt).getTime() - new Date(b.startedAt).getTime())
+            : '—'}
+        </span>
+      ),
     },
     {
       id: 'details',
       header: 'Location / error',
       cell: (b) =>
         b.error ? (
-          <span className="line-clamp-2 max-w-[24rem] text-xs whitespace-normal text-destructive-fg">{b.error}</span>
+          <span className="line-clamp-2 max-w-[24rem] text-xs whitespace-normal text-destructive-fg">
+            {b.error}
+          </span>
         ) : b.storageKey ? (
-          <span className="block max-w-[24rem] truncate font-mono text-xs text-muted-foreground" title={b.storageKey}>
+          <span
+            className="block max-w-[24rem] truncate font-mono text-xs text-muted-foreground"
+            title={b.storageKey}
+          >
             {b.storageKey}
           </span>
         ) : (
@@ -709,15 +860,27 @@ function BackupsTab() {
     <Card>
       <CardHeader>
         <CardTitle>Database backups</CardTitle>
-        <CardDescription>Scheduled and manual PostgreSQL dumps stored in object storage (the last 50 are listed).</CardDescription>
+        <CardDescription>
+          Scheduled and manual PostgreSQL dumps stored in object storage (the last 50 are listed).
+        </CardDescription>
         <CardAction className="flex flex-wrap gap-2">
           {can('admin.maintenance.manage') ? (
-            <Button variant="outline" size="sm" onClick={() => retention.mutate()} loading={retention.isPending}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => retention.mutate()}
+              loading={retention.isPending}
+            >
               <Archive />
               Run retention cleanup
             </Button>
           ) : null}
-          <Button size="sm" onClick={() => backupNow.mutate()} loading={backupNow.isPending} disabled={running}>
+          <Button
+            size="sm"
+            onClick={() => backupNow.mutate()}
+            loading={backupNow.isPending}
+            disabled={running}
+          >
             <DatabaseBackup />
             {running ? 'Backup running…' : 'Back up now'}
           </Button>
@@ -735,7 +898,14 @@ function BackupsTab() {
           onRetry={() => void backups.refetch()}
           stickyHeader={false}
           minWidth={760}
-          emptyState={<EmptyState compact icon={DatabaseBackup} title="No backups yet" description="Scheduled backups run according to System settings → Backups." />}
+          emptyState={
+            <EmptyState
+              compact
+              icon={DatabaseBackup}
+              title="No backups yet"
+              description="Scheduled backups run according to System settings → Backups."
+            />
+          }
         />
       </CardContent>
     </Card>

@@ -65,7 +65,8 @@ export class TestStack {
 
   async start(opts: StackOptions = {}): Promise<this> {
     await Promise.all([this.meta.start(), this.s3.start(), this.smtp.start(), this.telegram.start()]);
-    for (const bucket of [process.env.S3_BUCKET!, process.env.S3_BACKUP_BUCKET!]) this.s3.buckets.set(bucket, new Map());
+    for (const bucket of [process.env.S3_BUCKET!, process.env.S3_BACKUP_BUCKET!])
+      this.s3.buckets.set(bucket, new Map());
     Object.assign(process.env, {
       META_GRAPH_BASE_URL: this.meta.baseUrl,
       META_GRAPH_VIDEO_BASE_URL: this.meta.baseUrl,
@@ -75,7 +76,10 @@ export class TestStack {
     resetEnvCache();
     await this.resetStores();
 
-    this.api = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['error', 'fatal'], bodyParser: false });
+    this.api = await NestFactory.create<NestExpressApplication>(AppModule, {
+      logger: ['error', 'fatal'],
+      bodyParser: false,
+    });
     configureHttpApp(this.api);
     await this.api.listen(0, '127.0.0.1');
     this.baseUrl = (await this.api.getUrl()).replace('[::1]', '127.0.0.1');
@@ -86,7 +90,8 @@ export class TestStack {
   }
 
   async stop(): Promise<void> {
-    const dbg = (m: string) => process.env.DEBUG_HARNESS && console.error(`DBG stop: ${m}`, new Date().toISOString());
+    const dbg = (m: string) =>
+      process.env.DEBUG_HARNESS && console.error(`DBG stop: ${m}`, new Date().toISOString());
     dbg('worker');
     await this.stopWorker();
     dbg('scheduler');
@@ -117,7 +122,11 @@ export class TestStack {
   private async startScheduler(): Promise<void> {
     this.scheduler = await Test.createTestingModule({ imports: [SchedulerModule] })
       .overrideProvider(SchedulerService)
-      .useValue({ isLeader: true, onApplicationBootstrap: () => undefined, onApplicationShutdown: () => undefined })
+      .useValue({
+        isLeader: true,
+        onApplicationBootstrap: () => undefined,
+        onApplicationShutdown: () => undefined,
+      })
       .overrideProvider(TelegramPollerService)
       .useValue({ onApplicationBootstrap: () => undefined, onApplicationShutdown: () => undefined })
       .setLogger({ log() {}, warn() {}, error() {}, debug() {}, verbose() {}, fatal() {} })
@@ -138,7 +147,13 @@ export class TestStack {
     try {
       let cursor = '0';
       do {
-        const [next, keys] = await redis.scan(cursor, 'MATCH', `${process.env.QUEUE_PREFIX}:*`, 'COUNT', 1000);
+        const [next, keys] = await redis.scan(
+          cursor,
+          'MATCH',
+          `${process.env.QUEUE_PREFIX}:*`,
+          'COUNT',
+          1000,
+        );
         cursor = next;
         if (keys.length) await redis.del(...keys);
       } while (cursor !== '0');
@@ -155,7 +170,11 @@ export class TestStack {
         await prisma.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
       }
       await seedRbac(prisma);
-      await ensureSuperAdmin(prisma, { email: this.superAdmin.email, password: this.superAdmin.password, name: process.env.SUPER_ADMIN_NAME });
+      await ensureSuperAdmin(prisma, {
+        email: this.superAdmin.email,
+        password: this.superAdmin.password,
+        name: process.env.SUPER_ADMIN_NAME,
+      });
     } finally {
       await prisma.$disconnect();
     }
@@ -180,7 +199,10 @@ export class TestStack {
    * Creates a user through the admin API (temporary password), logs in and sets the definitive password —
    * the same path a real user takes on first login.
    */
-  async createUser(admin: ApiClient, opts: { role?: string; email?: string; name?: string; timezone?: string } = {}): Promise<TestUser> {
+  async createUser(
+    admin: ApiClient,
+    opts: { role?: string; email?: string; name?: string; timezone?: string } = {},
+  ): Promise<TestUser> {
     const n = ++this.userSeq;
     const email = opts.email ?? `user${n}.${Date.now()}@adpilot.test`;
     const temporary = `Temp${n}pass${Math.random().toString(36).slice(2, 10)}`;
@@ -198,7 +220,10 @@ export class TestStack {
     const client = this.client();
     expectStatus(await client.login(email, temporary), 200);
     const password = `Final${n}pass${Math.random().toString(36).slice(2, 10)}`;
-    expectStatus(await client.post('/api/account/password', { currentPassword: temporary, newPassword: password }), 200);
+    expectStatus(
+      await client.post('/api/account/password', { currentPassword: temporary, newPassword: password }),
+      200,
+    );
     if (!(await client.get('/api/auth/me')).status.toString().startsWith('2')) {
       expectStatus(await client.login(email, password), 200);
     }
@@ -206,26 +231,41 @@ export class TestStack {
   }
 
   /** Updates a settings group and makes every running context see it immediately. */
-  async setSettings(key: Parameters<SettingsService['update']>[0], patch: Record<string, unknown>, secrets: Record<string, string | null> = {}): Promise<void> {
+  async setSettings(
+    key: Parameters<SettingsService['update']>[0],
+    patch: Record<string, unknown>,
+    secrets: Record<string, string | null> = {},
+  ): Promise<void> {
     await this.api.get(SettingsService).update(key, patch, secrets);
-    for (const ctx of [this.api, this.worker, this.scheduler]) await ctx?.get(SettingsService).invalidate(key);
+    for (const ctx of [this.api, this.worker, this.scheduler])
+      await ctx?.get(SettingsService).invalidate(key);
   }
 
   async configureSmtp(): Promise<void> {
-    await this.setSettings('smtp', {
-      enabled: true,
-      host: '127.0.0.1',
-      port: this.smtp.port,
-      encryption: 'NONE',
-      username: 'mailer',
-      fromEmail: 'noreply@adpilot.test',
-      fromName: 'AdPilot',
-    }, { password: 'smtp-test-password' });
+    await this.setSettings(
+      'smtp',
+      {
+        enabled: true,
+        host: '127.0.0.1',
+        port: this.smtp.port,
+        encryption: 'NONE',
+        username: 'mailer',
+        fromEmail: 'noreply@adpilot.test',
+        fromName: 'AdPilot',
+      },
+      { password: 'smtp-test-password' },
+    );
   }
 
-  async configureTelegram(botToken = `${Math.floor(Math.random() * 1e9)}:TEST${Math.random().toString(36).slice(2)}`): Promise<string> {
+  async configureTelegram(
+    botToken = `${Math.floor(Math.random() * 1e9)}:TEST${Math.random().toString(36).slice(2)}`,
+  ): Promise<string> {
     this.telegram.validTokens.add(botToken);
-    await this.setSettings('telegram', { enabled: true, mode: 'WEBHOOK', botUsername: this.telegram.botUsername }, { botToken, webhookSecret: 'tg-webhook-secret-for-tests' });
+    await this.setSettings(
+      'telegram',
+      { enabled: true, mode: 'WEBHOOK', botUsername: this.telegram.botUsername },
+      { botToken, webhookSecret: 'tg-webhook-secret-for-tests' },
+    );
     return botToken;
   }
 
@@ -258,7 +298,10 @@ export class TestStack {
   }
 
   /** Polls until the predicate returns a truthy value. */
-  async waitFor<T>(fn: () => Promise<T | null | undefined | false> | T | null | undefined | false, opts: { timeoutMs?: number; intervalMs?: number; message?: string } = {}): Promise<T> {
+  async waitFor<T>(
+    fn: () => Promise<T | null | undefined | false> | T | null | undefined | false,
+    opts: { timeoutMs?: number; intervalMs?: number; message?: string } = {},
+  ): Promise<T> {
     const deadline = Date.now() + (opts.timeoutMs ?? 20_000);
     let last: unknown;
     while (Date.now() < deadline) {
@@ -270,6 +313,8 @@ export class TestStack {
       }
       await sleep(opts.intervalMs ?? 100);
     }
-    throw new Error(`${opts.message ?? 'Condition not met in time'}${last ? `: ${(last as Error).message}` : ''}`);
+    throw new Error(
+      `${opts.message ?? 'Condition not met in time'}${last ? `: ${(last as Error).message}` : ''}`,
+    );
   }
 }

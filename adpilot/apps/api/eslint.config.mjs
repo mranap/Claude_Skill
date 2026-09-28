@@ -11,8 +11,14 @@ export default tseslint.config(
     rules: {
       // Unhandled promises lose errors and break shutdown ordering; fire-and-forget must be explicit (`void`).
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: { arguments: false, attributes: false } }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { arguments: false, attributes: false } },
+      ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
+      ],
       // Not enforced: NestJS dependency injection needs runtime imports for constructor parameter types.
       '@typescript-eslint/consistent-type-imports': 'off',
       // Values come from validated JSON/Prisma/axios payloads at the boundaries.
@@ -21,7 +27,10 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true, allowBoolean: true, allowNullish: true }],
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        { allowNumber: true, allowBoolean: true, allowNullish: true },
+      ],
       '@typescript-eslint/require-await': 'off',
       eqeqeq: ['error', 'always'],
       'no-console': ['error', { allow: ['warn', 'error'] }],

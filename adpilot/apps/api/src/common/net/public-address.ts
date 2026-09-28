@@ -71,7 +71,9 @@ export class NonPublicAddressError extends Error {
 /** Resolves the host (all A/AAAA records) and throws when any address is not public. */
 export async function assertPublicHost(host: string): Promise<void> {
   const clean = host.replace(/^\[|\]$/g, '');
-  const addresses = isIP(clean) ? [clean] : (await lookup(clean, { all: true, verbatim: true })).map((a) => a.address);
+  const addresses = isIP(clean)
+    ? [clean]
+    : (await lookup(clean, { all: true, verbatim: true })).map((a) => a.address);
   const bad = addresses.find((a) => !isPublicAddress(a));
   if (bad) throw new NonPublicAddressError(host, bad);
 }
@@ -88,7 +90,9 @@ export const publicOnlyLookup: LookupFunction = (hostname, options, callback) =>
     if (bad) return callback(new NonPublicAddressError(hostname, bad.address), '');
     if (options.all) return callback(null, addresses);
     const [first] = addresses;
-    return first ? callback(null, first.address, first.family) : callback(new NonPublicAddressError(hostname, 'none'), '');
+    return first
+      ? callback(null, first.address, first.family)
+      : callback(new NonPublicAddressError(hostname, 'none'), '');
   });
 };
 

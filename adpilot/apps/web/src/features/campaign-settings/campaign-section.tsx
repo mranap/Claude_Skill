@@ -51,9 +51,16 @@ export function CampaignSection() {
   const applyGoal = (goal: GoalRule) => {
     set('settings.optimizationGoal', goal.goal, opts);
     const billing = form.getValues('settings.billingEvent');
-    set('settings.billingEvent', billing && goal.billingEvents.includes(billing) ? billing : goal.billingEvents[0]!, opts);
+    set(
+      'settings.billingEvent',
+      billing && goal.billingEvents.includes(billing) ? billing : goal.billingEvents[0]!,
+      opts,
+    );
     if (goal.requiresVideo) set('settings.creative.format', 'SINGLE_VIDEO', opts);
-    if (goal.goal !== 'VALUE' && form.getValues('settings.budget.bidStrategy') === 'LOWEST_COST_WITH_MIN_ROAS') {
+    if (
+      goal.goal !== 'VALUE' &&
+      form.getValues('settings.budget.bidStrategy') === 'LOWEST_COST_WITH_MIN_ROAS'
+    ) {
       set('settings.budget.bidStrategy', 'LOWEST_COST_WITHOUT_CAP', opts);
       set('settings.budget.roasFloor', undefined, opts);
     }
@@ -74,15 +81,31 @@ export function CampaignSection() {
   };
 
   return (
-    <SettingsSection id="campaign" title="Campaign" description="What you want to achieve. Only combinations Meta supports for this objective are offered.">
+    <SettingsSection
+      id="campaign"
+      title="Campaign"
+      description="What you want to achieve. Only combinations Meta supports for this objective are offered."
+    >
       <FormField
         control={form.control}
         name="settings.objective"
         label="Objective"
         render={({ field }) => (
-          <RadioGroup value={field.value} onValueChange={(v) => applyObjective(v as Objective)} className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" disabled={ui.disabled} aria-label="Objective">
+          <RadioGroup
+            value={field.value}
+            onValueChange={(v) => applyObjective(v as Objective)}
+            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+            disabled={ui.disabled}
+            aria-label="Objective"
+          >
             {OBJECTIVE_RULES.map((o) => (
-              <RadioCard key={o.objective} value={o.objective} title={o.label} description={o.description} icon={OBJECTIVE_ICONS[o.objective]} />
+              <RadioCard
+                key={o.objective}
+                value={o.objective}
+                title={o.label}
+                description={o.description}
+                icon={OBJECTIVE_ICONS[o.objective]}
+              />
             ))}
           </RadioGroup>
         )}
@@ -93,16 +116,28 @@ export function CampaignSection() {
           name="settings.destination"
           label="Conversion location"
           render={({ field }) => (
-            <RadioGroup value={field.value} onValueChange={(v) => applyDestination(objective, v)} className="grid gap-2 sm:grid-cols-2" disabled={ui.disabled} aria-label="Conversion location">
+            <RadioGroup
+              value={field.value}
+              onValueChange={(v) => applyDestination(objective, v)}
+              className="grid gap-2 sm:grid-cols-2"
+              disabled={ui.disabled}
+              aria-label="Conversion location"
+            >
               {objRule.destinations.map((d) => (
-                <RadioCard key={d.destination} value={d.destination} title={d.label} description={d.description} />
+                <RadioCard
+                  key={d.destination}
+                  value={d.destination}
+                  title={d.label}
+                  description={d.description}
+                />
               ))}
             </RadioGroup>
           )}
         />
       ) : destRule ? (
         <p className="text-sm text-muted-foreground">
-          Conversion location: <span className="font-medium text-foreground">{destRule.label}</span> — {destRule.description}
+          Conversion location: <span className="font-medium text-foreground">{destRule.label}</span> —{' '}
+          {destRule.description}
         </p>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -120,7 +155,11 @@ export function CampaignSection() {
                 const g = destRule?.goals.find((x) => x.goal === v);
                 if (g) applyGoal(g);
               }}
-              options={(destRule?.goals ?? []).map((g) => ({ value: g.goal, label: g.label, description: PROMOTED[g.promotedObject] }))}
+              options={(destRule?.goals ?? []).map((g) => ({
+                value: g.goal,
+                label: g.label,
+                description: PROMOTED[g.promotedObject],
+              }))}
             />
           )}
         />
@@ -128,14 +167,24 @@ export function CampaignSection() {
           control={form.control}
           name="settings.billingEvent"
           label="Charged for"
-          description={rule && rule.billingEvents.length === 1 ? 'The only billing event for this goal.' : undefined}
+          description={
+            rule && rule.billingEvents.length === 1 ? 'The only billing event for this goal.' : undefined
+          }
           render={({ field, controlProps }) => (
             <SelectInput
               controlProps={controlProps}
               value={field.value}
               onChange={field.onChange}
               disabled={ui.disabled || (rule?.billingEvents.length ?? 0) <= 1}
-              options={(rule?.billingEvents ?? []).map((b) => ({ value: b, label: b === 'IMPRESSIONS' ? 'Impressions' : b === 'LINK_CLICKS' ? 'Link clicks (CPC)' : 'ThruPlay' }))}
+              options={(rule?.billingEvents ?? []).map((b) => ({
+                value: b,
+                label:
+                  b === 'IMPRESSIONS'
+                    ? 'Impressions'
+                    : b === 'LINK_CLICKS'
+                      ? 'Link clicks (CPC)'
+                      : 'ThruPlay',
+              }))}
             />
           )}
         />
@@ -152,7 +201,10 @@ export function CampaignSection() {
                 value={field.value ?? []}
                 onChange={field.onChange}
                 disabled={ui.disabled}
-                options={SPECIAL_AD_CATEGORIES.map((c) => ({ value: c, label: SPECIAL_AD_CATEGORY_LABELS[c] }))}
+                options={SPECIAL_AD_CATEGORIES.map((c) => ({
+                  value: c,
+                  label: SPECIAL_AD_CATEGORY_LABELS[c],
+                }))}
               />
             )}
           />
@@ -187,18 +239,43 @@ export function BudgetSection() {
   const form = useSettingsForm();
   const ui = useSettingsUi();
   const { goal } = useGoal();
-  const [level, type, strategy] = useWatch({ control: form.control, name: ['settings.budget.level', 'settings.budget.type', 'settings.budget.bidStrategy'] });
+  const [level, type, strategy] = useWatch({
+    control: form.control,
+    name: ['settings.budget.level', 'settings.budget.type', 'settings.budget.bidStrategy'],
+  });
 
   return (
-    <SettingsSection id="budget" title="Budget & bidding" description={ui.currency ? `Amounts are in ${ui.currency}, the ad account currency.` : 'Amounts are in the currency of the ad account chosen at launch.'}>
+    <SettingsSection
+      id="budget"
+      title="Budget & bidding"
+      description={
+        ui.currency
+          ? `Amounts are in ${ui.currency}, the ad account currency.`
+          : 'Amounts are in the currency of the ad account chosen at launch.'
+      }
+    >
       <FormField
         control={form.control}
         name="settings.budget.level"
         label="Where the budget is set"
         render={({ field }) => (
-          <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-2 sm:grid-cols-2" disabled={ui.disabled} aria-label="Budget level">
-            <RadioCard value="ADSET" title="Ad set budget" description="Each language/geo group gets its own budget. Best for strict per-country spend." />
-            <RadioCard value="CAMPAIGN" title="Advantage campaign budget" description="One campaign budget; Meta distributes it across the ad sets." />
+          <RadioGroup
+            value={field.value}
+            onValueChange={field.onChange}
+            className="grid gap-2 sm:grid-cols-2"
+            disabled={ui.disabled}
+            aria-label="Budget level"
+          >
+            <RadioCard
+              value="ADSET"
+              title="Ad set budget"
+              description="Each language/geo group gets its own budget. Best for strict per-country spend."
+            />
+            <RadioCard
+              value="CAMPAIGN"
+              title="Advantage campaign budget"
+              description="One campaign budget; Meta distributes it across the ad sets."
+            />
           </RadioGroup>
         )}
       />
@@ -223,18 +300,33 @@ export function BudgetSection() {
         <FormField
           control={form.control}
           name="settings.budget.amount"
-          label={level === 'CAMPAIGN' ? `Campaign ${type === 'LIFETIME' ? 'lifetime' : 'daily'} budget` : `${type === 'LIFETIME' ? 'Lifetime' : 'Daily'} budget per ad set`}
+          label={
+            level === 'CAMPAIGN'
+              ? `Campaign ${type === 'LIFETIME' ? 'lifetime' : 'daily'} budget`
+              : `${type === 'LIFETIME' ? 'Lifetime' : 'Daily'} budget per ad set`
+          }
           required
           description={
             [
               level === 'ADSET' ? 'Default for every group; a group can override it.' : null,
-              ui.minDailyBudget && type !== 'LIFETIME' ? `Minimum for this account: ${formatAmount(ui.minDailyBudget, ui.currency)}.` : null,
+              ui.minDailyBudget && type !== 'LIFETIME'
+                ? `Minimum for this account: ${formatAmount(ui.minDailyBudget, ui.currency)}.`
+                : null,
               type === 'LIFETIME' ? 'A lifetime budget needs an end date.' : null,
             ]
               .filter(Boolean)
               .join(' ') || undefined
           }
-          render={({ field, controlProps }) => <AmountInput controlProps={controlProps} value={field.value} onChange={(v) => field.onChange(v ?? '')} currency={ui.currency} placeholder="20.00" disabled={ui.disabled} />}
+          render={({ field, controlProps }) => (
+            <AmountInput
+              controlProps={controlProps}
+              value={field.value}
+              onChange={(v) => field.onChange(v ?? '')}
+              currency={ui.currency}
+              placeholder="20.00"
+              disabled={ui.disabled}
+            />
+          )}
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -249,13 +341,18 @@ export function BudgetSection() {
               disabled={ui.disabled}
               onChange={(v) => {
                 field.onChange(v as BidStrategy);
-                if (v !== 'COST_CAP' && v !== 'LOWEST_COST_WITH_BID_CAP') form.setValue('settings.budget.bidAmount', undefined, { shouldDirty: true });
-                if (v !== 'LOWEST_COST_WITH_MIN_ROAS') form.setValue('settings.budget.roasFloor', undefined, { shouldDirty: true });
+                if (v !== 'COST_CAP' && v !== 'LOWEST_COST_WITH_BID_CAP')
+                  form.setValue('settings.budget.bidAmount', undefined, { shouldDirty: true });
+                if (v !== 'LOWEST_COST_WITH_MIN_ROAS')
+                  form.setValue('settings.budget.roasFloor', undefined, { shouldDirty: true });
               }}
               options={BID_STRATEGIES.map((b) => ({
                 value: b,
                 label: BID_STRATEGY_LABELS[b].label,
-                description: b === 'LOWEST_COST_WITH_MIN_ROAS' && goal !== 'VALUE' ? 'Requires the “Maximise value of conversions” goal' : BID_STRATEGY_LABELS[b].description,
+                description:
+                  b === 'LOWEST_COST_WITH_MIN_ROAS' && goal !== 'VALUE'
+                    ? 'Requires the “Maximise value of conversions” goal'
+                    : BID_STRATEGY_LABELS[b].description,
                 disabled: b === 'LOWEST_COST_WITH_MIN_ROAS' && goal !== 'VALUE',
               }))}
             />
@@ -267,7 +364,17 @@ export function BudgetSection() {
             name="settings.budget.bidAmount"
             label={strategy === 'COST_CAP' ? 'Cost per result goal' : 'Bid cap'}
             required
-            render={({ field, controlProps }) => <AmountInput controlProps={controlProps} value={field.value} onChange={field.onChange} currency={ui.currency} optional placeholder="5.00" disabled={ui.disabled} />}
+            render={({ field, controlProps }) => (
+              <AmountInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                currency={ui.currency}
+                optional
+                placeholder="5.00"
+                disabled={ui.disabled}
+              />
+            )}
           />
         ) : null}
         {strategy === 'LOWEST_COST_WITH_MIN_ROAS' ? (
@@ -278,7 +385,14 @@ export function BudgetSection() {
             required
             description="1.5 means 150 % (1.50 of purchase value per 1.00 spent). 0.01–1000."
             render={({ field, controlProps }) => (
-              <OptionalInput controlProps={controlProps} value={field.value} onChange={field.onChange} inputMode="decimal" placeholder="1.5" disabled={ui.disabled} />
+              <OptionalInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                inputMode="decimal"
+                placeholder="1.5"
+                disabled={ui.disabled}
+              />
             )}
           />
         ) : null}
@@ -290,7 +404,17 @@ export function BudgetSection() {
             name="settings.budget.spendCap"
             label="Campaign spend limit"
             description="Optional. Delivery stops when the campaign has spent this amount in total."
-            render={({ field, controlProps }) => <AmountInput controlProps={controlProps} value={field.value} onChange={field.onChange} currency={ui.currency} optional placeholder="No limit" disabled={ui.disabled} />}
+            render={({ field, controlProps }) => (
+              <AmountInput
+                controlProps={controlProps}
+                value={field.value}
+                onChange={field.onChange}
+                currency={ui.currency}
+                optional
+                placeholder="No limit"
+                disabled={ui.disabled}
+              />
+            )}
           />
           {level === 'ADSET' ? (
             <FormField
@@ -299,7 +423,14 @@ export function BudgetSection() {
               orientation="horizontal"
               label="Budget sharing"
               description="Let ad sets share up to 20 % of their budget with other ad sets of the campaign."
-              render={({ field, controlProps }) => <Switch {...controlProps} checked={!!field.value} onCheckedChange={field.onChange} disabled={ui.disabled} />}
+              render={({ field, controlProps }) => (
+                <Switch
+                  {...controlProps}
+                  checked={!!field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={ui.disabled}
+                />
+              )}
             />
           ) : null}
         </div>

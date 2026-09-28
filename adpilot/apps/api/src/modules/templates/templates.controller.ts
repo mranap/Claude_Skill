@@ -1,7 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { templateCreateSchema, templateListQuerySchema, templateUpdateSchema } from '@adpilot/shared';
-import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators';
+import {
+  CurrentUser,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators';
 import { READ_ACCESS } from '../../common/permissions/read-access';
 import { zod } from '../../common/pipes/zod-validation.pipe';
 import { TemplatesService } from './templates.service';
@@ -15,7 +30,10 @@ export class TemplatesController {
   constructor(private readonly templates: TemplatesService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query(zod(templateListQuerySchema)) q: z.infer<typeof templateListQuerySchema>) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query(zod(templateListQuerySchema)) q: z.infer<typeof templateListQuerySchema>,
+  ) {
     return this.templates.list(user.id, q);
   }
 
@@ -26,13 +44,20 @@ export class TemplatesController {
 
   @Post()
   @RequirePermissions('app.templates.manage')
-  create(@CurrentUser() user: AuthUser, @Body(zod(templateCreateSchema)) body: z.infer<typeof templateCreateSchema>) {
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(templateCreateSchema)) body: z.infer<typeof templateCreateSchema>,
+  ) {
     return this.templates.create(user.id, body);
   }
 
   @Patch(':id')
   @RequirePermissions('app.templates.manage')
-  update(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Body(zod(templateUpdateSchema)) body: z.infer<typeof templateUpdateSchema>) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(templateUpdateSchema)) body: z.infer<typeof templateUpdateSchema>,
+  ) {
     return this.templates.update(user.id, id, body);
   }
 

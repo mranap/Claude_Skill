@@ -46,7 +46,9 @@ export function agentFor(proxy?: ProxyConfig | null): HttpsAgent {
   if (!proxy) return direct;
   const allowPrivate = proxy.allowPrivateAddress === true;
   const key = createHash('sha256')
-    .update(`${proxy.type}|${proxy.host}|${proxy.port}|${proxy.username ?? ''}|${proxy.password ?? ''}|${allowPrivate}`)
+    .update(
+      `${proxy.type}|${proxy.host}|${proxy.port}|${proxy.username ?? ''}|${proxy.password ?? ''}|${allowPrivate}`,
+    )
     .digest('hex');
   let agent = cache.get(key);
   if (agent) return agent;
@@ -74,5 +76,6 @@ export function agentFor(proxy?: ProxyConfig | null): HttpsAgent {
 function retire(agent: HttpsAgent | undefined): void {
   if (!agent) return;
   agent.keepSocketAlive = () => false;
-  for (const sockets of Object.values(agent.freeSockets)) for (const socket of sockets ?? []) socket.destroy();
+  for (const sockets of Object.values(agent.freeSockets))
+    for (const socket of sockets ?? []) socket.destroy();
 }

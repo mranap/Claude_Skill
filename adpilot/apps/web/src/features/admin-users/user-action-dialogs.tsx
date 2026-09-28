@@ -8,7 +8,15 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { PasswordInput, generatePassword } from '@/components/ui/password-input';
 import { RadioCard, RadioGroup } from '@/components/ui/radio-group';
@@ -83,7 +91,11 @@ export function EditUserDialog({
               control={form.control}
               name="roleId"
               label="Role"
-              description={isSelf ? 'You cannot change your own role.' : 'Changing the role takes effect on the user’s next request.'}
+              description={
+                isSelf
+                  ? 'You cannot change your own role.'
+                  : 'Changing the role takes effect on the user’s next request.'
+              }
               render={({ field, controlProps }) => (
                 <RoleSelect
                   id={controlProps.id}
@@ -98,19 +110,27 @@ export function EditUserDialog({
               control={form.control}
               name="timezone"
               label="Time zone"
-              render={({ field, controlProps }) => <TimeZoneSelect id={controlProps.id} value={field.value} onValueChange={field.onChange} />}
+              render={({ field, controlProps }) => (
+                <TimeZoneSelect id={controlProps.id} value={field.value} onValueChange={field.onChange} />
+              )}
             />
             <FormField
               control={form.control}
               name="storageQuotaMb"
               label="Storage quota"
-              description={quota === null || quota === undefined ? 'Uses the platform default (System settings → Files).' : 'Custom limit for this user, in megabytes.'}
+              description={
+                quota === null || quota === undefined
+                  ? 'Uses the platform default (System settings → Files).'
+                  : 'Custom limit for this user, in megabytes.'
+              }
               render={({ field, controlProps }) => (
                 <div className="flex items-center gap-3">
                   <label className="flex shrink-0 items-center gap-2 text-sm">
                     <Switch
                       checked={field.value !== null && field.value !== undefined}
-                      onCheckedChange={(on) => field.onChange(on ? (quotaToMb(user.storageQuotaBytes) ?? 20480) : null)}
+                      onCheckedChange={(on) =>
+                        field.onChange(on ? (quotaToMb(user.storageQuotaBytes) ?? 20480) : null)
+                      }
                     />
                     Custom
                   </label>
@@ -121,10 +141,14 @@ export function EditUserDialog({
                         type="number"
                         min={0}
                         value={Number.isFinite(field.value) ? field.value : ''}
-                        onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)}
+                        onChange={(e) =>
+                          field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)
+                        }
                         className="pr-10"
                       />
-                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">MB</span>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                        MB
+                      </span>
                     </div>
                   ) : null}
                 </div>
@@ -146,7 +170,15 @@ export function EditUserDialog({
 }
 
 /** Admin password reset: e-mail a one-time link or set a temporary password. */
-export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUserDetail; onClose: () => void; onDone: () => void }) {
+export function ResetPasswordDialog({
+  user,
+  onClose,
+  onDone,
+}: {
+  user: AdminUserDetail;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const form = useForm({
     resolver: zodResolver(adminResetPasswordSchema),
     defaultValues: { mode: 'link' as const, password: undefined },
@@ -155,7 +187,10 @@ export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser
   const password = useWatch({ control: form.control, name: 'password' });
 
   const onSubmit = async (values: z.output<typeof adminResetPasswordSchema>) => {
-    await adminUsersApi.resetPassword(user.id, { mode: values.mode, password: values.mode === 'password' ? values.password : undefined });
+    await adminUsersApi.resetPassword(user.id, {
+      mode: values.mode,
+      password: values.mode === 'password' ? values.password : undefined,
+    });
     toast.success(values.mode === 'link' ? 'Reset link sent' : 'Temporary password set', {
       description:
         values.mode === 'link'
@@ -173,7 +208,8 @@ export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser
           <DialogHeader>
             <DialogTitle>Reset password</DialogTitle>
             <DialogDescription>
-              {user.email} will be signed out of every session. Their current password stops working immediately.
+              {user.email} will be signed out of every session. Their current password stops working
+              immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4">
@@ -182,8 +218,17 @@ export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser
               control={form.control}
               name="mode"
               render={({ field }) => (
-                <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-3 sm:grid-cols-2">
-                  <RadioCard value="link" icon={<Link2 />} title="Send a reset link" description="One-time link by e-mail, valid for 1 hour." />
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
+                  <RadioCard
+                    value="link"
+                    icon={<Link2 />}
+                    title="Send a reset link"
+                    description="One-time link by e-mail, valid for 1 hour."
+                  />
                   <RadioCard
                     value="password"
                     icon={<KeyRound />}
@@ -213,7 +258,13 @@ export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser
                   </div>
                 }
                 render={({ field, controlProps }) => (
-                  <PasswordInput {...controlProps} {...field} value={field.value ?? ''} autoComplete="new-password" showStrength />
+                  <PasswordInput
+                    {...controlProps}
+                    {...field}
+                    value={field.value ?? ''}
+                    autoComplete="new-password"
+                    showStrength
+                  />
                 )}
               />
             ) : null}
@@ -231,4 +282,3 @@ export function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser
     </Dialog>
   );
 }
-

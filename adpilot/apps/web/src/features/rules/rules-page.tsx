@@ -34,7 +34,14 @@ import { getErrorMessage, getErrorTitle, isApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import { formatDateTime } from '@/lib/utils/format';
 import { rulesApi, useRuleExecutions, useRules } from './api';
-import { ACTION_LABELS, describeAction, describeInterval, describeTimeRange, RESULT_LABELS, TARGET_LABELS } from './labels';
+import {
+  ACTION_LABELS,
+  describeAction,
+  describeInterval,
+  describeTimeRange,
+  RESULT_LABELS,
+  TARGET_LABELS,
+} from './labels';
 import type { RuleDto, RuleExecutionDto, RuleExecutionResult } from './types';
 
 /** Activate/deactivate, run now and delete, shared by the list and the detail page. */
@@ -42,7 +49,8 @@ export function useRuleActions(options: { onCooldown?: (error: unknown) => boole
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.rules.all });
   const setActive = useMutation({
-    mutationFn: ({ rule, active }: { rule: RuleDto; active: boolean }) => (active ? rulesApi.activate(rule.id) : rulesApi.deactivate(rule.id)),
+    mutationFn: ({ rule, active }: { rule: RuleDto; active: boolean }) =>
+      active ? rulesApi.activate(rule.id) : rulesApi.deactivate(rule.id),
     onSuccess: (rule) => {
       toast.success(rule.isActive ? 'Rule activated' : 'Rule deactivated', { description: rule.name });
       void invalidate();
@@ -60,7 +68,8 @@ export function useRuleActions(options: { onCooldown?: (error: unknown) => boole
     },
     onError: (error) => {
       if (options.onCooldown?.(error)) return;
-      if (isApiError(error, 'COOLDOWN', 'RATE_LIMITED')) toast.info('Please wait a moment', { description: getErrorMessage(error) });
+      if (isApiError(error, 'COOLDOWN', 'RATE_LIMITED'))
+        toast.info('Please wait a moment', { description: getErrorMessage(error) });
       else toast.error(getErrorTitle(error), { description: getErrorMessage(error) });
     },
   });
@@ -164,7 +173,11 @@ function RulesTable() {
       header: 'Last run',
       cell: (r) => (
         <div className="grid gap-0.5">
-          {r.lastRunAt ? <RelativeTime value={r.lastRunAt} /> : <span className="text-muted-foreground">Never</span>}
+          {r.lastRunAt ? (
+            <RelativeTime value={r.lastRunAt} />
+          ) : (
+            <span className="text-muted-foreground">Never</span>
+          )}
           {r.lastRunError ? (
             <SimpleTooltip content={r.lastRunError}>
               <span className="w-fit text-xs text-destructive-fg">Failed</span>
@@ -178,7 +191,12 @@ function RulesTable() {
     {
       id: 'nextRun',
       header: 'Next run',
-      cell: (r) => (r.isActive && r.nextRunAt ? <RelativeTime value={r.nextRunAt} /> : <span className="text-muted-foreground">—</span>),
+      cell: (r) =>
+        r.isActive && r.nextRunAt ? (
+          <RelativeTime value={r.nextRunAt} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       id: 'stats',
@@ -255,7 +273,16 @@ function RulesTable() {
         }
         emptyState={
           state.hasActiveFilters ? (
-            <EmptyState compact icon={Workflow} title="No rules match the filters" action={<Button variant="outline" size="sm" onClick={state.reset}>Reset filters</Button>} />
+            <EmptyState
+              compact
+              icon={Workflow}
+              title="No rules match the filters"
+              action={
+                <Button variant="outline" size="sm" onClick={state.reset}>
+                  Reset filters
+                </Button>
+              }
+            />
           ) : (
             <EmptyState
               icon={Workflow}
@@ -279,7 +306,11 @@ function RulesTable() {
           if (!open) setDeleting(null);
         }}
         title="Delete rule?"
-        description={deleting ? `"${deleting.name}" stops running immediately. Its execution history is kept.` : undefined}
+        description={
+          deleting
+            ? `"${deleting.name}" stops running immediately. Its execution history is kept.`
+            : undefined
+        }
         confirmLabel="Delete rule"
         destructive
         onConfirm={() => (deleting ? actions.remove.mutateAsync(deleting) : undefined)}
@@ -294,7 +325,13 @@ function Stats7d({ stats }: { stats: RuleDto['stats7d'] }) {
   return (
     <div className="flex flex-wrap gap-1">
       {entries.map(([result, n]) => (
-        <StatusBadge key={result} status={result} label={`${n} ${RESULT_LABELS[result]?.label.toLowerCase() ?? result}`} tone={RESULT_LABELS[result]?.tone} size="sm" />
+        <StatusBadge
+          key={result}
+          status={result}
+          label={`${n} ${RESULT_LABELS[result]?.label.toLowerCase() ?? result}`}
+          tone={RESULT_LABELS[result]?.tone}
+          size="sm"
+        />
       ))}
     </div>
   );
@@ -361,7 +398,8 @@ export function RuleExecutionsTable({
         <div className="grid min-w-0 max-w-[18rem] gap-0.5">
           <span className="truncate">{e.entityName ?? e.entityMetaId}</span>
           <span className="truncate text-xs text-muted-foreground">
-            {TARGET_LABELS[e.entityLevel]?.one ?? e.entityLevel} · <span className="font-mono">{e.entityMetaId}</span>
+            {TARGET_LABELS[e.entityLevel]?.one ?? e.entityLevel} ·{' '}
+            <span className="font-mono">{e.entityMetaId}</span>
           </span>
         </div>
       ),
@@ -383,13 +421,21 @@ export function RuleExecutionsTable({
     {
       id: 'result',
       header: 'Result',
-      cell: (e) => <StatusBadge status={e.result} label={RESULT_LABELS[e.result]?.label} tone={RESULT_LABELS[e.result]?.tone} />,
+      cell: (e) => (
+        <StatusBadge
+          status={e.result}
+          label={RESULT_LABELS[e.result]?.label}
+          tone={RESULT_LABELS[e.result]?.tone}
+        />
+      ),
     },
     {
       id: 'reason',
       header: 'Details',
       cell: (e) => (
-        <span className={`line-clamp-2 max-w-[22rem] text-xs whitespace-normal ${e.errorMessage ? 'text-destructive-fg' : 'text-muted-foreground'}`}>
+        <span
+          className={`line-clamp-2 max-w-[22rem] text-xs whitespace-normal ${e.errorMessage ? 'text-destructive-fg' : 'text-muted-foreground'}`}
+        >
           {e.errorMessage ?? e.reason ?? '—'}
         </span>
       ),
@@ -420,9 +466,14 @@ export function RuleExecutionsTable({
                 state={state}
                 filterKey="result"
                 allLabel="Any result"
-                options={(Object.keys(RESULT_LABELS) as RuleExecutionResult[]).map((r) => ({ value: r, label: RESULT_LABELS[r].label }))}
+                options={(Object.keys(RESULT_LABELS) as RuleExecutionResult[]).map((r) => ({
+                  value: r,
+                  label: RESULT_LABELS[r].label,
+                }))}
               />
-              {!ruleId && ruleOptions?.length ? <FilterSelect state={state} filterKey="ruleId" allLabel="All rules" options={ruleOptions} /> : null}
+              {!ruleId && ruleOptions?.length ? (
+                <FilterSelect state={state} filterKey="ruleId" allLabel="All rules" options={ruleOptions} />
+              ) : null}
             </>
           }
         />
@@ -450,7 +501,9 @@ function ExecutionDetails({ execution }: { execution: RuleExecutionDto }) {
             {data.conditions.map((c, i) => (
               <li key={i} className="flex flex-wrap items-baseline gap-x-2">
                 <span>{c.text}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">actual: {c.actual === null || c.actual === undefined ? 'n/a' : String(c.actual)}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  actual: {c.actual === null || c.actual === undefined ? 'n/a' : String(c.actual)}
+                </span>
               </li>
             ))}
           </ul>
@@ -464,11 +517,14 @@ function ExecutionDetails({ execution }: { execution: RuleExecutionDto }) {
         {execution.errorMessage ? (
           <p className="text-destructive-fg">
             {execution.errorMessage}
-            {execution.errorCode ? <span className="ml-1 text-xs text-muted-foreground">(code {execution.errorCode})</span> : null}
+            {execution.errorCode ? (
+              <span className="ml-1 text-xs text-muted-foreground">(code {execution.errorCode})</span>
+            ) : null}
           </p>
         ) : null}
         <p className="text-xs text-muted-foreground">
-          Run <span className="font-mono">{execution.runId.slice(0, 8)}</span> · {formatDateTime(execution.executedAt, { seconds: true })}
+          Run <span className="font-mono">{execution.runId.slice(0, 8)}</span> ·{' '}
+          {formatDateTime(execution.executedAt, { seconds: true })}
           {execution.isDryRun ? ' · dry run' : ''}
         </p>
       </div>

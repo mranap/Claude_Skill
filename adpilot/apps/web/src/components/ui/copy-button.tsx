@@ -34,7 +34,12 @@ export function CopyButton({
   const icon = copied ? <Check className="text-success-fg" /> : <Copy />;
   if (label) {
     return (
-      <Button variant={variant} size={size === 'icon-xs' ? 'sm' : size} className={className} onClick={onClick}>
+      <Button
+        variant={variant}
+        size={size === 'icon-xs' ? 'sm' : size}
+        className={className}
+        onClick={onClick}
+      >
         {icon}
         {copied ? 'Copied' : label}
       </Button>

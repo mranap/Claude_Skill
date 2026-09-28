@@ -26,14 +26,18 @@ export function SessionList({
   canRevoke?: boolean;
   empty?: React.ReactNode;
 }) {
-  if (!sessions.length) return <>{empty ?? <p className="text-sm text-muted-foreground">No active sessions.</p>}</>;
+  if (!sessions.length)
+    return <>{empty ?? <p className="text-sm text-muted-foreground">No active sessions.</p>}</>;
   return (
     <ul className="divide-y rounded-lg border">
       {sessions.map((session) => {
         const device = describeUserAgent(session.userAgent);
         const Icon = DEVICE_ICONS[device.kind];
         return (
-          <li key={session.id} className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <li
+            key={session.id}
+            className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div className="flex min-w-0 items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <Icon className="size-4" />

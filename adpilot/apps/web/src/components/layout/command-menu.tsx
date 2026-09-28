@@ -1,7 +1,19 @@
 'use client';
 
 import { useQueries } from '@tanstack/react-query';
-import { ArrowRight, Bell, KeyRound, LogOut, Monitor, Moon, Palette, Shield, Sun, UserRound, type LucideIcon } from 'lucide-react';
+import {
+  ArrowRight,
+  Bell,
+  KeyRound,
+  LogOut,
+  Monitor,
+  Moon,
+  Palette,
+  Shield,
+  Sun,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -58,7 +70,13 @@ export function useCommandMenu(): CommandMenuContextValue {
   return ctx;
 }
 
-export function CommandMenuProvider({ children, sources = [] }: { children: React.ReactNode; sources?: CommandSource[] }) {
+export function CommandMenuProvider({
+  children,
+  sources = [],
+}: {
+  children: React.ReactNode;
+  sources?: CommandSource[];
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -69,7 +87,8 @@ export function CommandMenuProvider({ children, sources = [] }: { children: Reac
         return;
       }
       const target = e.target as HTMLElement | null;
-      const typing = !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      const typing =
+        !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
       if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setOpen(true);
@@ -93,7 +112,8 @@ function matches(entry: CommandEntry, q: string): number {
   const label = entry.label.toLowerCase();
   if (label.startsWith(q)) return 3;
   if (label.includes(q)) return 2;
-  if (entry.keywords?.some((k) => k.toLowerCase().includes(q)) || entry.group.toLowerCase().includes(q)) return 1;
+  if (entry.keywords?.some((k) => k.toLowerCase().includes(q)) || entry.group.toLowerCase().includes(q))
+    return 1;
   return 0;
 }
 
@@ -130,17 +150,80 @@ function CommandMenu({
       keywords: item.keywords,
     }));
     const settings: CommandEntry[] = [
-      { id: 'settings:profile', label: 'Profile', group: 'Settings', icon: UserRound, href: '/settings/profile', keywords: ['name', 'time zone', 'email'] },
-      { id: 'settings:security', label: 'Security & 2FA', group: 'Settings', icon: Shield, href: '/settings/security', keywords: ['password', 'two-factor', 'sessions'] },
-      { id: 'settings:password', label: 'Change password', group: 'Settings', icon: KeyRound, href: '/settings/security', keywords: ['security'] },
-      { id: 'settings:notifications', label: 'Notification preferences', group: 'Settings', icon: Bell, href: '/settings/notifications', keywords: ['telegram', 'email'] },
-      { id: 'settings:appearance', label: 'Appearance', group: 'Settings', icon: Palette, href: '/settings/appearance', keywords: ['theme', 'dark mode'] },
+      {
+        id: 'settings:profile',
+        label: 'Profile',
+        group: 'Settings',
+        icon: UserRound,
+        href: '/settings/profile',
+        keywords: ['name', 'time zone', 'email'],
+      },
+      {
+        id: 'settings:security',
+        label: 'Security & 2FA',
+        group: 'Settings',
+        icon: Shield,
+        href: '/settings/security',
+        keywords: ['password', 'two-factor', 'sessions'],
+      },
+      {
+        id: 'settings:password',
+        label: 'Change password',
+        group: 'Settings',
+        icon: KeyRound,
+        href: '/settings/security',
+        keywords: ['security'],
+      },
+      {
+        id: 'settings:notifications',
+        label: 'Notification preferences',
+        group: 'Settings',
+        icon: Bell,
+        href: '/settings/notifications',
+        keywords: ['telegram', 'email'],
+      },
+      {
+        id: 'settings:appearance',
+        label: 'Appearance',
+        group: 'Settings',
+        icon: Palette,
+        href: '/settings/appearance',
+        keywords: ['theme', 'dark mode'],
+      },
     ];
     const actions: CommandEntry[] = [
-      { id: 'theme:light', label: 'Switch to light theme', group: 'Actions', icon: Sun, perform: () => setTheme('light'), keywords: ['appearance'] },
-      { id: 'theme:dark', label: 'Switch to dark theme', group: 'Actions', icon: Moon, perform: () => setTheme('dark'), keywords: ['appearance'] },
-      { id: 'theme:system', label: 'Use system theme', group: 'Actions', icon: Monitor, perform: () => setTheme('system'), keywords: ['appearance'] },
-      { id: 'auth:signout', label: 'Sign out', group: 'Actions', icon: LogOut, perform: () => void signOut(), keywords: ['logout'] },
+      {
+        id: 'theme:light',
+        label: 'Switch to light theme',
+        group: 'Actions',
+        icon: Sun,
+        perform: () => setTheme('light'),
+        keywords: ['appearance'],
+      },
+      {
+        id: 'theme:dark',
+        label: 'Switch to dark theme',
+        group: 'Actions',
+        icon: Moon,
+        perform: () => setTheme('dark'),
+        keywords: ['appearance'],
+      },
+      {
+        id: 'theme:system',
+        label: 'Use system theme',
+        group: 'Actions',
+        icon: Monitor,
+        perform: () => setTheme('system'),
+        keywords: ['appearance'],
+      },
+      {
+        id: 'auth:signout',
+        label: 'Sign out',
+        group: 'Actions',
+        icon: LogOut,
+        perform: () => void signOut(),
+        keywords: ['logout'],
+      },
     ];
     return [...nav, ...admin, ...settings, ...actions];
   }, [can, setTheme, signOut]);
@@ -175,7 +258,10 @@ function CommandMenu({
     [onOpenChange, router],
   );
 
-  const remoteActive = sources.some((s, i) => debounced.length >= (s.minQueryLength ?? 2) && (remote[i]?.isFetching || remote[i]?.data?.length));
+  const remoteActive = sources.some(
+    (s, i) =>
+      debounced.length >= (s.minQueryLength ?? 2) && (remote[i]?.isFetching || remote[i]?.data?.length),
+  );
 
   return (
     <CommandDialog
@@ -203,7 +289,9 @@ function CommandMenu({
                 <CommandItem key={entry.id} value={entry.id} onSelect={() => run(entry)}>
                   <Icon />
                   <span className="truncate">{entry.label}</span>
-                  {entry.href ? <CommandShortcut className="tracking-normal">{entry.href}</CommandShortcut> : null}
+                  {entry.href ? (
+                    <CommandShortcut className="tracking-normal">{entry.href}</CommandShortcut>
+                  ) : null}
                 </CommandItem>
               );
             })}
@@ -212,11 +300,16 @@ function CommandMenu({
         {sources.map((source, index) => {
           const result = remote[index];
           if (debounced.length < (source.minQueryLength ?? 2) || !result) return null;
-          if (result.isFetching && !result.data) return <CommandLoading key={source.id}>Searching {source.heading.toLowerCase()}…</CommandLoading>;
+          if (result.isFetching && !result.data)
+            return <CommandLoading key={source.id}>Searching {source.heading.toLowerCase()}…</CommandLoading>;
           if (!result.data?.length) return null;
           // A source may return several kinds of results: one group per `entry.group`, in order of appearance.
           const byGroup = new Map<string, CommandEntry[]>();
-          for (const entry of result.data) byGroup.set(entry.group || source.heading, [...(byGroup.get(entry.group || source.heading) ?? []), entry]);
+          for (const entry of result.data)
+            byGroup.set(entry.group || source.heading, [
+              ...(byGroup.get(entry.group || source.heading) ?? []),
+              entry,
+            ]);
           return [...byGroup.entries()].map(([group, items]) => (
             <CommandGroup key={`${source.id}:${group}`} heading={group}>
               {items.map((entry) => {
@@ -225,7 +318,11 @@ function CommandMenu({
                   <CommandItem key={entry.id} value={entry.id} onSelect={() => run(entry)}>
                     <Icon />
                     <span className="truncate">{entry.label}</span>
-                    {entry.hint ? <CommandShortcut className="max-w-[45%] truncate tracking-normal">{entry.hint}</CommandShortcut> : null}
+                    {entry.hint ? (
+                      <CommandShortcut className="max-w-[45%] truncate tracking-normal">
+                        {entry.hint}
+                      </CommandShortcut>
+                    ) : null}
                   </CommandItem>
                 );
               })}

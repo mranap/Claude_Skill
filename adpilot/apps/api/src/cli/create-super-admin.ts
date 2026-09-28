@@ -40,7 +40,8 @@ async function promptHidden(question: string): Promise<string> {
 async function main(): Promise<void> {
   const email = arg('email') ?? process.env.SUPER_ADMIN_EMAIL;
   if (!email) throw new Error('Usage: create-super-admin --email <email> [--name <name>] [--reset-password]');
-  const password = process.env.SUPER_ADMIN_PASSWORD || (await promptHidden('Password (min 10 chars, letters + digits): '));
+  const password =
+    process.env.SUPER_ADMIN_PASSWORD || (await promptHidden('Password (min 10 chars, letters + digits): '));
   const prisma = createCliPrisma();
   try {
     await seedRbac(prisma);

@@ -21,7 +21,13 @@ import { formatDuration } from './creative-thumb';
 import type { CreativeDto } from './types';
 
 /** Full preview (image or streamed video) with details, rename, tags and delete. */
-export function CreativePreviewDialog({ id, onOpenChange }: { id: string | null; onOpenChange: (open: boolean) => void }) {
+export function CreativePreviewDialog({
+  id,
+  onOpenChange,
+}: {
+  id: string | null;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <Dialog open={!!id} onOpenChange={onOpenChange}>
       <DialogContent size="xl" className="overflow-hidden p-0">
@@ -64,7 +70,9 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
   const update = useMutation({
     mutationFn: (body: { originalName?: string; tags?: string[] }) => creativesApi.update(creative.id, body),
     onSuccess: async (updated) => {
-      queryClient.setQueryData(queryKeys.creatives.detail(creative.id), (prev: CreativeDto | undefined) => (prev ? { ...prev, ...updated, metaAssets: prev.metaAssets } : updated));
+      queryClient.setQueryData(queryKeys.creatives.detail(creative.id), (prev: CreativeDto | undefined) =>
+        prev ? { ...prev, ...updated, metaAssets: prev.metaAssets } : updated,
+      );
       setRenaming(false);
       await queryClient.invalidateQueries({ queryKey: queryKeys.creatives.all, refetchType: 'active' });
     },
@@ -82,7 +90,14 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
     <div className="grid max-h-[calc(100dvh-2rem)] min-h-0 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_20rem] lg:overflow-hidden">
       <div className="flex min-h-64 items-center justify-center bg-black/90 lg:min-h-[32rem]">
         {creative.type === 'VIDEO' ? (
-          <video key={creative.id} src={creative.fileUrl} controls preload="metadata" poster={creative.previewUrl ?? undefined} className="max-h-[70dvh] w-full object-contain">
+          <video
+            key={creative.id}
+            src={creative.fileUrl}
+            controls
+            preload="metadata"
+            poster={creative.previewUrl ?? undefined}
+            className="max-h-[70dvh] w-full object-contain"
+          >
             <track kind="captions" />
           </video>
         ) : (
@@ -97,12 +112,20 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
               className="flex items-center gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (name.trim() && name.trim() !== creative.name) update.mutate({ originalName: name.trim() });
+                if (name.trim() && name.trim() !== creative.name)
+                  update.mutate({ originalName: name.trim() });
                 else setRenaming(false);
               }}
             >
               <DialogTitle className="sr-only">Rename {creative.name}</DialogTitle>
-              <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} autoFocus aria-label="File name" className="h-8" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={200}
+                autoFocus
+                aria-label="File name"
+                className="h-8"
+              />
               <Button type="submit" size="sm" loading={update.isPending}>
                 Save
               </Button>
@@ -124,11 +147,26 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
         <KeyValueList
           items={[
             { label: 'Format', value: `${creative.extension.toUpperCase()} · ${creative.mimeType}` },
-            { label: 'Dimensions', value: creative.width && creative.height ? `${creative.width} × ${creative.height} px` : null },
+            {
+              label: 'Dimensions',
+              value: creative.width && creative.height ? `${creative.width} × ${creative.height} px` : null,
+            },
             { label: 'Aspect ratio', value: creative.aspectRatio },
-            { label: 'Duration', value: creative.durationMs ? formatDuration(creative.durationMs) : null, hidden: creative.type !== 'VIDEO' },
-            { label: 'Codecs', value: [creative.videoCodec, creative.audioCodec].filter(Boolean).join(' / ') || null, hidden: creative.type !== 'VIDEO' },
-            { label: 'Frame rate', value: creative.frameRate ? `${creative.frameRate} fps` : null, hidden: creative.type !== 'VIDEO' },
+            {
+              label: 'Duration',
+              value: creative.durationMs ? formatDuration(creative.durationMs) : null,
+              hidden: creative.type !== 'VIDEO',
+            },
+            {
+              label: 'Codecs',
+              value: [creative.videoCodec, creative.audioCodec].filter(Boolean).join(' / ') || null,
+              hidden: creative.type !== 'VIDEO',
+            },
+            {
+              label: 'Frame rate',
+              value: creative.frameRate ? `${creative.frameRate} fps` : null,
+              hidden: creative.type !== 'VIDEO',
+            },
             { label: 'Size', value: formatBytes(creative.sizeBytes) },
             { label: 'Status', value: <StatusBadge status={creative.status} size="sm" /> },
           ]}
@@ -161,7 +199,14 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
                 addTag();
               }}
             >
-              <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add a tag" maxLength={50} className="h-8" aria-label="New tag" />
+              <Input
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="Add a tag"
+                maxLength={50}
+                className="h-8"
+                aria-label="New tag"
+              />
               <Button type="submit" variant="outline" size="sm" disabled={!tag.trim()}>
                 <Plus />
                 Add
@@ -210,9 +255,7 @@ function Preview({ creative, onClose }: { creative: CreativeDto; onClose: () => 
         onConfirm={async () => {
           await creativesApi.remove(creative.id);
           toast.success('Creative deleted');
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: queryKeys.creatives.all }),
-          ]);
+          await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.creatives.all })]);
           onClose();
         }}
       />

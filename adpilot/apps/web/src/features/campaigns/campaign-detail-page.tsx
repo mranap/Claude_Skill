@@ -8,7 +8,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -19,7 +24,13 @@ import { RelativeTime } from '@/components/shared/relative-time';
 import { StatCard } from '@/components/shared/stat-card';
 import { MetaId } from '@/components/product/meta-id';
 import { EffectiveStatusBadge } from '@/components/product/status';
-import { parseStatsRange, statsRangeLabel, statsRangeParams, StatsRangePicker, type StatsRange } from '@/components/product/stats-range-picker';
+import {
+  parseStatsRange,
+  statsRangeLabel,
+  statsRangeParams,
+  StatsRangePicker,
+  type StatsRange,
+} from '@/components/product/stats-range-picker';
 import { useAuth } from '@/features/auth/auth-context';
 import { countryName } from '@/lib/utils/countries';
 import { cn } from '@/lib/utils/cn';
@@ -30,7 +41,14 @@ import { ActivityTimeline } from '../activity/activity-timeline';
 import { formatMetric, metricColumns } from '../statistics/metrics';
 import { useCampaign } from './api';
 import { objectiveLabel } from './campaigns-page';
-import { BudgetCell, BudgetDialog, BulkOperationBanner, BulkStatusDialog, StatusToggle, type BulkRequest } from './entity-actions';
+import {
+  BudgetCell,
+  BudgetDialog,
+  BulkOperationBanner,
+  BulkStatusDialog,
+  StatusToggle,
+  type BulkRequest,
+} from './entity-actions';
 import type { AdRow, AdSetRow, BulkOperationDto, CampaignDetail, EntityActionLevel } from './types';
 
 /** Flattens Meta's `issues_info` / `ad_review_feedback` JSON into readable lines. */
@@ -51,7 +69,8 @@ export function metaMessages(value: unknown): string[] {
     const out: string[] = [];
     for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
       if (v && typeof v === 'object' && !Array.isArray(v)) {
-        for (const [reason, text] of Object.entries(v as Record<string, unknown>)) out.push(`${humanize(reason)}: ${String(text)}`);
+        for (const [reason, text] of Object.entries(v as Record<string, unknown>))
+          out.push(`${humanize(reason)}: ${String(text)}`);
       } else out.push(`${humanize(key)}: ${String(v)}`);
     }
     return out;
@@ -79,15 +98,35 @@ export function CampaignDetailPage({ id }: { id: string }) {
   if (campaign.isError || !campaign.data) {
     return (
       <>
-        <PageHeader title="Campaign" breadcrumbs={[{ label: 'Campaigns', href: '/campaigns' }, { label: 'Not available' }]} />
+        <PageHeader
+          title="Campaign"
+          breadcrumbs={[{ label: 'Campaigns', href: '/campaigns' }, { label: 'Not available' }]}
+        />
         <ErrorAlert error={campaign.error} onRetry={() => void campaign.refetch()} />
       </>
     );
   }
-  return <CampaignView campaign={campaign.data} range={range} onRangeChange={setRange} fetching={campaign.isFetching} />;
+  return (
+    <CampaignView
+      campaign={campaign.data}
+      range={range}
+      onRangeChange={setRange}
+      fetching={campaign.isFetching}
+    />
+  );
 }
 
-function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: CampaignDetail; range: StatsRange; onRangeChange: (r: StatsRange) => void; fetching: boolean }) {
+function CampaignView({
+  campaign,
+  range,
+  onRangeChange,
+  fetching,
+}: {
+  campaign: CampaignDetail;
+  range: StatsRange;
+  onRangeChange: (r: StatsRange) => void;
+  fetching: boolean;
+}) {
   const { can, canAny } = useAuth();
   const canManage = can('app.campaigns.manage');
   const searchParams = useSearchParams();
@@ -100,7 +139,14 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
   const tz = campaign.adAccount.timezoneName;
   const metrics = campaign.metrics;
   const issues = metaMessages(campaign.issuesInfo);
-  const entity = { level: 'CAMPAIGN' as const, id: campaign.id, name: campaign.name, status: campaign.status, currency, budget: campaign.budget };
+  const entity = {
+    level: 'CAMPAIGN' as const,
+    id: campaign.id,
+    name: campaign.name,
+    status: campaign.status,
+    currency,
+    budget: campaign.budget,
+  };
   const adSetName = new Map(campaign.adSets.map((s) => [s.id, s.name]));
 
   // Deep links from search (?adset= / ?ad=) scroll to the matching row.
@@ -111,13 +157,31 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [focusId]);
 
-  const bulkButtons = (level: EntityActionLevel, selected: { id: string; name: string }[], clear: () => void) => (
+  const bulkButtons = (
+    level: EntityActionLevel,
+    selected: { id: string; name: string }[],
+    clear: () => void,
+  ) => (
     <>
-      <Button size="xs" variant="outline" onClick={() => { setBulkRequest({ level, status: 'PAUSED', targets: selected }); clear(); }}>
+      <Button
+        size="xs"
+        variant="outline"
+        onClick={() => {
+          setBulkRequest({ level, status: 'PAUSED', targets: selected });
+          clear();
+        }}
+      >
         <Pause />
         Pause
       </Button>
-      <Button size="xs" variant="outline" onClick={() => { setBulkRequest({ level, status: 'ACTIVE', targets: selected }); clear(); }}>
+      <Button
+        size="xs"
+        variant="outline"
+        onClick={() => {
+          setBulkRequest({ level, status: 'ACTIVE', targets: selected });
+          clear();
+        }}
+      >
         <Play />
         Start
       </Button>
@@ -141,7 +205,10 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
       interactive: true,
       cell: (s) => (
         <div className="flex items-center gap-2">
-          <StatusToggle entity={{ level: 'ADSET', id: s.id, name: s.name, status: s.status, currency }} canManage={canManage} />
+          <StatusToggle
+            entity={{ level: 'ADSET', id: s.id, name: s.name, status: s.status, currency }}
+            canManage={canManage}
+          />
           <EffectiveStatusBadge status={s.effectiveStatus} />
         </div>
       ),
@@ -151,7 +218,12 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
       header: 'Budget',
       align: 'right',
       interactive: true,
-      cell: (s) => <BudgetCell entity={{ level: 'ADSET', id: s.id, name: s.name, status: s.status, currency, budget: s.budget }} canManage={canManage} />,
+      cell: (s) => (
+        <BudgetCell
+          entity={{ level: 'ADSET', id: s.id, name: s.name, status: s.status, currency, budget: s.budget }}
+          canManage={canManage}
+        />
+      ),
     },
     {
       id: 'goal',
@@ -159,7 +231,9 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
       cell: (s) => (
         <div className="grid gap-0.5">
           <span>{s.optimizationGoal ? humanize(s.optimizationGoal) : '—'}</span>
-          <span className="text-xs text-muted-foreground">{s.countries.length ? s.countries.map(countryName).join(', ') : 'No countries'}</span>
+          <span className="text-xs text-muted-foreground">
+            {s.countries.length ? s.countries.map(countryName).join(', ') : 'No countries'}
+          </span>
         </div>
       ),
     },
@@ -198,7 +272,10 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
       interactive: true,
       cell: (a) => (
         <div className="flex items-center gap-2">
-          <StatusToggle entity={{ level: 'AD', id: a.id, name: a.name, status: a.status, currency }} canManage={canManage} />
+          <StatusToggle
+            entity={{ level: 'AD', id: a.id, name: a.name, status: a.status, currency }}
+            canManage={canManage}
+          />
           <EffectiveStatusBadge status={a.effectiveStatus} />
         </div>
       ),
@@ -215,15 +292,22 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
         meta={<EffectiveStatusBadge status={campaign.effectiveStatus} />}
         description={
           <>
-            {objectiveLabel(campaign.objective)} · <Link href={`/ad-accounts/${campaign.adAccount.id}`} className="hover:underline">{campaign.adAccount.name}</Link> · {currency} ·{' '}
-            {tz}
+            {objectiveLabel(campaign.objective)} ·{' '}
+            <Link href={`/ad-accounts/${campaign.adAccount.id}`} className="hover:underline">
+              {campaign.adAccount.name}
+            </Link>{' '}
+            · {currency} · {tz}
           </>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-md border bg-field px-3 text-sm">
               <StatusToggle entity={entity} canManage={canManage} />
-              {campaign.status === 'ACTIVE' ? 'Active' : campaign.status === 'PAUSED' ? 'Paused' : humanize(campaign.status ?? 'Unknown')}
+              {campaign.status === 'ACTIVE'
+                ? 'Active'
+                : campaign.status === 'PAUSED'
+                  ? 'Paused'
+                  : humanize(campaign.status ?? 'Unknown')}
             </span>
             {campaign.budget && canManage ? (
               <Button variant="outline" onClick={() => setBudgetOpen(true)}>
@@ -268,7 +352,9 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
           </div>
         }
       />
-      {campaign.budget ? <BudgetDialog entity={entity} open={budgetOpen} onOpenChange={setBudgetOpen} /> : null}
+      {campaign.budget ? (
+        <BudgetDialog entity={entity} open={budgetOpen} onOpenChange={setBudgetOpen} />
+      ) : null}
 
       {issues.length ? (
         <Alert variant="warning" className="mb-4">
@@ -282,7 +368,14 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
           </AlertDescription>
         </Alert>
       ) : null}
-      {operation ? <BulkOperationBanner key={operation.id} operation={operation} onDismiss={() => setOperation(null)} className="mb-4" /> : null}
+      {operation ? (
+        <BulkOperationBanner
+          key={operation.id}
+          operation={operation}
+          onDismiss={() => setOperation(null)}
+          className="mb-4"
+        />
+      ) : null}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <StatsRangePicker value={range} onChange={onRangeChange} />
@@ -290,11 +383,34 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
           {statsRangeLabel(range)} in the ad account time zone ({tz}){fetching ? ' · updating…' : ''}
         </span>
       </div>
-      <div className={cn('grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4', fetching && 'opacity-70 transition-opacity')}>
-        <StatCard label="Spend" value={formatMetric(metrics, 'spend')} hint={noDelivery ? 'No delivery in this period' : currency} />
-        <StatCard label="Leads" value={formatMetric(metrics, 'leads')} hint={metrics ? `CPL ${formatMetric(metrics, 'cpl')}` : undefined} />
-        <StatCard label="Link clicks" value={formatMetric(metrics, 'linkClicks')} hint={metrics ? `CTR ${formatMetric(metrics, 'ctr')} · CPC ${formatMetric(metrics, 'cpc')}` : undefined} />
-        <StatCard label="Impressions" value={formatMetric(metrics, 'impressions')} hint={metrics ? `CPM ${formatMetric(metrics, 'cpm')}` : undefined} />
+      <div
+        className={cn(
+          'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4',
+          fetching && 'opacity-70 transition-opacity',
+        )}
+      >
+        <StatCard
+          label="Spend"
+          value={formatMetric(metrics, 'spend')}
+          hint={noDelivery ? 'No delivery in this period' : currency}
+        />
+        <StatCard
+          label="Leads"
+          value={formatMetric(metrics, 'leads')}
+          hint={metrics ? `CPL ${formatMetric(metrics, 'cpl')}` : undefined}
+        />
+        <StatCard
+          label="Link clicks"
+          value={formatMetric(metrics, 'linkClicks')}
+          hint={
+            metrics ? `CTR ${formatMetric(metrics, 'ctr')} · CPC ${formatMetric(metrics, 'cpc')}` : undefined
+          }
+        />
+        <StatCard
+          label="Impressions"
+          value={formatMetric(metrics, 'impressions')}
+          hint={metrics ? `CPM ${formatMetric(metrics, 'cpm')}` : undefined}
+        />
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -309,11 +425,23 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
               data={campaign.adSets}
               getRowId={(s) => s.id}
               selectable={canManage}
-              bulkActions={({ selected, clear }) => bulkButtons('ADSET', selected.map((s) => ({ id: s.id, name: s.name })), clear)}
+              bulkActions={({ selected, clear }) =>
+                bulkButtons(
+                  'ADSET',
+                  selected.map((s) => ({ id: s.id, name: s.name })),
+                  clear,
+                )
+              }
               rowClassName={(s) => (s.id === focusAdSet ? 'bg-primary/[0.06]' : undefined)}
               stickyHeader={false}
               minWidth={1080}
-              emptyState={<EmptyState compact title="No ad sets" description="This campaign has no ad sets (or they were deleted in Meta)." />}
+              emptyState={
+                <EmptyState
+                  compact
+                  title="No ad sets"
+                  description="This campaign has no ad sets (or they were deleted in Meta)."
+                />
+              }
             />
           </section>
           <section className="grid min-w-0 content-start gap-2" aria-labelledby="ads-title">
@@ -326,7 +454,13 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
               data={campaign.ads}
               getRowId={(a) => a.id}
               selectable={canManage}
-              bulkActions={({ selected, clear }) => bulkButtons('AD', selected.map((a) => ({ id: a.id, name: a.name })), clear)}
+              bulkActions={({ selected, clear }) =>
+                bulkButtons(
+                  'AD',
+                  selected.map((a) => ({ id: a.id, name: a.name })),
+                  clear,
+                )
+              }
               rowClassName={(a) => (a.id === focusAd ? 'bg-primary/[0.06]' : undefined)}
               stickyHeader={false}
               minWidth={960}
@@ -343,12 +477,30 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
               <KeyValueList
                 items={[
                   { label: 'Campaign ID', value: <MetaId value={campaign.metaCampaignId} /> },
-                  { label: 'Ad account', value: <Link href={`/ad-accounts/${campaign.adAccount.id}`} className="hover:underline">{campaign.adAccount.name}</Link> },
+                  {
+                    label: 'Ad account',
+                    value: (
+                      <Link href={`/ad-accounts/${campaign.adAccount.id}`} className="hover:underline">
+                        {campaign.adAccount.name}
+                      </Link>
+                    ),
+                  },
                   { label: 'Currency · time zone', value: `${currency} · ${tz}` },
                   { label: 'Objective', value: objectiveLabel(campaign.objective) },
-                  { label: 'Budget', value: campaign.budget ? `${formatAmount(campaign.budget.amount, currency)} ${campaign.budget.type === 'DAILY' ? 'daily' : 'lifetime'}` : 'Set on ad sets' },
-                  { label: 'Bid strategy', value: campaign.bidStrategy ? humanize(campaign.bidStrategy) : null },
-                  { label: 'Countries', value: campaign.countries.length ? campaign.countries.map(countryName).join(', ') : null },
+                  {
+                    label: 'Budget',
+                    value: campaign.budget
+                      ? `${formatAmount(campaign.budget.amount, currency)} ${campaign.budget.type === 'DAILY' ? 'daily' : 'lifetime'}`
+                      : 'Set on ad sets',
+                  },
+                  {
+                    label: 'Bid strategy',
+                    value: campaign.bidStrategy ? humanize(campaign.bidStrategy) : null,
+                  },
+                  {
+                    label: 'Countries',
+                    value: campaign.countries.length ? campaign.countries.map(countryName).join(', ') : null,
+                  },
                   {
                     label: 'Special ad categories',
                     value: campaign.specialAdCategories.length ? (
@@ -371,7 +523,9 @@ function CampaignView({ campaign, range, onRangeChange, fetching }: { campaign: 
           <Card>
             <CardHeader>
               <CardTitle>Activity</CardTitle>
-              <CardDescription>Status and budget changes, launches and Meta events for this campaign.</CardDescription>
+              <CardDescription>
+                Status and budget changes, launches and Meta events for this campaign.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {campaign.timeline.length ? (

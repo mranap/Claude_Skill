@@ -51,7 +51,11 @@ export const loginEventColumns: DataTableColumn<LoginEventDto>[] = [
       </span>
     ),
   },
-  { id: 'ip', header: 'IP address', cell: (e) => <span className="font-mono text-[13px]">{e.ip ?? '—'}</span> },
+  {
+    id: 'ip',
+    header: 'IP address',
+    cell: (e) => <span className="font-mono text-[13px]">{e.ip ?? '—'}</span>,
+  },
   {
     id: 'device',
     header: 'Device',

@@ -15,8 +15,12 @@ export function formatDuration(ms: number | null | undefined): string {
 }
 
 /** "1080×1920 · 9:16 · 12.3 MB" */
-export function describeCreative(c: Pick<CreativeDto, 'width' | 'height' | 'aspectRatio' | 'sizeBytes'>): string {
-  return [c.width && c.height ? `${c.width}×${c.height}` : null, c.aspectRatio, formatBytes(c.sizeBytes)].filter(Boolean).join(' · ');
+export function describeCreative(
+  c: Pick<CreativeDto, 'width' | 'height' | 'aspectRatio' | 'sizeBytes'>,
+): string {
+  return [c.width && c.height ? `${c.width}×${c.height}` : null, c.aspectRatio, formatBytes(c.sizeBytes)]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**

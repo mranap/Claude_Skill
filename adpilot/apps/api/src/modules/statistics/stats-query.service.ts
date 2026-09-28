@@ -29,11 +29,20 @@ export interface AggregatedObject {
 export class StatsQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  ranges(accounts: AccountRef[], key: DateRangeKey, custom?: { from?: string; to?: string }): Map<string, LocalRange> {
+  ranges(
+    accounts: AccountRef[],
+    key: DateRangeKey,
+    custom?: { from?: string; to?: string },
+  ): Map<string, LocalRange> {
     return new Map(accounts.map((a) => [a.id, resolveRange(key, a.timezoneName, custom)]));
   }
 
-  private async rows(accounts: AccountRef[], ranges: Map<string, LocalRange>, level: EntityLevel, filter: { metaObjectIds?: string[]; metaCampaignId?: string }) {
+  private async rows(
+    accounts: AccountRef[],
+    ranges: Map<string, LocalRange>,
+    level: EntityLevel,
+    filter: { metaObjectIds?: string[]; metaCampaignId?: string },
+  ) {
     if (!accounts.length) return [];
     const all = [...ranges.values()];
     const minSince = all.reduce((m, r) => (r.since < m ? r.since : m), all[0].since);
@@ -103,10 +112,16 @@ export class StatsQueryService {
     };
     for (const r of rows) {
       const cur = currencyOf.get(r.adAccountId) ?? r.currency;
-      byCurrency.set(cur, addRow(byCurrency.get(cur) ?? emptyCounters(), r, singleDay && onlyAccount(cur, r.adAccountId)));
+      byCurrency.set(
+        cur,
+        addRow(byCurrency.get(cur) ?? emptyCounters(), r, singleDay && onlyAccount(cur, r.adAccountId)),
+      );
       const day = fromDbDate(r.date);
       const perDay = byDay.get(day) ?? new Map<string, BaseCounters>();
-      perDay.set(cur, addRow(perDay.get(cur) ?? emptyCounters(), r, onlyAccount(`${day}|${cur}`, r.adAccountId)));
+      perDay.set(
+        cur,
+        addRow(perDay.get(cur) ?? emptyCounters(), r, onlyAccount(`${day}|${cur}`, r.adAccountId)),
+      );
       byDay.set(day, perDay);
     }
     const allDays = new Set<string>();

@@ -39,7 +39,11 @@ const subscribeNoop = () => () => undefined;
 export function AppearanceSettings() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   // next-themes only knows the stored theme after mount.
-  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
   const current = mounted ? (theme ?? 'system') : undefined;
 
   return (

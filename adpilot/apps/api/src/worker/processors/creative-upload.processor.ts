@@ -42,11 +42,17 @@ export class CreativeUploadProcessor implements QueueProcessor {
     if (asset.creativeFile.deletedAt) return { skipped: 'file deleted' };
     const profile = asset.adAccount.profile;
     if (profile.deletedAt || profile.status !== 'ACTIVE') {
-      await this.prisma.creativeMetaAsset.update({ where: { id: asset.id }, data: { status: 'FAILED', error: 'The Meta profile of this ad account is not active' } });
+      await this.prisma.creativeMetaAsset.update({
+        where: { id: asset.id },
+        data: { status: 'FAILED', error: 'The Meta profile of this ad account is not active' },
+      });
       return { state: 'FAILED' };
     }
     if (asset.status === 'PROCESSING' && Date.now() - job.timestamp > MAX_PROCESSING_WAIT_MS) {
-      await this.prisma.creativeMetaAsset.update({ where: { id: asset.id }, data: { status: 'FAILED', error: 'Meta did not finish processing the video within 2 hours' } });
+      await this.prisma.creativeMetaAsset.update({
+        where: { id: asset.id },
+        data: { status: 'FAILED', error: 'Meta did not finish processing the video within 2 hours' },
+      });
       return { state: 'FAILED' };
     }
     try {
@@ -54,7 +60,10 @@ export class CreativeUploadProcessor implements QueueProcessor {
       const result = await this.media.process(conn, asset, asset.creativeFile, asset.adAccount.metaAccountId);
       if (result.state === 'PROCESSING') return deferJob(job, token, result.recheckInMs);
       if (result.state === 'FAILED') {
-        await this.prisma.creativeMetaAsset.update({ where: { id: asset.id }, data: { status: 'FAILED', error: result.error } });
+        await this.prisma.creativeMetaAsset.update({
+          where: { id: asset.id },
+          data: { status: 'FAILED', error: result.error },
+        });
       }
       return result;
     } catch (err) {
@@ -64,7 +73,11 @@ export class CreativeUploadProcessor implements QueueProcessor {
           data: { status: 'FAILED', error: err.details.friendlyMessage, errorCode: err.metaCode ?? null },
         });
       }
-      return handleMetaJobError(err, job, token, { profileId: profile.id, profileStatus: this.profileStatus, tokenFingerprint: profile.tokenFingerprint });
+      return handleMetaJobError(err, job, token, {
+        profileId: profile.id,
+        profileStatus: this.profileStatus,
+        tokenFingerprint: profile.tokenFingerprint,
+      });
     }
   }
 }

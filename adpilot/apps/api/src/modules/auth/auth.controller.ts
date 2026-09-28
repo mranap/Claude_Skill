@@ -116,7 +116,10 @@ export class AuthController {
   @Public()
   @Post('password/forgot')
   @HttpCode(202)
-  async forgot(@Body(zod(forgotPasswordSchema)) body: z.infer<typeof forgotPasswordSchema>, @Req() req: Request) {
+  async forgot(
+    @Body(zod(forgotPasswordSchema)) body: z.infer<typeof forgotPasswordSchema>,
+    @Req() req: Request,
+  ) {
     await this.auth.forgotPassword(body.email, clientInfo(req));
     return { ok: true, message: 'If an account exists for this e-mail, a reset link has been sent.' };
   }
@@ -133,7 +136,10 @@ export class AuthController {
   @Public()
   @Post('password/reset')
   @HttpCode(200)
-  async reset(@Body(zod(resetPasswordSchema)) body: z.infer<typeof resetPasswordSchema>, @Req() req: Request) {
+  async reset(
+    @Body(zod(resetPasswordSchema)) body: z.infer<typeof resetPasswordSchema>,
+    @Req() req: Request,
+  ) {
     await this.auth.resetPassword(body.token, body.password, clientInfo(req));
     return { ok: true };
   }

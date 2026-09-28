@@ -72,7 +72,13 @@ export function SeriesCard({
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl size="sm" aria-label="Metric" value={metric} onValueChange={setMetric} options={SERIES_METRICS.map((m) => ({ value: m.value, label: m.label }))} />
+          <SegmentedControl
+            size="sm"
+            aria-label="Metric"
+            value={metric}
+            onValueChange={setMetric}
+            options={SERIES_METRICS.map((m) => ({ value: m.value, label: m.label }))}
+          />
           <SegmentedControl
             size="sm"
             aria-label="View"

@@ -55,7 +55,10 @@ export class LockService {
   ): Promise<{ acquired: true; result: T } | { acquired: false }> {
     const lock = await this.acquire(name, ttlMs);
     if (!lock) return { acquired: false };
-    const renew = setInterval(() => void this.extend(lock, ttlMs).catch(() => undefined), Math.max(1000, ttlMs / 3));
+    const renew = setInterval(
+      () => void this.extend(lock, ttlMs).catch(() => undefined),
+      Math.max(1000, ttlMs / 3),
+    );
     try {
       return { acquired: true, result: await fn() };
     } finally {

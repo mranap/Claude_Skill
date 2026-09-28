@@ -34,8 +34,26 @@ export function insightFields(level: string): string {
   const ids: Record<string, string[]> = {
     account: [],
     campaign: ['campaign_id', 'campaign_name', 'objective', 'results'],
-    adset: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'objective', 'optimization_goal', 'results'],
-    ad: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'objective', 'optimization_goal', 'results'],
+    adset: [
+      'campaign_id',
+      'campaign_name',
+      'adset_id',
+      'adset_name',
+      'objective',
+      'optimization_goal',
+      'results',
+    ],
+    ad: [
+      'campaign_id',
+      'campaign_name',
+      'adset_id',
+      'adset_name',
+      'ad_id',
+      'ad_name',
+      'objective',
+      'optimization_goal',
+      'results',
+    ],
   };
   return [...(ids[level] ?? []), ...METRIC_FIELDS].join(',');
 }
@@ -111,8 +129,11 @@ export function extractConversions(row: InsightRow) {
     new Decimal(actionValue(row.actions, ['onsite_conversion.lead_grouped']) ?? 0)
       .plus(actionValue(row.actions, ['offsite_conversion.fb_pixel_lead']) ?? 0)
       .toString();
-  const purchases = actionValue(row.actions, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase']) ?? '0';
-  const purchaseValue = actionValue(row.action_values, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase']) ?? '0';
+  const purchases =
+    actionValue(row.actions, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase']) ?? '0';
+  const purchaseValue =
+    actionValue(row.action_values, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase']) ??
+    '0';
   return { leads, purchases, purchaseValue };
 }
 
@@ -131,7 +152,13 @@ export function resultTypeFromIndicator(indicator: string): string {
     like: 'page_likes',
     video_view: 'video_views',
   };
-  return known[type] ?? type.replace(/^offsite_conversion\.fb_pixel_/, '').replace(/^onsite_conversion\./, '').slice(0, 60);
+  return (
+    known[type] ??
+    type
+      .replace(/^offsite_conversion\.fb_pixel_/, '')
+      .replace(/^onsite_conversion\./, '')
+      .slice(0, 60)
+  );
 }
 
 /**
@@ -147,7 +174,8 @@ export function metaResults(row: InsightRow): { value: string | null; type: stri
   for (const r of list) {
     const values = Array.isArray(r?.values) ? r.values : [];
     // One value per attribution window setting: take the default one only (never sum windows).
-    const v = values.find((x) => !x.attribution_windows || x.attribution_windows.includes('default')) ?? values[0];
+    const v =
+      values.find((x) => !x.attribution_windows || x.attribution_windows.includes('default')) ?? values[0];
     const raw = v?.value;
     if (raw === undefined || !/^\d+(\.\d+)?$/.test(String(raw))) continue;
     total = total.plus(String(raw));
@@ -162,7 +190,10 @@ export function metaResults(row: InsightRow): { value: string | null; type: stri
  * "Results" as Ads Manager reports them: Meta's own `results` field when present, otherwise derived from the
  * optimisation goal of the row.
  */
-export function computeResults(row: InsightRow, conv: ReturnType<typeof extractConversions>): { value: string | null; type: string | null } {
+export function computeResults(
+  row: InsightRow,
+  conv: ReturnType<typeof extractConversions>,
+): { value: string | null; type: string | null } {
   const reported = metaResults(row);
   if (reported) return reported;
   const goal = row.optimization_goal ?? '';
@@ -173,7 +204,9 @@ export function computeResults(row: InsightRow, conv: ReturnType<typeof extractC
     case 'QUALITY_LEAD':
       return { value: conv.leads, type: 'leads' };
     case 'OFFSITE_CONVERSIONS':
-      return objective === 'OUTCOME_SALES' ? { value: conv.purchases, type: 'purchases' } : { value: conv.leads, type: 'leads' };
+      return objective === 'OUTCOME_SALES'
+        ? { value: conv.purchases, type: 'purchases' }
+        : { value: conv.leads, type: 'leads' };
     case 'VALUE':
       return { value: conv.purchases, type: 'purchases' };
     case 'LINK_CLICKS':
@@ -232,8 +265,11 @@ export function insightsWindow(
   now = Date.now(),
 ): { days: number; full: boolean } {
   if (!account.statsBackfilledAt || backfill) return { days: cfg.backfillDays, full: true };
-  const due = !account.statsFullRefreshAt || now - account.statsFullRefreshAt.getTime() >= FULL_REFRESH_EVERY_MS;
-  return due ? { days: Math.max(cfg.lookbackDays, INSIGHTS_SETTLED_AFTER_DAYS), full: true } : { days: cfg.lookbackDays, full: false };
+  const due =
+    !account.statsFullRefreshAt || now - account.statsFullRefreshAt.getTime() >= FULL_REFRESH_EVERY_MS;
+  return due
+    ? { days: Math.max(cfg.lookbackDays, INSIGHTS_SETTLED_AFTER_DAYS), full: true }
+    : { days: cfg.lookbackDays, full: false };
 }
 
 /**
@@ -251,7 +287,11 @@ export class InsightsSyncService {
     private readonly settings: SettingsService,
   ) {}
 
-  async syncAccount(account: AdAccount, conn: MetaConnection, opts: { backfill?: boolean } = {}): Promise<{ rows: number; since: string; until: string }> {
+  async syncAccount(
+    account: AdAccount,
+    conn: MetaConnection,
+    opts: { backfill?: boolean } = {},
+  ): Promise<{ rows: number; since: string; until: string }> {
     const cfg = await this.settings.get('statistics');
     const today = DateTime.now().setZone(account.timezoneName);
     const { days, full } = insightsWindow(account, cfg, opts.backfill ?? false);
@@ -261,12 +301,23 @@ export class InsightsSyncService {
     for (const { level, api } of LEVELS) {
       total += await this.syncRange(account, conn, level, api, since, until);
     }
-    if (full) await this.prisma.adAccount.update({ where: { id: account.id }, data: { statsFullRefreshAt: new Date() } });
+    if (full)
+      await this.prisma.adAccount.update({
+        where: { id: account.id },
+        data: { statsFullRefreshAt: new Date() },
+      });
     return { rows: total, since, until };
   }
 
   /** Fetches one level for a date range and stores each page as it arrives. Returns the number of stored rows. */
-  private async syncRange(account: AdAccount, conn: MetaConnection, level: EntityLevel, api: string, since: string, until: string): Promise<number> {
+  private async syncRange(
+    account: AdAccount,
+    conn: MetaConnection,
+    level: EntityLevel,
+    api: string,
+    since: string,
+    until: string,
+  ): Promise<number> {
     let stored = 0;
     let after: string | undefined;
     try {
@@ -274,7 +325,14 @@ export class InsightsSyncService {
         const res = await this.graph.get<InsightsPage>(
           conn,
           `/${actId(account.metaAccountId)}/insights`,
-          { level: api, fields: insightFields(api), time_range: { since, until }, time_increment: 1, limit: PAGE_LIMIT, ...(after ? { after } : {}) },
+          {
+            level: api,
+            fields: insightFields(api),
+            time_range: { since, until },
+            time_increment: 1,
+            limit: PAGE_LIMIT,
+            ...(after ? { after } : {}),
+          },
           `insights.${api}`,
           { metaAccountId: account.metaAccountId, timeoutMs: 120_000 },
         );
@@ -293,47 +351,74 @@ export class InsightsSyncService {
     throw new Error(`Insights (${api}, ${since}) did not fit into ${MAX_PAGES} pages`);
   }
 
-  private async syncHalves(account: AdAccount, conn: MetaConnection, level: EntityLevel, api: string, since: string, until: string): Promise<number> {
+  private async syncHalves(
+    account: AdAccount,
+    conn: MetaConnection,
+    level: EntityLevel,
+    api: string,
+    since: string,
+    until: string,
+  ): Promise<number> {
     const s = DateTime.fromISO(since, { zone: 'UTC' });
     const u = DateTime.fromISO(until, { zone: 'UTC' });
     const mid = s.plus({ days: Math.floor(u.diff(s, 'days').days / 2) });
     const first = await this.syncRange(account, conn, level, api, since, mid.toFormat('yyyy-MM-dd'));
-    return first + (await this.syncRange(account, conn, level, api, mid.plus({ days: 1 }).toFormat('yyyy-MM-dd'), until));
+    return (
+      first +
+      (await this.syncRange(account, conn, level, api, mid.plus({ days: 1 }).toFormat('yyyy-MM-dd'), until))
+    );
   }
 
   /** Bulk upsert (INSERT … ON CONFLICT) in chunks. */
   private async store(account: AdAccount, level: EntityLevel, rows: InsightRow[]): Promise<number> {
-    const records = rows.map((r) => {
-      const conv = extractConversions(r);
-      const results = computeResults(r, conv);
-      const metaObjectId =
-        level === 'ACCOUNT' ? account.metaAccountId : level === 'CAMPAIGN' ? r.campaign_id : level === 'ADSET' ? r.adset_id : r.ad_id;
-      return {
-        metaObjectId: metaObjectId ?? '',
-        metaCampaignId: level === 'ACCOUNT' ? null : r.campaign_id ?? null,
-        metaAdSetId: level === 'ADSET' || level === 'AD' ? r.adset_id ?? null : null,
-        objectName: level === 'ACCOUNT' ? account.name : level === 'CAMPAIGN' ? r.campaign_name : level === 'ADSET' ? r.adset_name : r.ad_name,
-        date: r.date_start,
-        currency: r.account_currency ?? account.currency,
-        spend: num(r.spend),
-        impressions: num(r.impressions),
-        reach: num(r.reach),
-        clicks: num(r.clicks),
-        linkClicks: num(r.inline_link_clicks),
-        leads: conv.leads,
-        purchases: conv.purchases,
-        purchaseValue: conv.purchaseValue,
-        results: results.value,
-        resultType: results.type,
-        actions: r.actions ?? null,
-        actionValues: r.action_values ?? null,
-      };
-    }).filter((r) => r.metaObjectId);
+    const records = rows
+      .map((r) => {
+        const conv = extractConversions(r);
+        const results = computeResults(r, conv);
+        const metaObjectId =
+          level === 'ACCOUNT'
+            ? account.metaAccountId
+            : level === 'CAMPAIGN'
+              ? r.campaign_id
+              : level === 'ADSET'
+                ? r.adset_id
+                : r.ad_id;
+        return {
+          metaObjectId: metaObjectId ?? '',
+          metaCampaignId: level === 'ACCOUNT' ? null : (r.campaign_id ?? null),
+          metaAdSetId: level === 'ADSET' || level === 'AD' ? (r.adset_id ?? null) : null,
+          objectName:
+            level === 'ACCOUNT'
+              ? account.name
+              : level === 'CAMPAIGN'
+                ? r.campaign_name
+                : level === 'ADSET'
+                  ? r.adset_name
+                  : r.ad_name,
+          date: r.date_start,
+          currency: r.account_currency ?? account.currency,
+          spend: num(r.spend),
+          impressions: num(r.impressions),
+          reach: num(r.reach),
+          clicks: num(r.clicks),
+          linkClicks: num(r.inline_link_clicks),
+          leads: conv.leads,
+          purchases: conv.purchases,
+          purchaseValue: conv.purchaseValue,
+          results: results.value,
+          resultType: results.type,
+          actions: r.actions ?? null,
+          actionValues: r.action_values ?? null,
+        };
+      })
+      .filter((r) => r.metaObjectId);
 
     for (let i = 0; i < records.length; i += 300) {
       const chunk = records.slice(i, i + 300);
       const values = chunk.map(
-        (r) => Prisma.sql`(${randomUUID()}::uuid, ${account.userId}::uuid, ${account.id}::uuid, ${level}::"EntityLevel", ${r.metaObjectId}, ${r.metaCampaignId}, ${r.metaAdSetId}, ${r.objectName ?? null},
+        (
+          r,
+        ) => Prisma.sql`(${randomUUID()}::uuid, ${account.userId}::uuid, ${account.id}::uuid, ${level}::"EntityLevel", ${r.metaObjectId}, ${r.metaCampaignId}, ${r.metaAdSetId}, ${r.objectName ?? null},
           ${r.date}::date, ${r.currency}, ${r.spend}::numeric, ${r.impressions}::bigint, ${r.reach}::bigint, ${r.clicks}::bigint, ${r.linkClicks}::bigint,
           ${r.leads}::numeric, ${r.purchases}::numeric, ${r.purchaseValue}::numeric, ${r.results}::numeric, ${r.resultType},
           ${r.actions ? JSON.stringify(r.actions) : null}::jsonb, ${r.actionValues ? JSON.stringify(r.actionValues) : null}::jsonb, now())`,

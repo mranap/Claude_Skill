@@ -102,7 +102,11 @@ export function FilterSelect({
   const value = state.filters[filterKey] ?? ALL;
   return (
     <Select value={value} onValueChange={(v) => state.setFilter(filterKey, v === ALL ? undefined : v)}>
-      <SelectTrigger size="sm" className={cn('w-auto min-w-36 gap-2', value !== ALL && 'border-primary/40', className)} aria-label={ariaLabel ?? allLabel}>
+      <SelectTrigger
+        size="sm"
+        className={cn('w-auto min-w-36 gap-2', value !== ALL && 'border-primary/40', className)}
+        aria-label={ariaLabel ?? allLabel}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

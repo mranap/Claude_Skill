@@ -40,7 +40,10 @@ export class MetaSyncProcessor implements QueueProcessor {
   }
 
   private async loadProfile(profileId: string) {
-    return this.prisma.metaProfile.findFirst({ where: { id: profileId, deletedAt: null, isEnabled: true }, include: { proxy: true } });
+    return this.prisma.metaProfile.findFirst({
+      where: { id: profileId, deletedAt: null, isEnabled: true },
+      include: { proxy: true },
+    });
   }
 
   /**
@@ -56,7 +59,9 @@ export class MetaSyncProcessor implements QueueProcessor {
     const lastStarted = Number((await this.redis.client.get(startedKey)) ?? 0);
     if (lastStarted >= job.timestamp) return { skipped: 'covered by a newer sync' };
     // The lock is renewed while the run lasts: discovery of a large profile can outlast any fixed TTL.
-    const run = await this.locks.withLock(`meta-sync:${profileId}`, 5 * 60_000, () => this.runAssetSync(job, token, startedKey));
+    const run = await this.locks.withLock(`meta-sync:${profileId}`, 5 * 60_000, () =>
+      this.runAssetSync(job, token, startedKey),
+    );
     if (!run.acquired) return deferJob(job, token, 10_000);
     return run.result;
   }
@@ -86,7 +91,9 @@ export class MetaSyncProcessor implements QueueProcessor {
         },
       });
     } catch (err) {
-      const final = !(err instanceof MetaApiError && err.category === 'RATE_LIMIT') && job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+      const final =
+        !(err instanceof MetaApiError && err.category === 'RATE_LIMIT') &&
+        job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       await this.prisma.metaProfile.update({
         where: { id: profileId },
         data: {
@@ -100,12 +107,19 @@ export class MetaSyncProcessor implements QueueProcessor {
           type: 'ACCOUNT_SYNC_FAILED',
           severity: 'WARNING',
           title: `Sync failed for Meta profile "${profile.name}"`,
-          body: err instanceof MetaApiError ? err.details.friendlyMessage : 'The ad accounts and pages of this profile could not be synchronised.',
+          body:
+            err instanceof MetaApiError
+              ? err.details.friendlyMessage
+              : 'The ad accounts and pages of this profile could not be synchronised.',
           link: `/meta-profiles/${profileId}`,
           dedupeKey: `profile-sync-failed:${profileId}:${Math.floor(Date.now() / DAY)}`,
         });
       }
-      return handleMetaJobError(err, job, token, { profileId, profileStatus: this.profileStatus, tokenFingerprint: profile.tokenFingerprint });
+      return handleMetaJobError(err, job, token, {
+        profileId,
+        profileStatus: this.profileStatus,
+        tokenFingerprint: profile.tokenFingerprint,
+      });
     }
     // Covers every request made before this run started (see assetSync); if it is lost, a later request only
     // runs one redundant sync.
@@ -123,7 +137,10 @@ export class MetaSyncProcessor implements QueueProcessor {
     const inspection = await this.inspector.inspect(conn);
     if (inspection.status === 'ERROR') {
       // Network/proxy problem — not a token problem; keep the current status and retry later.
-      await this.prisma.metaProfile.updateMany({ where: inspected, data: { lastValidationError: inspection.message, lastValidatedAt: new Date() } });
+      await this.prisma.metaProfile.updateMany({
+        where: inspected,
+        data: { lastValidationError: inspection.message, lastValidatedAt: new Date() },
+      });
       throw new Error(inspection.message);
     }
     await this.profileStatus.applyInspection(profileId, inspection, profile.tokenFingerprint);
@@ -133,7 +150,10 @@ export class MetaSyncProcessor implements QueueProcessor {
     const expiresAt = inspection.expiresAt ? new Date(inspection.expiresAt) : null;
     if (inspection.valid && expiresAt && expiresAt.getTime() - Date.now() < 7 * DAY) {
       const pending = await this.prisma.$transaction(async (tx) => {
-        const claimed = await tx.metaProfile.updateMany({ where: { ...inspected, expiryWarnedAt: null }, data: { expiryWarnedAt: new Date() } });
+        const claimed = await tx.metaProfile.updateMany({
+          where: { ...inspected, expiryWarnedAt: null },
+          data: { expiryWarnedAt: new Date() },
+        });
         if (claimed.count !== 1) return null;
         return this.notifications.notifyInTx(tx, {
           userId: profile.userId,

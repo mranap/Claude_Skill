@@ -5,13 +5,13 @@ modules, background jobs, the campaign launch engine, statistics, automated rule
 
 ## 1. Processes
 
-| Process | Command | Scales | Responsibility |
-|---|---|---|---|
-| **API** | `node dist/main.js` | horizontally (stateless) | REST API under `/api`: authentication, validation (zod), RBAC, ownership checks, enqueueing jobs. Never calls Meta for long operations. |
-| **Worker** | `node dist/worker.js` | horizontally; per queue with `WORKER_QUEUES` | Consumes BullMQ queues: Meta sync, account status, statistics, launches, creative uploads, rules, bulk actions, e-mail, Telegram, maintenance. |
-| **Scheduler** | `node dist/scheduler.js` | 1 active (Redis leader lock; more replicas = standby) | Periodic tasks that *claim* due work in PostgreSQL and enqueue jobs; Telegram long polling. |
-| **Web** | `node apps/web/server.js` | horizontally | Next.js App Router UI (client-side data fetching against `/api`). |
-| **Caddy** | — | — | TLS termination, `/api` → API, everything else → web, upload size limits. |
+| Process       | Command                   | Scales                                                | Responsibility                                                                                                                                 |
+| ------------- | ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **API**       | `node dist/main.js`       | horizontally (stateless)                              | REST API under `/api`: authentication, validation (zod), RBAC, ownership checks, enqueueing jobs. Never calls Meta for long operations.        |
+| **Worker**    | `node dist/worker.js`     | horizontally; per queue with `WORKER_QUEUES`          | Consumes BullMQ queues: Meta sync, account status, statistics, launches, creative uploads, rules, bulk actions, e-mail, Telegram, maintenance. |
+| **Scheduler** | `node dist/scheduler.js`  | 1 active (Redis leader lock; more replicas = standby) | Periodic tasks that _claim_ due work in PostgreSQL and enqueue jobs; Telegram long polling.                                                    |
+| **Web**       | `node apps/web/server.js` | horizontally                                          | Next.js App Router UI (client-side data fetching against `/api`).                                                                              |
+| **Caddy**     | —                         | —                                                     | TLS termination, `/api` → API, everything else → web, upload size limits.                                                                      |
 
 State lives only in **PostgreSQL** (source of truth), **Redis** (queues, locks, rate-limit state, caches,
 pub/sub for settings invalidation) and **S3** (creative files, previews, database backups).
@@ -34,16 +34,16 @@ retryAfterSeconds? }, requestId }` (Meta errors carry friendly text plus code/su
 
 ## 2. Data model (PostgreSQL, Prisma)
 
-| Area | Tables |
-|---|---|
-| Identity & access | `users`, `roles`, `permissions`, `role_permissions`, `sessions`, `password_reset_tokens` (reset + invite), `email_change_tokens`, `login_events` |
-| Notifications | `notification_preferences`, `notifications` (in-app center), `notification_deliveries` (outbox per channel), `telegram_connections`, `telegram_link_codes`, `broadcasts` |
-| Meta | `proxies`, `meta_profiles` (encrypted token), `business_accounts`, `ad_accounts`, `account_status_history`, `pages`, `pixels`, `custom_audiences` |
-| Creatives | `creative_files` (library), `creative_meta_assets` (per ad account: image hash / video id / thumbnail) |
-| Launching | `campaign_templates`, `launch_drafts`, `launch_jobs` (unique `userId + idempotencyKey`, unique `code`), `launch_job_items` (one row per Meta object, unique `launchJobId + key`) |
-| Mirror & stats | `campaigns`, `ad_sets`, `ads` (local mirror of Meta objects), `insights_daily` (unique `adAccountId + level + metaObjectId + date`) |
-| Automation | `auto_rules`, `auto_rule_executions`, `bulk_operations` |
-| Operations | `activity_events` (timelines), `audit_logs` (append-only: triggers block UPDATE, and DELETE outside the retention job), `meta_api_logs`, `system_logs`, `system_settings`, `backups` |
+| Area              | Tables                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Identity & access | `users`, `roles`, `permissions`, `role_permissions`, `sessions`, `password_reset_tokens` (reset + invite), `email_change_tokens`, `login_events`                                     |
+| Notifications     | `notification_preferences`, `notifications` (in-app center), `notification_deliveries` (outbox per channel), `telegram_connections`, `telegram_link_codes`, `broadcasts`             |
+| Meta              | `proxies`, `meta_profiles` (encrypted token), `business_accounts`, `ad_accounts`, `account_status_history`, `pages`, `pixels`, `custom_audiences`                                    |
+| Creatives         | `creative_files` (library), `creative_meta_assets` (per ad account: image hash / video id / thumbnail)                                                                               |
+| Launching         | `campaign_templates`, `launch_drafts`, `launch_jobs` (unique `userId + idempotencyKey`, unique `code`), `launch_job_items` (one row per Meta object, unique `launchJobId + key`)     |
+| Mirror & stats    | `campaigns`, `ad_sets`, `ads` (local mirror of Meta objects), `insights_daily` (unique `adAccountId + level + metaObjectId + date`)                                                  |
+| Automation        | `auto_rules`, `auto_rule_executions`, `bulk_operations`                                                                                                                              |
+| Operations        | `activity_events` (timelines), `audit_logs` (append-only: triggers block UPDATE, and DELETE outside the retention job), `meta_api_logs`, `system_logs`, `system_settings`, `backups` |
 
 Conventions: UUID primary keys; every tenant-owned row has `userId` and every query filters on it; money in
 **minor units** (`BigInt`) for budgets and `Decimal` for reported spend — never floating point; timestamps in
@@ -53,34 +53,34 @@ raw SQL for the audit-log trigger and CHECK constraints (lower-case e-mails, non
 
 ## 3. Backend modules (`apps/api/src/modules`)
 
-| Module | Responsibility |
-|---|---|
-| `auth` | login, 2FA, sessions/refresh rotation, CSRF, password reset/invite, e-mail change, account settings |
-| `admin` | users, roles, settings, logs, monitoring (queues/workers/rate limits/storage), broadcasts, backups |
-| `settings` | typed settings with defaults (zod), encrypted secret fields, cross-process cache invalidation |
-| `meta` | Graph client, error classification, rate-limit manager, usage headers, proxy agents, token inspection, asset discovery, profile status |
-| `meta-profiles`, `ad-accounts` | profiles (token, proxy, app credentials), connect accounts, status checks and history |
-| `creatives`, `storage` | upload pipeline (busboy streaming, ffprobe/sharp validation, thumbnails), S3, Meta media upload |
-| `templates`, `launches` | templates, drafts, validation, dry run, plan builder, payload builders, launch executor |
-| `campaigns` | mirror sync, campaign/ad set/ad views, status and budget actions, bulk operations |
-| `statistics`, `dashboard`, `search` | Insights sync, aggregation, dashboard cards, global search |
-| `rules` | rule CRUD, metrics, engine with safeguards |
-| `notifications`, `mail`, `telegram` | outbox, preferences, templates, SMTP, Telegram bot (linking, webhook/polling) |
-| `audit`, `activity`, `system-log`, `maintenance` | audit trail, timelines, system log, retention and backups |
+| Module                                           | Responsibility                                                                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth`                                           | login, 2FA, sessions/refresh rotation, CSRF, password reset/invite, e-mail change, account settings                                    |
+| `admin`                                          | users, roles, settings, logs, monitoring (queues/workers/rate limits/storage), broadcasts, backups                                     |
+| `settings`                                       | typed settings with defaults (zod), encrypted secret fields, cross-process cache invalidation                                          |
+| `meta`                                           | Graph client, error classification, rate-limit manager, usage headers, proxy agents, token inspection, asset discovery, profile status |
+| `meta-profiles`, `ad-accounts`                   | profiles (token, proxy, app credentials), connect accounts, status checks and history                                                  |
+| `creatives`, `storage`                           | upload pipeline (busboy streaming, ffprobe/sharp validation, thumbnails), S3, Meta media upload                                        |
+| `templates`, `launches`                          | templates, drafts, validation, dry run, plan builder, payload builders, launch executor                                                |
+| `campaigns`                                      | mirror sync, campaign/ad set/ad views, status and budget actions, bulk operations                                                      |
+| `statistics`, `dashboard`, `search`              | Insights sync, aggregation, dashboard cards, global search                                                                             |
+| `rules`                                          | rule CRUD, metrics, engine with safeguards                                                                                             |
+| `notifications`, `mail`, `telegram`              | outbox, preferences, templates, SMTP, Telegram bot (linking, webhook/polling)                                                          |
+| `audit`, `activity`, `system-log`, `maintenance` | audit trail, timelines, system log, retention and backups                                                                              |
 
 ## 4. Queues and background work
 
-| Queue | Jobs | Notes |
-|---|---|---|
-| `meta-sync` | `META_SYNC` (discovery), `TOKEN_CHECK` | syncs per profile are serialised (lock) and coalesced |
-| `account-status` | `ACCOUNT_STATUS_CHECK` (≤ 50 accounts per request) | compare-and-set status change + history + one notification |
-| `statistics` | `STATISTICS_SYNC` | entity mirror (hourly) + daily Insights for a rolling window |
-| `campaign-launch` | `CAMPAIGN_CREATE` | the launch state machine (section 5) |
-| `creative-upload` | `CREATIVE_UPLOAD` | pre-upload of media to an ad account |
-| `auto-rules` | `AUTO_RULE_CHECK` | one rule evaluation (lease per rule) |
-| `bulk-actions` | `BULK_ACTION` | pause/start many objects with progress |
-| `email`, `telegram` | `EMAIL_SEND`, `TELEGRAM_SEND` | notification deliveries (outbox) and system e-mails |
-| `maintenance` | `RETENTION_CLEANUP`, `DATABASE_BACKUP`, `BROADCAST` | |
+| Queue               | Jobs                                                | Notes                                                        |
+| ------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| `meta-sync`         | `META_SYNC` (discovery), `TOKEN_CHECK`              | syncs per profile are serialised (lock) and coalesced        |
+| `account-status`    | `ACCOUNT_STATUS_CHECK` (≤ 50 accounts per request)  | compare-and-set status change + history + one notification   |
+| `statistics`        | `STATISTICS_SYNC`                                   | entity mirror (hourly) + daily Insights for a rolling window |
+| `campaign-launch`   | `CAMPAIGN_CREATE`                                   | the launch state machine (section 5)                         |
+| `creative-upload`   | `CREATIVE_UPLOAD`                                   | pre-upload of media to an ad account                         |
+| `auto-rules`        | `AUTO_RULE_CHECK`                                   | one rule evaluation (lease per rule)                         |
+| `bulk-actions`      | `BULK_ACTION`                                       | pause/start many objects with progress                       |
+| `email`, `telegram` | `EMAIL_SEND`, `TELEGRAM_SEND`                       | notification deliveries (outbox) and system e-mails          |
+| `maintenance`       | `RETENTION_CLEANUP`, `DATABASE_BACKUP`, `BROADCAST` |                                                              |
 
 Conventions (`src/worker`): retries with exponential back-off + jitter (30 s … 30 min); non-retryable errors
 (validation, permission, auth) fail immediately (`UnrecoverableError`); waiting for Meta (rate limits, video
@@ -89,15 +89,15 @@ worker slot. Concurrency per queue is a Super Admin setting.
 
 ### Scheduler tasks
 
-| Task | Every | Claims |
-|---|---|---|
-| `statistics-sync` | 1 min | accounts with `nextStatsSyncAt <= now`; next run = now + max(account interval, global minimum 35 min) |
-| `ad-account-status-check` | 1 min | accounts due for a status check (user-chosen interval) |
-| `meta-token-check` / `meta-asset-sync` | 5 / 10 min | profiles due for token validation / discovery |
-| `auto-rules` | 1 min | active rules with `nextRunAt <= now` |
-| `launch-recovery` | 5 min | unfinished launches without a queued job (e.g. Redis lost) |
-| `notification-outbox-sweep` | 1 min | deliveries and bulk operations whose job was lost (re-queued) or ran out of attempts (bulk: closed); deliveries stuck in SENDING |
-| `retention-cleanup`, `database-backup` | 10 min | daily retention; scheduled backups; fails backups whose worker died (no heartbeat) |
+| Task                                   | Every      | Claims                                                                                                                           |
+| -------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `statistics-sync`                      | 1 min      | accounts with `nextStatsSyncAt <= now`; next run = now + max(account interval, global minimum 35 min)                            |
+| `ad-account-status-check`              | 1 min      | accounts due for a status check (user-chosen interval)                                                                           |
+| `meta-token-check` / `meta-asset-sync` | 5 / 10 min | profiles due for token validation / discovery                                                                                    |
+| `auto-rules`                           | 1 min      | active rules with `nextRunAt <= now`                                                                                             |
+| `launch-recovery`                      | 5 min      | unfinished launches without a queued job (e.g. Redis lost)                                                                       |
+| `notification-outbox-sweep`            | 1 min      | deliveries and bulk operations whose job was lost (re-queued) or ran out of attempts (bulk: closed); deliveries stuck in SENDING |
+| `retention-cleanup`, `database-backup` | 10 min     | daily retention; scheduled backups; fails backups whose worker died (no heartbeat)                                               |
 
 Claiming is a single `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING`, which moves the next
 due time forward in the same statement — two schedulers can never enqueue the same work. The leader lease is
@@ -109,7 +109,7 @@ renewed every 10 s, also during a long tick, and leadership is re-checked before
    leadership) — `onModuleDestroy`;
 2. buffers flush and queues close — `beforeApplicationShutdown`;
 3. Redis and PostgreSQL disconnect — `onApplicationShutdown`.
-The API first stops accepting connections and drains in-flight requests (`installGracefulShutdown`).
+   The API first stops accepting connections and drains in-flight requests (`installGracefulShutdown`).
 
 ## 5. Campaign launch engine
 
@@ -123,10 +123,11 @@ QUEUED → VALIDATING → UPLOADING_CREATIVES → CREATING_CAMPAIGN → CREATING
 ```
 
 Duplicate prevention, from the outside in:
+
 - one launch per `(user, idempotencyKey)` (unique index) — double clicks, network retries, two tabs;
 - one BullMQ job id per launch round; a database **lease** with a per-run token (renewed while running, checked
   before every step) so only one run executes a launch, even inside one process;
-- each item is claimed (compare-and-set) and marked `IN_FLIGHT` (committed) *before* the create request and
+- each item is claimed (compare-and-set) and marked `IN_FLIGHT` (committed) _before_ the create request and
   `CREATED` with the Meta id after;
 - after a crash/timeout the next attempt **reconciles** an `IN_FLIGHT` item by looking the object up in Meta by
   its unique name (names carry the launch code) under its parent; it is re-created only when it provably does

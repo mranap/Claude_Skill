@@ -100,7 +100,9 @@ export function fetchCsrfToken(force = false): Promise<string | null> {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     })
-      .then(async (res) => (res.ok ? ((await res.json()) as { csrfToken?: string }).csrfToken ?? null : null))
+      .then(async (res) =>
+        res.ok ? (((await res.json()) as { csrfToken?: string }).csrfToken ?? null) : null,
+      )
       .catch(() => null)
       .then((token) => readCsrfCookie() ?? token)
       .finally(() => {
@@ -265,8 +267,11 @@ type GetOptions = Omit<RequestOptions, 'method' | 'body' | 'query'>;
 
 export const api = {
   get: <T>(path: string, query?: QueryParams, opts?: GetOptions) => apiRequest<T>(path, { ...opts, query }),
-  post: <T>(path: string, body?: unknown, opts?: BodyOptions) => apiRequest<T>(path, { ...opts, method: 'POST', body }),
-  put: <T>(path: string, body?: unknown, opts?: BodyOptions) => apiRequest<T>(path, { ...opts, method: 'PUT', body }),
-  patch: <T>(path: string, body?: unknown, opts?: BodyOptions) => apiRequest<T>(path, { ...opts, method: 'PATCH', body }),
+  post: <T>(path: string, body?: unknown, opts?: BodyOptions) =>
+    apiRequest<T>(path, { ...opts, method: 'POST', body }),
+  put: <T>(path: string, body?: unknown, opts?: BodyOptions) =>
+    apiRequest<T>(path, { ...opts, method: 'PUT', body }),
+  patch: <T>(path: string, body?: unknown, opts?: BodyOptions) =>
+    apiRequest<T>(path, { ...opts, method: 'PATCH', body }),
   delete: <T>(path: string, opts?: BodyOptions) => apiRequest<T>(path, { ...opts, method: 'DELETE' }),
 };

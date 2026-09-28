@@ -16,7 +16,8 @@ export default function NotFound() {
       <p className="text-sm font-medium text-primary-fg">404</p>
       <h1 className="mt-1 text-2xl font-semibold tracking-tight">Page not found</h1>
       <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-        The page you’re looking for doesn’t exist or was moved. Check the address or head back to your dashboard.
+        The page you’re looking for doesn’t exist or was moved. Check the address or head back to your
+        dashboard.
       </p>
       <div className="mt-6 flex gap-2">
         <Button asChild>

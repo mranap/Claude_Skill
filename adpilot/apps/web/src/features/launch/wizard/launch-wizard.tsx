@@ -92,7 +92,10 @@ export function LaunchWizardPage({ draftId }: { draftId: string }) {
   if (draft.isError || !draft.data) {
     return (
       <>
-        <PageHeader title="Launch" breadcrumbs={[{ label: 'Launch', href: '/launch' }, { label: 'Draft not available' }]} />
+        <PageHeader
+          title="Launch"
+          breadcrumbs={[{ label: 'Launch', href: '/launch' }, { label: 'Draft not available' }]}
+        />
         <ErrorAlert error={draft.error} onRetry={() => void draft.refetch()} />
       </>
     );
@@ -118,7 +121,11 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
   const readOnly = draft.status !== 'DRAFT';
   const [initial] = useState(() => valuesFromDraft(draft));
   const [initialStep] = useState(() => (readOnly ? REVIEW_STEP : draftStep(draft)));
-  const form = useForm<WizardInput, unknown, WizardOutput>({ resolver: zodResolver(wizardSchema), defaultValues: initial as WizardInput, mode: 'onTouched' });
+  const form = useForm<WizardInput, unknown, WizardOutput>({
+    resolver: zodResolver(wizardSchema),
+    defaultValues: initial as WizardInput,
+    mode: 'onTouched',
+  });
   const [step, setStep] = useState(initialStep);
   const [maxVisited, setMaxVisited] = useState(initialStep);
   const [review, setReview] = useState<ReviewState>({});
@@ -135,7 +142,9 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
 
   // ── Autosave ──
   const [save, setSave] = useState<SaveState>({ state: 'idle' });
-  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ values: initial, step: initialStep }));
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify({ values: initial, step: initialStep }),
+  );
   const saveChain = useRef<Promise<void>>(Promise.resolve());
   const snapshot = JSON.stringify({ values, step });
   const persist = useEffectEvent((snap: string, body: ReturnType<typeof buildSaveBody>) => {
@@ -152,14 +161,24 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
   });
   useEffect(() => {
     if (readOnly || launched || snapshot === savedSnapshot) return;
-    const timer = window.setTimeout(() => persist(snapshot, buildSaveBody(JSON.parse(snapshot).values as WizardValues, JSON.parse(snapshot).step as number)), 1200);
+    const timer = window.setTimeout(
+      () =>
+        persist(
+          snapshot,
+          buildSaveBody(JSON.parse(snapshot).values as WizardValues, JSON.parse(snapshot).step as number),
+        ),
+      1200,
+    );
     return () => window.clearTimeout(timer);
   }, [snapshot, savedSnapshot, readOnly, launched]);
 
   // ── Step errors (client + last server check) ──
   const clientErrors = flattenErrors(form.formState.errors).filter((e) => e.path);
   const serverIssues: ValidationIssue[] = !stale ? ((review.dryRun ?? review.validation)?.errors ?? []) : [];
-  const errorSteps = new Set<number>([...clientErrors.map((e) => stepOfPath(e.path)), ...serverIssues.map((i) => stepOfPath(i.path))]);
+  const errorSteps = new Set<number>([
+    ...clientErrors.map((e) => stepOfPath(e.path)),
+    ...serverIssues.map((i) => stepOfPath(i.path)),
+  ]);
   const variantLabels = (values.variants ?? []).map((v) => v?.label ?? '');
 
   const goTo = (target: number) => {
@@ -178,7 +197,9 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
       ok = false;
     }
     if (!ok) {
-      toast.error('Some fields need your attention', { description: 'The problems are highlighted on this step.' });
+      toast.error('Some fields need your attention', {
+        description: 'The problems are highlighted on this step.',
+      });
       return;
     }
     goTo(step + 1);
@@ -217,10 +238,16 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
     mutationFn: async () => {
       setLaunched(true);
       await saveChain.current;
-      return launchesApi.launch({ idempotencyKey: idempotencyKey(draft.id), draftId: draft.id, config: form.getValues() });
+      return launchesApi.launch({
+        idempotencyKey: idempotencyKey(draft.id),
+        draftId: draft.id,
+        config: form.getValues(),
+      });
     },
     onSuccess: async ({ job, duplicate }) => {
-      toast.success(duplicate ? 'This launch was already started' : 'Launch started', { description: `${job.name} · ${job.code}` });
+      toast.success(duplicate ? 'This launch was already started' : 'Launch started', {
+        description: `${job.name} · ${job.code}`,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.drafts.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.launches.all }),
@@ -229,12 +256,23 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
     },
     onError: (error) => {
       setLaunched(false);
-      const details = error instanceof ApiError && error.details && typeof error.details === 'object' && !Array.isArray(error.details) ? (error.details as { errors?: ValidationIssue[]; warnings?: ValidationIssue[] }) : null;
+      const details =
+        error instanceof ApiError &&
+        error.details &&
+        typeof error.details === 'object' &&
+        !Array.isArray(error.details)
+          ? (error.details as { errors?: ValidationIssue[]; warnings?: ValidationIssue[] })
+          : null;
       if (isApiError(error, 'VALIDATION_ERROR') && details?.errors) {
-        setReview({ validation: { ok: false, errors: details.errors, warnings: details.warnings ?? [] }, snapshot: configSnapshot });
+        setReview({
+          validation: { ok: false, errors: details.errors, warnings: details.warnings ?? [] },
+          snapshot: configSnapshot,
+        });
         applyIssues(details.errors);
         goTo(REVIEW_STEP);
-        toast.error('The launch configuration has errors', { description: 'Fix the listed problems and launch again.' });
+        toast.error('The launch configuration has errors', {
+          description: 'Fix the listed problems and launch again.',
+        });
       }
     },
   });
@@ -251,8 +289,16 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
   const stepperSteps: StepperStep[] = WIZARD_STEPS.map((s, i) => ({
     id: s.id,
     title: s.title,
-    description: i === step ? undefined : errorSteps.has(i) && i <= maxVisited ? 'Needs attention' : undefined,
-    state: i === step ? 'current' : errorSteps.has(i) && i <= maxVisited ? 'error' : i < step || i <= maxVisited ? 'complete' : 'upcoming',
+    description:
+      i === step ? undefined : errorSteps.has(i) && i <= maxVisited ? 'Needs attention' : undefined,
+    state:
+      i === step
+        ? 'current'
+        : errorSteps.has(i) && i <= maxVisited
+          ? 'error'
+          : i < step || i <= maxVisited
+            ? 'complete'
+            : 'upcoming',
   }));
 
   const ui = {
@@ -287,10 +333,18 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
         />
         {readOnly ? (
           <Alert variant="info">
-            <AlertTitle>{draft.status === 'LAUNCHED' ? 'This draft was launched' : 'This draft is archived'}</AlertTitle>
+            <AlertTitle>
+              {draft.status === 'LAUNCHED' ? 'This draft was launched' : 'This draft is archived'}
+            </AlertTitle>
             <AlertDescription className="flex flex-wrap items-center gap-3">
               It can no longer be changed. Clone it to launch the same configuration again.
-              <Button type="button" size="xs" variant="outline" onClick={() => clone.mutate()} loading={clone.isPending}>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => clone.mutate()}
+                loading={clone.isPending}
+              >
                 <Copy />
                 Clone draft
               </Button>
@@ -332,17 +386,33 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
           {step === 6 ? (
             <>
               <NamingSection sampleName={values.name} />
-              <DsaSection defaults={account ? { beneficiary: account.defaultDsaBeneficiary, payor: account.defaultDsaPayor } : undefined} />
+              <DsaSection
+                defaults={
+                  account
+                    ? { beneficiary: account.defaultDsaBeneficiary, payor: account.defaultDsaPayor }
+                    : undefined
+                }
+              />
               <ActivationSection />
             </>
           ) : null}
           {step === REVIEW_STEP ? (
-            <ReviewStep review={review} stale={stale} running={running} error={checkError} variantLabels={variantLabels} onRun={(k) => void runCheck(k)} onGoTo={goTo} />
+            <ReviewStep
+              review={review}
+              stale={stale}
+              running={running}
+              error={checkError}
+              variantLabels={variantLabels}
+              onRun={(k) => void runCheck(k)}
+              onGoTo={goTo}
+            />
           ) : null}
           {step === LAUNCH_STEP ? (
             readOnly ? (
               <Alert>
-                <AlertDescription>This draft cannot be launched again. Clone it to start a new launch.</AlertDescription>
+                <AlertDescription>
+                  This draft cannot be launched again. Clone it to start a new launch.
+                </AlertDescription>
               </Alert>
             ) : (
               <LaunchStep
@@ -370,12 +440,21 @@ function LaunchWizard({ draft }: { draft: LaunchDraftDto }) {
               Step {step + 1} of {WIZARD_STEPS.length} · {WIZARD_STEPS[step]!.title}
             </p>
             {step === REVIEW_STEP ? (
-              <Button type="button" className="ml-auto sm:ml-0" onClick={() => goTo(LAUNCH_STEP)} disabled={readOnly}>
+              <Button
+                type="button"
+                className="ml-auto sm:ml-0"
+                onClick={() => goTo(LAUNCH_STEP)}
+                disabled={readOnly}
+              >
                 Continue to launch
                 <ArrowRight />
               </Button>
             ) : (
-              <Button type="button" className="ml-auto sm:ml-0" onClick={() => (readOnly ? goTo(step + 1) : void next())}>
+              <Button
+                type="button"
+                className="ml-auto sm:ml-0"
+                onClick={() => (readOnly ? goTo(step + 1) : void next())}
+              >
                 Next
                 <ArrowRight />
               </Button>
@@ -423,7 +502,11 @@ function SaveIndicator({ save, dirty, now }: { save: SaveState; dirty: boolean; 
     );
   }
   return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground" role="status" data-testid="draft-saved">
+    <span
+      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      role="status"
+      data-testid="draft-saved"
+    >
       <CloudCheck className="size-4" aria-hidden />
       {save.at ? `Draft saved ${formatRelative(save.at, now)}` : 'Draft saved'}
     </span>

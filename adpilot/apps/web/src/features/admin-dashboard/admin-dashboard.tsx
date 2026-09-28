@@ -1,7 +1,19 @@
 'use client';
 
 import { META_PROFILE_STATUS_LABELS, type MetaProfileStatus } from '@adpilot/shared';
-import { Activity, ArrowRight, Briefcase, CircleAlert, Files, Gauge, Megaphone, Plug, Rocket, UserPlus, Users } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  Briefcase,
+  CircleAlert,
+  Files,
+  Gauge,
+  Megaphone,
+  Plug,
+  Rocket,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +41,10 @@ export function AdminDashboard() {
   const profileProblems = data
     ? Object.entries(data.metaProfiles)
         .filter(([status]) => status !== 'ACTIVE')
-        .map(([status, n]) => `${n} ${(META_PROFILE_STATUS_LABELS[status as MetaProfileStatus] ?? status).toLowerCase()}`)
+        .map(
+          ([status, n]) =>
+            `${n} ${(META_PROFILE_STATUS_LABELS[status as MetaProfileStatus] ?? status).toLowerCase()}`,
+        )
     : [];
 
   return (
@@ -48,30 +63,54 @@ export function AdminDashboard() {
           ) : null
         }
       />
-      {dashboard.error && !data ? <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} className="mb-4" /> : null}
+      {dashboard.error && !data ? (
+        <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} className="mb-4" />
+      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Users"
           icon={Users}
           loading={loading}
           value={formatNumber(data?.users.ACTIVE ?? 0)}
-          hint={data ? `active · ${formatNumber(data.users.BLOCKED ?? 0)} blocked · ${formatNumber(data.users.DELETED ?? 0)} deleted` : undefined}
+          hint={
+            data
+              ? `active · ${formatNumber(data.users.BLOCKED ?? 0)} blocked · ${formatNumber(data.users.DELETED ?? 0)} deleted`
+              : undefined
+          }
         />
         <StatCard
           label="Meta profiles"
           icon={Plug}
           loading={loading}
-          value={data ? `${formatNumber(data.metaProfiles.ACTIVE ?? 0)} / ${formatNumber(sum(data.metaProfiles))}` : '—'}
-          hint={profileProblems.length ? <span className="text-warning-fg">{profileProblems.join(' · ')}</span> : 'active / total'}
+          value={
+            data
+              ? `${formatNumber(data.metaProfiles.ACTIVE ?? 0)} / ${formatNumber(sum(data.metaProfiles))}`
+              : '—'
+          }
+          hint={
+            profileProblems.length ? (
+              <span className="text-warning-fg">{profileProblems.join(' · ')}</span>
+            ) : (
+              'active / total'
+            )
+          }
         />
         <StatCard
           label="Ad accounts"
           icon={Briefcase}
           loading={loading}
-          value={data ? `${formatNumber(data.adAccounts.connected)} / ${formatNumber(data.adAccounts.total)}` : '—'}
+          value={
+            data ? `${formatNumber(data.adAccounts.connected)} / ${formatNumber(data.adAccounts.total)}` : '—'
+          }
           hint="connected / discovered"
         />
-        <StatCard label="Campaigns" icon={Megaphone} loading={loading} value={formatNumber(data?.campaigns ?? 0)} hint="synced, not deleted" />
+        <StatCard
+          label="Campaigns"
+          icon={Megaphone}
+          loading={loading}
+          value={formatNumber(data?.campaigns ?? 0)}
+          hint="synced, not deleted"
+        />
         <StatCard
           label="Creative files"
           icon={Files}
@@ -84,7 +123,13 @@ export function AdminDashboard() {
           icon={Rocket}
           loading={loading}
           value={formatNumber(data?.launches24h.total ?? 0)}
-          hint={data?.launches24h.failed ? <span className="text-destructive-fg">{data.launches24h.failed} failed or partial</span> : 'none failed'}
+          hint={
+            data?.launches24h.failed ? (
+              <span className="text-destructive-fg">{data.launches24h.failed} failed or partial</span>
+            ) : (
+              'none failed'
+            )
+          }
         />
         <StatCard
           label="Meta API errors (24 h)"
@@ -93,7 +138,10 @@ export function AdminDashboard() {
           value={formatNumber(data?.metaApi24h.errors ?? 0)}
           hint={
             can('admin.logs.view') ? (
-              <Link href="/admin/logs?tab=meta&onlyErrors=true" className="hover:text-foreground hover:underline">
+              <Link
+                href="/admin/logs?tab=meta&onlyErrors=true"
+                className="hover:text-foreground hover:underline"
+              >
                 {data?.metaApi24h.rateLimited ?? 0} rate limited · view log
               </Link>
             ) : (
@@ -160,14 +208,24 @@ export function AdminDashboard() {
   );
 }
 
-function QueuesCard({ queues, loading, className }: { queues: QueueSummary[] | undefined; loading: boolean; className?: string }) {
+function QueuesCard({
+  queues,
+  loading,
+  className,
+}: {
+  queues: QueueSummary[] | undefined;
+  loading: boolean;
+  className?: string;
+}) {
   const { can } = useAuth();
   const failed = (queues ?? []).reduce((n, q) => n + q.counts.failed, 0);
   return (
     <Card className={className}>
       <CardHeader>
         <CardTitle>Queues</CardTitle>
-        <CardDescription>{queues ? `${formatNumber(failed)} failed jobs kept for inspection.` : 'Background jobs per queue.'}</CardDescription>
+        <CardDescription>
+          {queues ? `${formatNumber(failed)} failed jobs kept for inspection.` : 'Background jobs per queue.'}
+        </CardDescription>
         {can('admin.workers.view') ? (
           <CardAction>
             <Button variant="ghost" size="sm" asChild>
@@ -196,7 +254,10 @@ function QueuesCard({ queues, loading, className }: { queues: QueueSummary[] | u
                 <TableRow key={q.name}>
                   <TableCell className="pl-6 font-mono text-xs">
                     {can('admin.workers.view') ? (
-                      <Link href={`/admin/workers?queue=${encodeURIComponent(q.name)}`} className="hover:underline">
+                      <Link
+                        href={`/admin/workers?queue=${encodeURIComponent(q.name)}`}
+                        className="hover:underline"
+                      >
                         {q.name}
                       </Link>
                     ) : (
@@ -204,9 +265,18 @@ function QueuesCard({ queues, loading, className }: { queues: QueueSummary[] | u
                     )}
                     {q.paused ? <span className="ml-2 font-sans text-warning-fg">paused</span> : null}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(q.counts.waiting + q.counts.delayed + q.counts.prioritized)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatNumber(q.counts.waiting + q.counts.delayed + q.counts.prioritized)}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(q.counts.active)}</TableCell>
-                  <TableCell className={cn('pr-6 text-right tabular-nums', q.counts.failed > 0 && 'font-medium text-destructive-fg')}>{formatNumber(q.counts.failed)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      'pr-6 text-right tabular-nums',
+                      q.counts.failed > 0 && 'font-medium text-destructive-fg',
+                    )}
+                  >
+                    {formatNumber(q.counts.failed)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

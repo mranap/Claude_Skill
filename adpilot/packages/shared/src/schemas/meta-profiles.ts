@@ -27,7 +27,10 @@ export const accessTokenSchema = z
   .max(1024)
   .regex(/^[A-Za-z0-9_|.-]+$/, 'The access token contains invalid characters');
 
-export const metaAppIdSchema = z.string().trim().regex(/^\d{5,20}$/, 'App ID must be numeric');
+export const metaAppIdSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{5,20}$/, 'App ID must be numeric');
 
 export const metaProfileCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -36,7 +39,12 @@ export const metaProfileCreateSchema = z.object({
   proxy: proxyInputSchema.nullable().optional(),
   /** Optional app credentials of the token's app: enable appsecret_proof and precise token debugging. */
   appId: metaAppIdSchema.optional().nullable(),
-  appSecret: z.string().trim().regex(/^[a-f0-9]{32}$/i, 'App secret is a 32 character hex string').optional().nullable(),
+  appSecret: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{32}$/i, 'App secret is a 32 character hex string')
+    .optional()
+    .nullable(),
 });
 
 export const metaProfileUpdateSchema = z.object({
@@ -47,7 +55,12 @@ export const metaProfileUpdateSchema = z.object({
   /** undefined → keep, null → remove proxy, object → set/replace. */
   proxy: proxyInputSchema.nullable().optional(),
   appId: metaAppIdSchema.optional().nullable(),
-  appSecret: z.string().trim().regex(/^[a-f0-9]{32}$/i, 'App secret is a 32 character hex string').optional().nullable(),
+  appSecret: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{32}$/i, 'App secret is a 32 character hex string')
+    .optional()
+    .nullable(),
   isEnabled: z.boolean().optional(),
 });
 
@@ -56,16 +69,18 @@ export const metaConnectionTestSchema = z.object({
   accessToken: accessTokenSchema.optional(),
   proxy: proxyInputSchema.nullable().optional(),
   appId: metaAppIdSchema.optional().nullable(),
-  appSecret: z.string().trim().regex(/^[a-f0-9]{32}$/i).optional().nullable(),
+  appSecret: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{32}$/i)
+    .optional()
+    .nullable(),
 });
 
 export const adAccountListQuerySchema = paginationQuerySchema.extend({
   profileId: z.uuid().optional(),
   status: z.string().max(40).optional(),
-  connected: z
-    .enum(['true', 'false', 'all'])
-    .optional()
-    .default('true'),
+  connected: z.enum(['true', 'false', 'all']).optional().default('true'),
 });
 
 export const adAccountUpdateSchema = z.object({
@@ -83,7 +98,11 @@ export const adAccountBulkConnectSchema = z.object({
 
 /** Required and optional Meta permissions (see docs/META_API.md for what stops working without each). */
 export const META_REQUIRED_PERMISSIONS = ['ads_management', 'ads_read'] as const;
-export const META_RECOMMENDED_PERMISSIONS = ['business_management', 'pages_show_list', 'pages_read_engagement'] as const;
+export const META_RECOMMENDED_PERMISSIONS = [
+  'business_management',
+  'pages_show_list',
+  'pages_read_engagement',
+] as const;
 export const META_OPTIONAL_PERMISSIONS = ['pages_manage_ads', 'leads_retrieval', 'instagram_basic'] as const;
 
 export interface TokenInspection {

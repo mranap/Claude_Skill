@@ -26,13 +26,19 @@ export class MetaProfilesController {
   @Post('test')
   @HttpCode(200)
   @RateLimit({ bucket: 'meta-test', limit: 20, windowSeconds: 600 })
-  test(@CurrentUser() user: AuthUser, @Body(zod(metaConnectionTestSchema)) body: z.infer<typeof metaConnectionTestSchema>) {
+  test(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(metaConnectionTestSchema)) body: z.infer<typeof metaConnectionTestSchema>,
+  ) {
     return this.profiles.testUnsaved(user.id, body);
   }
 
   @Post()
   @RateLimit({ bucket: 'meta-profile-create', limit: 20, windowSeconds: 3600 })
-  create(@CurrentUser() user: AuthUser, @Body(zod(metaProfileCreateSchema)) body: z.infer<typeof metaProfileCreateSchema>) {
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(metaProfileCreateSchema)) body: z.infer<typeof metaProfileCreateSchema>,
+  ) {
     return this.profiles.create(user.id, body);
   }
 
@@ -42,7 +48,11 @@ export class MetaProfilesController {
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Body(zod(metaProfileUpdateSchema)) body: z.infer<typeof metaProfileUpdateSchema>) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(metaProfileUpdateSchema)) body: z.infer<typeof metaProfileUpdateSchema>,
+  ) {
     return this.profiles.update(user.id, id, body);
   }
 
@@ -78,7 +88,10 @@ export class MetaProfilesController {
   async assets(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     await this.profiles.findOwned(user.id, id);
     const [businesses, adAccounts, pages] = await Promise.all([
-      this.prisma.businessAccount.findMany({ where: { profileId: id, userId: user.id }, orderBy: { name: 'asc' } }),
+      this.prisma.businessAccount.findMany({
+        where: { profileId: id, userId: user.id },
+        orderBy: { name: 'asc' },
+      }),
       this.prisma.adAccount.findMany({
         where: { profileId: id, userId: user.id },
         orderBy: [{ isConnected: 'desc' }, { name: 'asc' }],

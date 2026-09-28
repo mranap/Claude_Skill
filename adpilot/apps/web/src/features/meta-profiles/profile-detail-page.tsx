@@ -2,7 +2,20 @@
 
 import { META_REQUIRED_PERMISSIONS, type TokenInspection } from '@adpilot/shared';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
-import { Building2, CircleAlert, Ellipsis, FileText, Globe, KeyRound, Pencil, Power, RefreshCw, ShieldCheck, Trash2, X } from 'lucide-react';
+import {
+  Building2,
+  CircleAlert,
+  Ellipsis,
+  FileText,
+  Globe,
+  KeyRound,
+  Pencil,
+  Power,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -60,7 +73,10 @@ export function ProfileDetailPage({ id }: { id: string }) {
   if (profile.isError || !profile.data) {
     return (
       <>
-        <PageHeader title="Meta profile" breadcrumbs={[{ label: 'Meta accounts', href: '/meta-profiles' }, { label: 'Not available' }]} />
+        <PageHeader
+          title="Meta profile"
+          breadcrumbs={[{ label: 'Meta accounts', href: '/meta-profiles' }, { label: 'Not available' }]}
+        />
         <ErrorAlert error={profile.error} onRetry={() => void profile.refetch()} />
       </>
     );
@@ -93,7 +109,9 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
     onSuccess: async (res) => {
       queryClient.setQueryData(queryKeys.metaProfiles.detail(profile.id), res.profile);
       toast.success(res.profile.isEnabled ? 'Profile enabled' : 'Profile disabled', {
-        description: res.profile.isEnabled ? undefined : 'Its ad accounts are no longer used for launches, syncs and rules.',
+        description: res.profile.isEnabled
+          ? undefined
+          : 'Its ad accounts are no longer used for launches, syncs and rules.',
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.metaProfiles.all });
     },
@@ -105,7 +123,9 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
       onSuccess: (inspection) => setCheck(inspection),
     });
 
-  const missingRequired = profile.tokenScopes.length ? META_REQUIRED_PERMISSIONS.filter((p) => !profile.tokenScopes.includes(p)) : [];
+  const missingRequired = profile.tokenScopes.length
+    ? META_REQUIRED_PERMISSIONS.filter((p) => !profile.tokenScopes.includes(p))
+    : [];
   const expiresIn = profile.tokenExpiresAt ? new Date(profile.tokenExpiresAt).getTime() - now : null;
 
   return (
@@ -132,7 +152,12 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
               <ShieldCheck />
               Validate token
             </Button>
-            <Button variant="outline" onClick={() => actions.sync.mutate(profile)} loading={actions.sync.isPending} disabled={syncing || profile.status !== 'ACTIVE'}>
+            <Button
+              variant="outline"
+              onClick={() => actions.sync.mutate(profile)}
+              loading={actions.sync.isPending}
+              disabled={syncing || profile.status !== 'ACTIVE'}
+            >
               <RefreshCw className={syncing ? 'animate-spin' : undefined} />
               {syncing ? 'Syncing…' : 'Sync now'}
             </Button>
@@ -173,7 +198,8 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
           <Alert variant="destructive" icon={<CircleAlert />}>
             <AlertTitle>{profile.statusLabel}</AlertTitle>
             <AlertDescription>
-              {profile.lastValidationError ?? 'The token cannot be used right now.'} Replace the token to resume syncs, launches and rules.
+              {profile.lastValidationError ?? 'The token cannot be used right now.'} Replace the token to
+              resume syncs, launches and rules.
               <Button size="xs" variant="outline" className="mt-2 w-fit" onClick={() => setEditOpen(true)}>
                 Replace token
               </Button>
@@ -183,13 +209,18 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
         {profile.status === 'ACTIVE' && expiresIn !== null && expiresIn < WEEK ? (
           <Alert variant="warning" icon={<KeyRound />}>
             <AlertTitle>The token expires soon</AlertTitle>
-            <AlertDescription>It expires {expiryText(profile.tokenExpiresAt)}. Generate a new token and replace it before then.</AlertDescription>
+            <AlertDescription>
+              It expires {expiryText(profile.tokenExpiresAt)}. Generate a new token and replace it before
+              then.
+            </AlertDescription>
           </Alert>
         ) : null}
         {missingRequired.length && profile.status === 'ACTIVE' ? (
           <Alert variant="destructive" icon={<KeyRound />}>
             <AlertTitle>Missing required permissions</AlertTitle>
-            <AlertDescription>{missingRequired.join(', ')} — campaigns cannot be created or read without them.</AlertDescription>
+            <AlertDescription>
+              {missingRequired.join(', ')} — campaigns cannot be created or read without them.
+            </AlertDescription>
           </Alert>
         ) : null}
         {profile.syncStatus === 'FAILED' && profile.syncError ? (
@@ -205,7 +236,12 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                 <CardTitle>Token check</CardTitle>
                 <CardDescription>Result of the validation you just ran.</CardDescription>
               </div>
-              <Button variant="ghost" size="icon-sm" onClick={() => setCheck(null)} aria-label="Dismiss the token check">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setCheck(null)}
+                aria-label="Dismiss the token check"
+              >
                 <X />
               </Button>
             </CardHeader>
@@ -226,12 +262,36 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                 items={[
                   { label: 'Token', value: profile.tokenMask, mono: true },
                   { label: 'Type', value: humanize(profile.tokenType) },
-                  { label: 'Expires', value: profile.lastValidatedAt ? expiryText(profile.tokenExpiresAt, profile.status === 'ACTIVE') : 'Not checked yet' },
-                  { label: 'Data access expires', value: profile.dataAccessExpiresAt ? expiryText(profile.dataAccessExpiresAt) : null, hidden: !profile.dataAccessExpiresAt },
-                  { label: 'Meta user', value: profile.metaUserName ? `${profile.metaUserName}${profile.metaUserId ? ` · ${profile.metaUserId}` : ''}` : null },
+                  {
+                    label: 'Expires',
+                    value: profile.lastValidatedAt
+                      ? expiryText(profile.tokenExpiresAt, profile.status === 'ACTIVE')
+                      : 'Not checked yet',
+                  },
+                  {
+                    label: 'Data access expires',
+                    value: profile.dataAccessExpiresAt ? expiryText(profile.dataAccessExpiresAt) : null,
+                    hidden: !profile.dataAccessExpiresAt,
+                  },
+                  {
+                    label: 'Meta user',
+                    value: profile.metaUserName
+                      ? `${profile.metaUserName}${profile.metaUserId ? ` · ${profile.metaUserId}` : ''}`
+                      : null,
+                  },
                   { label: 'App', value: profile.appId ?? profile.tokenAppId, mono: true },
-                  { label: 'App secret', value: profile.hasAppSecret ? 'Saved (appsecret_proof enabled)' : 'Not set' },
-                  { label: 'Last validated', value: profile.lastValidatedAt ? <RelativeTime value={profile.lastValidatedAt} /> : 'Never' },
+                  {
+                    label: 'App secret',
+                    value: profile.hasAppSecret ? 'Saved (appsecret_proof enabled)' : 'Not set',
+                  },
+                  {
+                    label: 'Last validated',
+                    value: profile.lastValidatedAt ? (
+                      <RelativeTime value={profile.lastValidatedAt} />
+                    ) : (
+                      'Never'
+                    ),
+                  },
                 ]}
               />
               {profile.tokenScopes.length ? (
@@ -246,7 +306,11 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
           <Card>
             <CardHeader>
               <CardTitle>Network route</CardTitle>
-              <CardDescription>{profile.proxy ? 'Every Meta API call of this profile goes through this proxy.' : 'Meta is called directly from the server.'}</CardDescription>
+              <CardDescription>
+                {profile.proxy
+                  ? 'Every Meta API call of this profile goes through this proxy.'
+                  : 'Meta is called directly from the server.'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {profile.proxy ? (
@@ -261,10 +325,19 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                         label: 'Last test',
                         value: profile.proxy.lastTestAt ? (
                           <span className="flex flex-wrap items-center gap-1.5">
-                            <StatusBadge status={profile.proxy.lastTestOk ? 'SUCCESS' : 'FAILED'} label={profile.proxy.lastTestOk ? 'Working' : 'Failed'} size="sm" />
-                            <RelativeTime value={profile.proxy.lastTestAt} className="text-xs text-muted-foreground" />
+                            <StatusBadge
+                              status={profile.proxy.lastTestOk ? 'SUCCESS' : 'FAILED'}
+                              label={profile.proxy.lastTestOk ? 'Working' : 'Failed'}
+                              size="sm"
+                            />
+                            <RelativeTime
+                              value={profile.proxy.lastTestAt}
+                              className="text-xs text-muted-foreground"
+                            />
                             {profile.proxy.lastTestLatencyMs !== null ? (
-                              <span className="text-xs text-muted-foreground">· {formatDurationMs(profile.proxy.lastTestLatencyMs)}</span>
+                              <span className="text-xs text-muted-foreground">
+                                · {formatDurationMs(profile.proxy.lastTestLatencyMs)}
+                              </span>
                             ) : null}
                           </span>
                         ) : (
@@ -273,14 +346,28 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                       },
                     ]}
                   />
-                  {profile.proxy.lastTestError ? <p className="mt-3 text-xs text-destructive-fg">{profile.proxy.lastTestError}</p> : null}
-                  <Button variant="outline" size="sm" className="mt-4" onClick={() => actions.testProxy.mutate(profile)} loading={actions.testProxy.isPending}>
+                  {profile.proxy.lastTestError ? (
+                    <p className="mt-3 text-xs text-destructive-fg">{profile.proxy.lastTestError}</p>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => actions.testProxy.mutate(profile)}
+                    loading={actions.testProxy.isPending}
+                  >
                     <Globe />
                     Test proxy
                   </Button>
                 </>
               ) : (
-                <EmptyState compact icon={Globe} title="Direct connection" description="Add an HTTP, HTTPS or SOCKS5 proxy in the profile settings if this token must use a fixed IP." className="py-4" />
+                <EmptyState
+                  compact
+                  icon={Globe}
+                  title="Direct connection"
+                  description="Add an HTTP, HTTPS or SOCKS5 proxy in the profile settings if this token must use a fixed IP."
+                  className="py-4"
+                />
               )}
             </CardContent>
           </Card>
@@ -288,15 +375,23 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
           <Card>
             <CardHeader>
               <CardTitle>Synchronisation</CardTitle>
-              <CardDescription>Businesses, ad accounts, pages and pixels are refreshed automatically.</CardDescription>
+              <CardDescription>
+                Businesses, ad accounts, pages and pixels are refreshed automatically.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <KeyValueList
                 items={[
                   { label: 'Status', value: <StatusBadge status={profile.syncStatus} /> },
-                  { label: 'Last sync', value: profile.lastSyncAt ? `${formatDateTime(profile.lastSyncAt)}` : 'Never' },
+                  {
+                    label: 'Last sync',
+                    value: profile.lastSyncAt ? `${formatDateTime(profile.lastSyncAt)}` : 'Never',
+                  },
                   { label: 'Business Managers', value: profile.counts.businesses },
-                  { label: 'Ad accounts', value: `${profile.counts.connectedAdAccounts} connected of ${profile.counts.adAccounts}` },
+                  {
+                    label: 'Ad accounts',
+                    value: `${profile.counts.connectedAdAccounts} connected of ${profile.counts.adAccounts}`,
+                  },
                   { label: 'Pages', value: profile.counts.pages },
                   { label: 'Added', value: formatDateTime(profile.createdAt) },
                 ]}
@@ -308,14 +403,23 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
         <Card>
           <CardHeader>
             <CardTitle>Discovered assets</CardTitle>
-            <CardDescription>Choose which ad accounts are connected: only connected accounts are monitored, synchronised and available for launches.</CardDescription>
+            <CardDescription>
+              Choose which ad accounts are connected: only connected accounts are monitored, synchronised and
+              available for launches.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="accounts">
               <TabsList className="mb-4">
-                <TabsTrigger value="accounts">Ad accounts ({assets.data?.adAccounts.length ?? profile.counts.adAccounts})</TabsTrigger>
-                <TabsTrigger value="pages">Pages ({assets.data?.pages.length ?? profile.counts.pages})</TabsTrigger>
-                <TabsTrigger value="businesses">Businesses ({assets.data?.businesses.length ?? profile.counts.businesses})</TabsTrigger>
+                <TabsTrigger value="accounts">
+                  Ad accounts ({assets.data?.adAccounts.length ?? profile.counts.adAccounts})
+                </TabsTrigger>
+                <TabsTrigger value="pages">
+                  Pages ({assets.data?.pages.length ?? profile.counts.pages})
+                </TabsTrigger>
+                <TabsTrigger value="businesses">
+                  Businesses ({assets.data?.businesses.length ?? profile.counts.businesses})
+                </TabsTrigger>
                 <TabsTrigger value="pixels">Pixels</TabsTrigger>
               </TabsList>
               <TabsContent value="accounts">
@@ -343,9 +447,18 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{page.category ?? '—'}</TableCell>
-                            <TableCell>{page.instagramUsername ? `@${page.instagramUsername}` : <span className="text-muted-foreground">Not linked</span>}</TableCell>
                             <TableCell>
-                              <RelativeTime value={page.lastSyncedAt} className="text-xs text-muted-foreground" />
+                              {page.instagramUsername ? (
+                                `@${page.instagramUsername}`
+                              ) : (
+                                <span className="text-muted-foreground">Not linked</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <RelativeTime
+                                value={page.lastSyncedAt}
+                                className="text-xs text-muted-foreground"
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -353,7 +466,12 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                     </Table>
                   </div>
                 ) : (
-                  <EmptyState compact icon={FileText} title="No pages discovered" description="Pages appear here when the token has pages_show_list and the profile has been synchronised." />
+                  <EmptyState
+                    compact
+                    icon={FileText}
+                    title="No pages discovered"
+                    description="Pages appear here when the token has pages_show_list and the profile has been synchronised."
+                  />
                 )}
               </TabsContent>
               <TabsContent value="businesses">
@@ -376,9 +494,14 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                                 <MetaId value={b.metaBusinessId} />
                               </div>
                             </TableCell>
-                            <TableCell>{b.verificationStatus ? humanize(b.verificationStatus) : '—'}</TableCell>
                             <TableCell>
-                              <RelativeTime value={b.lastSyncedAt} className="text-xs text-muted-foreground" />
+                              {b.verificationStatus ? humanize(b.verificationStatus) : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <RelativeTime
+                                value={b.lastSyncedAt}
+                                className="text-xs text-muted-foreground"
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -386,7 +509,12 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
                     </Table>
                   </div>
                 ) : (
-                  <EmptyState compact icon={Building2} title="No Business Managers" description="Business Managers are listed when the token has business_management." />
+                  <EmptyState
+                    compact
+                    icon={Building2}
+                    title="No Business Managers"
+                    description="Business Managers are listed when the token has business_management."
+                  />
                 )}
               </TabsContent>
               <TabsContent value="pixels">
@@ -398,7 +526,12 @@ function ProfileDetail({ profile }: { profile: MetaProfileDto }) {
       </div>
 
       <ProfileDialog open={editOpen} onOpenChange={setEditOpen} profile={profile} />
-      <DeleteProfileDialog profile={profile} open={deleteOpen} onOpenChange={setDeleteOpen} redirectTo="/meta-profiles" />
+      <DeleteProfileDialog
+        profile={profile}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        redirectTo="/meta-profiles"
+      />
     </>
   );
 }
@@ -413,13 +546,21 @@ function ProfilePixels({ accounts }: { accounts: ProfileAdAccountDto[] }) {
     })),
   });
   if (!accounts.length) {
-    return <EmptyState compact icon={FileText} title="No connected ad accounts" description="Pixels are read from connected ad accounts. Connect an account on the first tab." />;
+    return (
+      <EmptyState
+        compact
+        icon={FileText}
+        title="No connected ad accounts"
+        description="Pixels are read from connected ad accounts. Connect an account on the first tab."
+      />
+    );
   }
   if (results.some((r) => r.isLoading)) return <Skeleton className="h-24" />;
   const failed = results.find((r) => r.isError);
   if (failed) return <ErrorAlert error={failed.error} />;
   const rows = results.flatMap((r, i) => (r.data ?? []).map((pixel) => ({ pixel, account: accounts[i]! })));
-  if (!rows.length) return <EmptyState compact icon={FileText} title="No pixels shared with the connected ad accounts" />;
+  if (!rows.length)
+    return <EmptyState compact icon={FileText} title="No pixels shared with the connected ad accounts" />;
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table className="min-w-[560px]">
@@ -437,7 +578,11 @@ function ProfilePixels({ accounts }: { accounts: ProfileAdAccountDto[] }) {
                 <div className="grid gap-0.5">
                   <span className="flex items-center gap-2 font-medium">
                     {pixel.name}
-                    {pixel.isUnavailable ? <Badge variant="warning" size="sm">Unavailable</Badge> : null}
+                    {pixel.isUnavailable ? (
+                      <Badge variant="warning" size="sm">
+                        Unavailable
+                      </Badge>
+                    ) : null}
                   </span>
                   <MetaId value={pixel.metaPixelId} />
                 </div>
@@ -447,7 +592,13 @@ function ProfilePixels({ accounts }: { accounts: ProfileAdAccountDto[] }) {
                   {account.name}
                 </Link>
               </TableCell>
-              <TableCell>{pixel.lastFiredTime ? <RelativeTime value={pixel.lastFiredTime} /> : <span className="text-muted-foreground">No events yet</span>}</TableCell>
+              <TableCell>
+                {pixel.lastFiredTime ? (
+                  <RelativeTime value={pixel.lastFiredTime} />
+                ) : (
+                  <span className="text-muted-foreground">No events yet</span>
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

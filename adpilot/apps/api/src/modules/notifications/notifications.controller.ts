@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { NOTIFICATION_CHANNEL_PREFS, NOTIFICATION_TYPES, paginationQuerySchema } from '@adpilot/shared';
 import { z } from 'zod';
 import { CurrentUser, RateLimit } from '../../common/decorators/auth.decorators';
@@ -61,14 +72,24 @@ export class NotificationsController {
 
   @Get('unread-count')
   async unreadCount(@CurrentUser() user: AuthUser) {
-    return { unread: await this.prisma.notification.count({ where: { userId: user.id, showInApp: true, readAt: null } }) };
+    return {
+      unread: await this.prisma.notification.count({
+        where: { userId: user.id, showInApp: true, readAt: null },
+      }),
+    };
   }
 
   @Post(':id/read')
   @HttpCode(200)
   async markRead(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
-    const res = await this.prisma.notification.updateMany({ where: { id, userId: user.id, readAt: null }, data: { readAt: new Date() } });
-    if (res.count === 0 && !(await this.prisma.notification.findFirst({ where: { id, userId: user.id }, select: { id: true } }))) {
+    const res = await this.prisma.notification.updateMany({
+      where: { id, userId: user.id, readAt: null },
+      data: { readAt: new Date() },
+    });
+    if (
+      res.count === 0 &&
+      !(await this.prisma.notification.findFirst({ where: { id, userId: user.id }, select: { id: true } }))
+    ) {
       throw AppError.notFound('Notification');
     }
     return { ok: true };
@@ -77,7 +98,10 @@ export class NotificationsController {
   @Post('read-all')
   @HttpCode(200)
   async markAllRead(@CurrentUser() user: AuthUser) {
-    const res = await this.prisma.notification.updateMany({ where: { userId: user.id, readAt: null }, data: { readAt: new Date() } });
+    const res = await this.prisma.notification.updateMany({
+      where: { userId: user.id, readAt: null },
+      data: { readAt: new Date() },
+    });
     return { updated: res.count };
   }
 
@@ -87,7 +111,10 @@ export class NotificationsController {
   }
 
   @Put('preferences')
-  async setPreferences(@CurrentUser() user: AuthUser, @Body(zod(preferencesSchema)) body: z.infer<typeof preferencesSchema>) {
+  async setPreferences(
+    @CurrentUser() user: AuthUser,
+    @Body(zod(preferencesSchema)) body: z.infer<typeof preferencesSchema>,
+  ) {
     await this.notifications.setPreferences(user.id, body.preferences);
     return this.notifications.getPreferences(user.id);
   }

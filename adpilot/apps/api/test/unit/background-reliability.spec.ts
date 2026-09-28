@@ -9,7 +9,11 @@ import { EmailProcessor } from '../../src/worker/processors/email.processor';
 import { TelegramProcessor } from '../../src/worker/processors/telegram.processor';
 import { UnrecoverableError } from '../../src/worker/job-errors';
 import { SmtpSendError, SmtpService } from '../../src/modules/mail/smtp.service';
-import { TelegramBotService, TelegramSendError, type TelegramUpdate } from '../../src/modules/telegram/telegram-bot.service';
+import {
+  TelegramBotService,
+  TelegramSendError,
+  type TelegramUpdate,
+} from '../../src/modules/telegram/telegram-bot.service';
 import { RetentionService } from '../../src/modules/maintenance/retention.service';
 
 /** Test doubles implement only what the code under test calls. */
@@ -101,7 +105,10 @@ describe('Telegram polling during a leader hand-over', () => {
     const handled: number[] = [];
     const links = { handleUpdate: vi.fn(async (u: TelegramUpdate) => void handled.push(u.update_id)) };
     const poller = () => new TelegramPollerService(fake({}), fake({}), fake(links), fake(redis), fake({}));
-    const update = (id: number): TelegramUpdate => ({ update_id: id, message: { message_id: id, text: '/start c0de', chat: { id: 7, type: 'private' } } });
+    const update = (id: number): TelegramUpdate => ({
+      update_id: id,
+      message: { message_id: id, text: '/start c0de', chat: { id: 7, type: 'private' } },
+    });
     const batch = [update(41), update(42)];
 
     await Promise.all([poller().handleUpdates(batch), poller().handleUpdates(batch)]);
@@ -111,11 +118,25 @@ describe('Telegram polling during a leader hand-over', () => {
 });
 
 describe('notification deliveries: nothing sent means temporary', () => {
-  const user = { id: 'u1', email: 'user@adpilot.test', status: 'ACTIVE', telegramConnection: { isActive: true, chatId: '7' } };
-  const claimed = { notification: { title: 'Budget changed', body: 'Ad set "A": 10 → 12', link: null, severity: 'INFO', user } };
+  const user = {
+    id: 'u1',
+    email: 'user@adpilot.test',
+    status: 'ACTIVE',
+    telegramConnection: { isActive: true, chatId: '7' },
+  };
+  const claimed = {
+    notification: {
+      title: 'Budget changed',
+      body: 'Ad set "A": 10 → 12',
+      link: null,
+      severity: 'INFO',
+      user,
+    },
+  };
   const systemLog = { warn: vi.fn(async () => undefined), error: vi.fn(async () => undefined) };
   const settings = { get: vi.fn(async () => ({ platformName: 'AdPilot' })) };
-  const deliveryJob = (attemptsMade = 0) => fake<Job>({ data: { kind: 'delivery', deliveryId: 'd1' }, attemptsMade, opts: { attempts: 6 } });
+  const deliveryJob = (attemptsMade = 0) =>
+    fake<Job>({ data: { kind: 'delivery', deliveryId: 'd1' }, attemptsMade, opts: { attempts: 6 } });
 
   function deliveries() {
     const calls: string[] = [];
@@ -134,7 +155,9 @@ describe('notification deliveries: nothing sent means temporary', () => {
   it('e-mail: settings are loaded before the claim, so a failure leaves the delivery PENDING for the retry', async () => {
     const d = deliveries();
     const broken = { get: vi.fn(async () => Promise.reject(new Error('database unavailable'))) };
-    await expect(emailProcessor({ send: vi.fn() }, d, broken).process(deliveryJob())).rejects.toThrow('database unavailable');
+    await expect(emailProcessor({ send: vi.fn() }, d, broken).process(deliveryJob())).rejects.toThrow(
+      'database unavailable',
+    );
     expect(d.calls).toEqual([]);
   });
 
@@ -151,24 +174,43 @@ describe('notification deliveries: nothing sent means temporary', () => {
   it('e-mail: failing to record a sent message is never treated as a send failure', async () => {
     const d = deliveries();
     d.markSent.mockRejectedValueOnce(new Error('database unavailable'));
-    await expect(emailProcessor({ send: vi.fn(async () => ({ messageId: 'm1' })) }, d).process(deliveryJob())).rejects.toThrow('database unavailable');
+    await expect(
+      emailProcessor({ send: vi.fn(async () => ({ messageId: 'm1' })) }, d).process(deliveryJob()),
+    ).rejects.toThrow('database unavailable');
     expect(d.release).not.toHaveBeenCalled();
     expect(d.markFinal).not.toHaveBeenCalled();
   });
 
   it('e-mail: a sealed message that cannot be decrypted fails at once instead of being retried', async () => {
     const smtp = { send: vi.fn() };
-    const encryption = { decrypt: () => { throw new Error('Malformed encrypted value'); } };
-    const sealed = fake<Job>({ data: { kind: 'sealed', sealed: 'enc1:damaged', tag: 'password_reset' }, attemptsMade: 0, opts: { attempts: 5 } });
-    await expect(emailProcessor(smtp, deliveries(), settings, encryption).process(sealed)).rejects.toBeInstanceOf(UnrecoverableError);
+    const encryption = {
+      decrypt: () => {
+        throw new Error('Malformed encrypted value');
+      },
+    };
+    const sealed = fake<Job>({
+      data: { kind: 'sealed', sealed: 'enc1:damaged', tag: 'password_reset' },
+      attemptsMade: 0,
+      opts: { attempts: 5 },
+    });
+    await expect(
+      emailProcessor(smtp, deliveries(), settings, encryption).process(sealed),
+    ).rejects.toBeInstanceOf(UnrecoverableError);
     expect(smtp.send).not.toHaveBeenCalled();
-    expect(systemLog.error).toHaveBeenCalledWith('email', expect.stringMatching(/cannot be opened/), { tag: 'password_reset' }, undefined);
+    expect(systemLog.error).toHaveBeenCalledWith(
+      'email',
+      expect.stringMatching(/cannot be opened/),
+      { tag: 'password_reset' },
+      undefined,
+    );
   });
 
   it('Telegram: an error that is not a Bot API answer is released and retried', async () => {
     const bot = { sendMessage: vi.fn(async () => Promise.reject(new TypeError('formatting error'))) };
     const d = deliveries();
-    await expect(new TelegramProcessor(fake(bot), fake(d), fake({}), fake(systemLog)).process(deliveryJob(0))).rejects.toThrow('formatting error');
+    await expect(
+      new TelegramProcessor(fake(bot), fake(d), fake({}), fake(systemLog)).process(deliveryJob(0)),
+    ).rejects.toThrow('formatting error');
     expect(d.calls).toEqual(['claim', 'release']);
   });
 
@@ -176,20 +218,34 @@ describe('notification deliveries: nothing sent means temporary', () => {
     const d = deliveries();
     d.markSent.mockRejectedValueOnce(new Error('database unavailable'));
     const bot = { sendMessage: vi.fn(async () => ({ message_id: 1 })) };
-    await expect(new TelegramProcessor(fake(bot), fake(d), fake({}), fake(systemLog)).process(deliveryJob())).rejects.toThrow('database unavailable');
+    await expect(
+      new TelegramProcessor(fake(bot), fake(d), fake({}), fake(systemLog)).process(deliveryJob()),
+    ).rejects.toThrow('database unavailable');
     expect(d.release).not.toHaveBeenCalled();
     expect(d.markFinal).not.toHaveBeenCalled();
   });
 
   it('SMTP and Telegram clients report settings that cannot be loaded as temporary failures', async () => {
-    const broken = { get: async () => Promise.reject(new Error('database unavailable')), getSecret: async () => null };
-    const smtpErr = await new SmtpService(fake(broken)).send({ to: 'a@adpilot.test', subject: 's', html: '<p>h</p>', text: 't' }).catch((e: unknown) => e);
+    const broken = {
+      get: async () => Promise.reject(new Error('database unavailable')),
+      getSecret: async () => null,
+    };
+    const smtpErr = await new SmtpService(fake(broken))
+      .send({ to: 'a@adpilot.test', subject: 's', html: '<p>h</p>', text: 't' })
+      .catch((e: unknown) => e);
     expect(smtpErr).toBeInstanceOf(SmtpSendError);
     expect(smtpErr).toMatchObject({ kind: 'TEMPORARY' });
     const disabled = { get: async () => ({ enabled: false }), getSecret: async () => null };
-    expect(await new SmtpService(fake(disabled)).send({ to: 'a@adpilot.test', subject: 's', html: 'h', text: 't' }).catch((e: unknown) => e)).toMatchObject({ kind: 'NOT_CONFIGURED' });
+    expect(
+      await new SmtpService(fake(disabled))
+        .send({ to: 'a@adpilot.test', subject: 's', html: 'h', text: 't' })
+        .catch((e: unknown) => e),
+    ).toMatchObject({ kind: 'NOT_CONFIGURED' });
 
-    const bot = new TelegramBotService(fake(broken), fake({ env: { TELEGRAM_API_BASE_URL: 'http://127.0.0.1:9' } }));
+    const bot = new TelegramBotService(
+      fake(broken),
+      fake({ env: { TELEGRAM_API_BASE_URL: 'http://127.0.0.1:9' } }),
+    );
     const tgErr = await bot.sendMessage('7', 'hello').catch((e: unknown) => e);
     expect(tgErr).toBeInstanceOf(TelegramSendError);
     expect(tgErr).toMatchObject({ kind: 'TEMPORARY' });
@@ -208,12 +264,34 @@ describe('retention cleanup', () => {
       }),
       creativeFile: { findMany: async () => [] },
     };
-    const systemLog = { error: vi.fn(async () => undefined), warn: vi.fn(async () => undefined), info: vi.fn(async () => undefined) };
-    const retention = new RetentionService(fake(prisma), fake({ get: async () => defaultSettings('retention') }), fake(systemLog), fake({ all: () => [] }), fake({}));
+    const systemLog = {
+      error: vi.fn(async () => undefined),
+      warn: vi.fn(async () => undefined),
+      info: vi.fn(async () => undefined),
+    };
+    const retention = new RetentionService(
+      fake(prisma),
+      fake({ get: async () => defaultSettings('retention') }),
+      fake(systemLog),
+      fake({ all: () => [] }),
+      fake({}),
+    );
 
     await expect(retention.run()).rejects.toThrow(/auditLogs/);
-    expect(tables).toEqual(expect.arrayContaining(['meta_api_logs', 'system_logs', 'notifications', 'insights_daily', 'launch_jobs', 'sessions', 'telegram_link_codes']));
-    expect(systemLog.error).toHaveBeenCalledWith('retention', expect.stringMatching(/auditLogs/), { step: 'auditLogs' });
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        'meta_api_logs',
+        'system_logs',
+        'notifications',
+        'insights_daily',
+        'launch_jobs',
+        'sessions',
+        'telegram_link_codes',
+      ]),
+    );
+    expect(systemLog.error).toHaveBeenCalledWith('retention', expect.stringMatching(/auditLogs/), {
+      step: 'auditLogs',
+    });
     expect(auditTxOptions).toMatchObject({ maxWait: expect.any(Number), timeout: expect.any(Number) });
     expect((auditTxOptions as { timeout: number }).timeout).toBeGreaterThan(5000);
   });
@@ -223,15 +301,25 @@ describe('notification outbox sweep', () => {
   it('walks a large PENDING backlog oldest first, one batch per run, instead of re-reading the same rows', async () => {
     const base = Date.now() - 3600_000;
     // Groups of three rows share a timestamp: the id breaks the tie.
-    const backlog = Array.from({ length: 1200 }, (_, i) => ({ id: `d${String(i).padStart(4, '0')}`, channel: 'EMAIL' as const, createdAt: new Date(base + Math.floor(i / 3) * 1000) }));
+    const backlog = Array.from({ length: 1200 }, (_, i) => ({
+      id: `d${String(i).padStart(4, '0')}`,
+      channel: 'EMAIL' as const,
+      createdAt: new Date(base + Math.floor(i / 3) * 1000),
+    }));
     type Row = (typeof backlog)[number];
     type Keyset = [{ createdAt: { gt: Date } }, { createdAt: Date; id: { gt: string } }];
     const findMany = vi.fn(async (args: { where: { OR?: Keyset }; take: number; orderBy: unknown }) => {
       const or = args.where.OR;
-      const after = (r: Row) => !or || r.createdAt > or[0].createdAt.gt || (r.createdAt.getTime() === or[1].createdAt.getTime() && r.id > or[1].id.gt);
+      const after = (r: Row) =>
+        !or ||
+        r.createdAt > or[0].createdAt.gt ||
+        (r.createdAt.getTime() === or[1].createdAt.getTime() && r.id > or[1].id.gt);
       return backlog.filter(after).slice(0, args.take);
     });
-    const prisma = { notificationDelivery: { findMany, updateMany: async () => ({ count: 0 }) }, bulkOperation: { findMany: async () => [] } };
+    const prisma = {
+      notificationDelivery: { findMany, updateMany: async () => ({ count: 0 }) },
+      bulkOperation: { findMany: async () => [] },
+    };
     const enqueued: string[] = [];
     const notifications = { enqueueDelivery: vi.fn(async (id: string) => void enqueued.push(id)) };
     const sweep = new OutboxSweepTask(fake(prisma), fake(notifications), fake({}));

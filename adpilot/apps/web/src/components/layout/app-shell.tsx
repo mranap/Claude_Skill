@@ -37,7 +37,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const sources = useMemo<CommandSource[]>(
-    () => [...(canAny(READ_ACCESS.adAccounts) ? [globalSearchSource] : []), ...(can('admin.users.view') ? [adminUserCommandSource] : [])],
+    () => [
+      ...(canAny(READ_ACCESS.adAccounts) ? [globalSearchSource] : []),
+      ...(can('admin.users.view') ? [adminUserCommandSource] : []),
+    ],
     [can, canAny],
   );
 
@@ -78,12 +81,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <Header onOpenMobileNav={() => setMobileOpen(true)} />
           {maintenance ? (
-            <div role="status" className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground sm:px-6">
+            <div
+              role="status"
+              className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground sm:px-6"
+            >
               <TriangleAlert className="size-4 shrink-0 text-warning-fg" />
               <span>{maintenance}</span>
             </div>
           ) : null}
-          <main id="main-content" tabIndex={-1} className="flex-1 px-4 pt-6 pb-12 outline-none sm:px-6 lg:px-8 lg:pt-8">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 px-4 pt-6 pb-12 outline-none sm:px-6 lg:px-8 lg:pt-8"
+          >
             <div className="mx-auto w-full max-w-[1280px]">{children}</div>
           </main>
         </div>

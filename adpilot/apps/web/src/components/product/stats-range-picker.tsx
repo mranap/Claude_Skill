@@ -30,34 +30,55 @@ const TO_PICKER: Record<PresetKey, PickerPreset> = {
   last_14d: 'last14',
   last_30d: 'last30',
 };
-const FROM_PICKER = Object.fromEntries(Object.entries(TO_PICKER).map(([key, preset]) => [preset, key])) as Record<PickerPreset, PresetKey>;
+const FROM_PICKER = Object.fromEntries(
+  Object.entries(TO_PICKER).map(([key, preset]) => [preset, key]),
+) as Record<PickerPreset, PresetKey>;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function parseStatsRange(range: string | null | undefined, from: string | null | undefined, to: string | null | undefined, fallback: PresetKey): StatsRange {
-  const key = (DATE_RANGE_KEYS as readonly string[]).includes(range ?? '') ? (range as DateRangeKey) : fallback;
+export function parseStatsRange(
+  range: string | null | undefined,
+  from: string | null | undefined,
+  to: string | null | undefined,
+  fallback: PresetKey,
+): StatsRange {
+  const key = (DATE_RANGE_KEYS as readonly string[]).includes(range ?? '')
+    ? (range as DateRangeKey)
+    : fallback;
   if (key !== 'custom') return { range: key };
-  if (from && to && ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to) return { range: 'custom', from, to };
+  if (from && to && ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to)
+    return { range: 'custom', from, to };
   return { range: fallback };
 }
 
 /** Query parameters for the statistics endpoints. */
 export function statsRangeParams(value: StatsRange): Record<string, string> {
-  return value.range === 'custom' && value.from && value.to ? { range: 'custom', from: value.from, to: value.to } : { range: value.range };
+  return value.range === 'custom' && value.from && value.to
+    ? { range: 'custom', from: value.from, to: value.to }
+    : { range: value.range };
 }
 
 /** URL filter patch (clears from/to for presets). */
 export function statsRangePatch(value: StatsRange): Record<string, string | undefined> {
-  return { range: value.range, from: value.range === 'custom' ? value.from : undefined, to: value.range === 'custom' ? value.to : undefined };
+  return {
+    range: value.range,
+    from: value.range === 'custom' ? value.from : undefined,
+    to: value.range === 'custom' ? value.to : undefined,
+  };
 }
 
 export function statsRangeLabel(value: StatsRange): string {
-  if (value.range === 'custom' && value.from && value.to) return value.from === value.to ? value.from : `${value.from} – ${value.to}`;
+  if (value.range === 'custom' && value.from && value.to)
+    return value.from === value.to ? value.from : `${value.from} – ${value.to}`;
   return DATE_RANGE_LABELS[value.range];
 }
 
 function toPickerValue(value: StatsRange): DateRangeValue {
   if (value.range === 'custom' && value.from && value.to) {
-    return { preset: 'custom', from: new Date(`${value.from}T00:00:00`), to: new Date(`${value.to}T23:59:59`) };
+    return {
+      preset: 'custom',
+      from: new Date(`${value.from}T00:00:00`),
+      to: new Date(`${value.to}T23:59:59`),
+    };
   }
   const preset = TO_PICKER[value.range as PresetKey] ?? 'today';
   return { preset, ...resolvePreset(preset) };
@@ -82,7 +103,12 @@ export function StatsRangePicker({
       className={className}
       onChange={(next) => {
         if (!next) return;
-        if (next.preset === 'custom') onChange({ range: 'custom', from: format(next.from, 'yyyy-MM-dd'), to: format(next.to, 'yyyy-MM-dd') });
+        if (next.preset === 'custom')
+          onChange({
+            range: 'custom',
+            from: format(next.from, 'yyyy-MM-dd'),
+            to: format(next.to, 'yyyy-MM-dd'),
+          });
         else onChange({ range: FROM_PICKER[next.preset] });
       }}
     />

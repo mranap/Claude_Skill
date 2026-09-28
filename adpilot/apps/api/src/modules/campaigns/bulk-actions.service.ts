@@ -46,7 +46,11 @@ export function bulkJobId(operationId: string): string {
 /** Final status and counters: SUCCESS unless nothing succeeded (per-target failures are listed in the results). */
 export function bulkOutcome(results: TargetResult[]) {
   const succeeded = results.filter((r) => r.ok).length;
-  return { status: succeeded === 0 && results.length ? ('FAILED' as const) : ('SUCCESS' as const), succeeded, failed: results.length - succeeded };
+  return {
+    status: succeeded === 0 && results.length ? ('FAILED' as const) : ('SUCCESS' as const),
+    succeeded,
+    failed: results.length - succeeded,
+  };
 }
 
 /**
@@ -57,11 +61,16 @@ export function bulkOutcome(results: TargetResult[]) {
 export async function closeBulkOperation(prisma: PrismaService, op: BulkOperation): Promise<void> {
   const results = ((op.results as unknown as TargetResult[] | null) ?? []).slice();
   const done = new Set(results.map((r) => r.id));
-  const error = 'Not confirmed: the operation stopped after repeated errors. Check the current status before trying again.';
+  const error =
+    'Not confirmed: the operation stopped after repeated errors. Check the current status before trying again.';
   for (const id of op.targetIds) if (!done.has(id)) results.push({ id, ok: false, error });
   await prisma.bulkOperation.updateMany({
     where: { id: op.id, status: { in: ['QUEUED', 'RUNNING'] } },
-    data: { ...bulkOutcome(results), results: results as unknown as Prisma.InputJsonValue, finishedAt: new Date() },
+    data: {
+      ...bulkOutcome(results),
+      results: results as unknown as Prisma.InputJsonValue,
+      finishedAt: new Date(),
+    },
   });
 }
 
@@ -84,10 +93,14 @@ export class BulkActionsService {
   ) {}
 
   async requestStatus(userId: string, input: z.infer<typeof bulkStatusSchema>) {
-    const existing = await this.prisma.bulkOperation.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } } });
+    const existing = await this.prisma.bulkOperation.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+    });
     if (existing) return existing;
     const table = input.level === 'CAMPAIGN' ? 'campaign' : input.level === 'ADSET' ? 'adSet' : 'ad';
-    const owned = await (this.prisma[table] as unknown as { count: (a: unknown) => Promise<number> }).count({ where: { id: { in: input.ids }, userId, isDeleted: false } });
+    const owned = await (this.prisma[table] as unknown as { count: (a: unknown) => Promise<number> }).count({
+      where: { id: { in: input.ids }, userId, isDeleted: false },
+    });
     if (owned !== new Set(input.ids).size) throw AppError.notFound('Some selected objects');
     let op;
     try {
@@ -102,10 +115,20 @@ export class BulkActionsService {
         },
       });
     } catch (err) {
-      if (isUniqueViolation(err)) return this.prisma.bulkOperation.findUniqueOrThrow({ where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } } });
+      if (isUniqueViolation(err))
+        return this.prisma.bulkOperation.findUniqueOrThrow({
+          where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+        });
       throw err;
     }
-    await this.audit.log({ action: 'bulk.status_requested', actorUserId: userId, subjectUserId: userId, targetType: 'bulk_operation', targetId: op.id, metadata: { level: input.level, status: input.status, count: op.total } });
+    await this.audit.log({
+      action: 'bulk.status_requested',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'bulk_operation',
+      targetId: op.id,
+      metadata: { level: input.level, status: input.status, count: op.total },
+    });
     if (op.total > SYNC_LIMIT) {
       await this.enqueue(op.id, userId);
       return op;
@@ -116,7 +139,10 @@ export class BulkActionsService {
     try {
       delayMs = (await this.process(op.id)).rateLimitedMs;
     } catch (err) {
-      this.logger.warn('Inline bulk action stopped; the queue continues it', { bulkOperationId: op.id, err: String(err) });
+      this.logger.warn('Inline bulk action stopped; the queue continues it', {
+        bulkOperationId: op.id,
+        err: String(err),
+      });
       delayMs = RESUME_DELAY_MS;
     }
     if (delayMs) await this.enqueue(op.id, userId, delayMs);
@@ -155,7 +181,10 @@ export class BulkActionsService {
         result = { id: targetId, name: e.name, ok: true, changed: res.changed };
       } catch (err) {
         const meta = (err as { meta?: { category?: string; retryAfterMs?: number } }).meta;
-        if (meta?.category === 'RATE_LIMIT' || (err instanceof MetaApiError && err.category === 'RATE_LIMIT')) {
+        if (
+          meta?.category === 'RATE_LIMIT' ||
+          (err instanceof MetaApiError && err.category === 'RATE_LIMIT')
+        ) {
           await this.save(id, results);
           return { rateLimitedMs: meta?.retryAfterMs ?? 60_000 };
         }
@@ -164,13 +193,20 @@ export class BulkActionsService {
       results.push(result);
       await this.save(id, results);
     }
-    await this.prisma.bulkOperation.update({ where: { id }, data: { ...bulkOutcome(results), finishedAt: new Date() } });
+    await this.prisma.bulkOperation.update({
+      where: { id },
+      data: { ...bulkOutcome(results), finishedAt: new Date() },
+    });
     return {};
   }
 
   private async enqueue(id: string, userId: string, delayMs = 0): Promise<void> {
     const data: BulkActionJob = { bulkOperationId: id, userId };
-    await this.queue.add(QUEUES.BULK_ACTIONS, JOBS.BULK_ACTION, data, { jobId: bulkJobId(id), attempts: BULK_JOB_ATTEMPTS, delay: delayMs });
+    await this.queue.add(QUEUES.BULK_ACTIONS, JOBS.BULK_ACTION, data, {
+      jobId: bulkJobId(id),
+      attempts: BULK_JOB_ATTEMPTS,
+      delay: delayMs,
+    });
   }
 
   private async save(id: string, results: TargetResult[]) {

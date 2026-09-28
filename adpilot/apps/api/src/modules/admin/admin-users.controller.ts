@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import {
   adminBlockUserSchema,
@@ -35,7 +46,10 @@ export class AdminUsersController {
 
   @Post()
   @RequirePermissions('admin.users.create')
-  create(@CurrentUser() actor: AuthUser, @Body(zod(adminCreateUserSchema)) body: z.infer<typeof adminCreateUserSchema>) {
+  create(
+    @CurrentUser() actor: AuthUser,
+    @Body(zod(adminCreateUserSchema)) body: z.infer<typeof adminCreateUserSchema>,
+  ) {
     return this.users.create(actor, body);
   }
 
@@ -52,7 +66,11 @@ export class AdminUsersController {
   @Post(':id/block')
   @HttpCode(200)
   @RequirePermissions('admin.users.block')
-  async block(@CurrentUser() actor: AuthUser, @Param('id', uuid) id: string, @Body(zod(adminBlockUserSchema)) body: z.infer<typeof adminBlockUserSchema>) {
+  async block(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(adminBlockUserSchema)) body: z.infer<typeof adminBlockUserSchema>,
+  ) {
     await this.users.block(actor, id, body.reason);
     return { ok: true };
   }
@@ -95,7 +113,11 @@ export class AdminUsersController {
 
   @Delete(':id/sessions/:sessionId')
   @RequirePermissions('admin.users.sessions')
-  async revokeOne(@CurrentUser() actor: AuthUser, @Param('id', uuid) id: string, @Param('sessionId', uuid) sessionId: string) {
+  async revokeOne(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', uuid) id: string,
+    @Param('sessionId', uuid) sessionId: string,
+  ) {
     await this.users.revokeSessions(actor, id, sessionId);
     return { ok: true };
   }
@@ -126,13 +148,20 @@ export class AdminRolesController {
 
   @Post()
   @RequirePermissions('admin.roles.manage')
-  create(@CurrentUser() actor: AuthUser, @Body(zod(roleCreateSchema)) body: z.infer<typeof roleCreateSchema>) {
+  create(
+    @CurrentUser() actor: AuthUser,
+    @Body(zod(roleCreateSchema)) body: z.infer<typeof roleCreateSchema>,
+  ) {
     return this.roles.create(actor, body);
   }
 
   @Patch(':id')
   @RequirePermissions('admin.roles.manage')
-  update(@CurrentUser() actor: AuthUser, @Param('id', uuid) id: string, @Body(zod(roleUpdateSchema)) body: z.infer<typeof roleUpdateSchema>) {
+  update(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zod(roleUpdateSchema)) body: z.infer<typeof roleUpdateSchema>,
+  ) {
     return this.roles.update(actor, id, body);
   }
 

@@ -9,7 +9,11 @@ export const adminUserCommandSource: CommandSource = {
   heading: 'Users',
   minQueryLength: 2,
   search: async (query, signal) => {
-    const res = await api.get<Paginated<AdminUserListItem>>('/admin/users', { q: query, pageSize: 6 }, { signal });
+    const res = await api.get<Paginated<AdminUserListItem>>(
+      '/admin/users',
+      { q: query, pageSize: 6 },
+      { signal },
+    );
     return res.items.map((user) => ({
       id: `user:${user.id}`,
       label: user.name ? `${user.name} · ${user.email}` : user.email,

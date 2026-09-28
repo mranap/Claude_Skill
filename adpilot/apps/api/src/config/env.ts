@@ -24,7 +24,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(200).default(10),
   REDIS_URL: z.string().min(1).default('redis://localhost:6379/0'),
-  QUEUE_PREFIX: z.string().regex(/^[a-z0-9_-]+$/).default('adpilot'),
+  QUEUE_PREFIX: z
+    .string()
+    .regex(/^[a-z0-9_-]+$/)
+    .default('adpilot'),
 
   ENCRYPTION_KEYS: z.string().min(1),
   ENCRYPTION_ACTIVE_KEY_ID: z.string().min(1),
@@ -42,7 +45,10 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: bool.default(true),
 
-  META_GRAPH_API_VERSION: z.string().regex(/^v\d{2,3}\.\d$/).default('v26.0'),
+  META_GRAPH_API_VERSION: z
+    .string()
+    .regex(/^v\d{2,3}\.\d$/)
+    .default('v26.0'),
   META_GRAPH_BASE_URL: z.url().default('https://graph.facebook.com'),
   META_GRAPH_VIDEO_BASE_URL: z.url().default('https://graph-video.facebook.com'),
   META_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(600000).default(60000),

@@ -32,7 +32,10 @@ import { moneyStringSchema, paginationQuerySchema } from './common';
  * when the Meta payload is built (see money.ts).
  */
 
-export const metaIdSchema = z.string().trim().regex(/^\d{1,30}$/, 'Invalid Meta id');
+export const metaIdSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,30}$/, 'Invalid Meta id');
 const countrySchema = z.string().refine((c) => COUNTRY_CODES.includes(c), 'Unknown country code');
 const httpsUrlSchema = z
   .string()
@@ -48,26 +51,37 @@ export const GENDERS = ['ALL', 'MALE', 'FEMALE'] as const;
 
 export const targetingSchema = z
   .object({
-  /** Default countries; a language/geo group can override them. */
-  countries: z.array(countrySchema).max(250).default([]),
-  excludedCountries: z.array(countrySchema).max(250).default([]),
-  ageMin: z.number().int().min(13).max(65).default(18),
-  /** 65 means "65+". */
-  ageMax: z.number().int().min(13).max(65).default(65),
-  genders: z.enum(GENDERS).default('ALL'),
-  locales: z.array(localeSchema).max(50).default([]),
-  /** Advantage+ audience (targeting_automation.advantage_audience = 1). */
-  advantageAudience: z.boolean().default(false),
-  customAudienceIds: z.array(metaIdSchema).max(100).default([]),
-  excludedCustomAudienceIds: z.array(metaIdSchema).max(100).default([]),
-  interests: z.array(interestSchema).max(200).default([]),
+    /** Default countries; a language/geo group can override them. */
+    countries: z.array(countrySchema).max(250).default([]),
+    excludedCountries: z.array(countrySchema).max(250).default([]),
+    ageMin: z.number().int().min(13).max(65).default(18),
+    /** 65 means "65+". */
+    ageMax: z.number().int().min(13).max(65).default(65),
+    genders: z.enum(GENDERS).default('ALL'),
+    locales: z.array(localeSchema).max(50).default([]),
+    /** Advantage+ audience (targeting_automation.advantage_audience = 1). */
+    advantageAudience: z.boolean().default(false),
+    customAudienceIds: z.array(metaIdSchema).max(100).default([]),
+    excludedCustomAudienceIds: z.array(metaIdSchema).max(100).default([]),
+    interests: z.array(interestSchema).max(200).default([]),
   })
   .superRefine((t, ctx) => {
-    if (t.ageMin > t.ageMax) ctx.addIssue({ code: 'custom', path: ['ageMin'], message: 'Minimum age is greater than maximum age' });
+    if (t.ageMin > t.ageMax)
+      ctx.addIssue({ code: 'custom', path: ['ageMin'], message: 'Minimum age is greater than maximum age' });
     // Advantage+ audience (Meta targeting reference): age_min may only be 18–25 and age_max is fixed at 65.
     if (t.advantageAudience) {
-      if (t.ageMin < 18 || t.ageMin > 25) ctx.addIssue({ code: 'custom', path: ['ageMin'], message: 'With Advantage+ audience the minimum age must be between 18 and 25' });
-      if (t.ageMax !== 65) ctx.addIssue({ code: 'custom', path: ['ageMax'], message: 'With Advantage+ audience the maximum age is always 65+' });
+      if (t.ageMin < 18 || t.ageMin > 25)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ageMin'],
+          message: 'With Advantage+ audience the minimum age must be between 18 and 25',
+        });
+      if (t.ageMax !== 65)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ageMax'],
+          message: 'With Advantage+ audience the maximum age is always 65+',
+        });
     }
   });
 
@@ -93,7 +107,8 @@ export const placementsSchema = z
   .superRefine((p, ctx) => {
     if (p.mode !== 'MANUAL') return;
     for (const issue of placementIssues(p)) {
-      if (issue.severity === 'error') ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
+      if (issue.severity === 'error')
+        ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
     }
   });
 
@@ -255,7 +270,9 @@ export const templateCreateSchema = z.object({
   config: templateConfigSchema,
 });
 
-export const templateUpdateSchema = templateCreateSchema.partial().extend({ isArchived: z.boolean().optional() });
+export const templateUpdateSchema = templateCreateSchema
+  .partial()
+  .extend({ isArchived: z.boolean().optional() });
 
 export const templateListQuerySchema = paginationQuerySchema.extend({
   archived: z

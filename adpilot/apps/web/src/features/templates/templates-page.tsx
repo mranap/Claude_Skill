@@ -2,7 +2,17 @@
 
 import { OBJECTIVE_RULES, goalRule } from '@adpilot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, Copy, Ellipsis, LayoutTemplate, Pencil, Plus, Rocket, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  Ellipsis,
+  LayoutTemplate,
+  Pencil,
+  Plus,
+  Rocket,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -17,7 +27,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { NavTabs } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { DataTable, DataTableToolbar, FilterSelect, useUrlTableState, type DataTableColumn } from '@/components/shared/data-table';
+import {
+  DataTable,
+  DataTableToolbar,
+  FilterSelect,
+  useUrlTableState,
+  type DataTableColumn,
+} from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { RelativeTime } from '@/components/shared/relative-time';
@@ -56,7 +72,8 @@ export function TemplatesPage() {
     onError: (error) => toast.error(getErrorTitle(error), { description: getErrorMessage(error) }),
   });
   const setArchived = useMutation({
-    mutationFn: ({ t, value }: { t: TemplateListItem; value: boolean }) => templatesApi.update(t.id, { isArchived: value }),
+    mutationFn: ({ t, value }: { t: TemplateListItem; value: boolean }) =>
+      templatesApi.update(t.id, { isArchived: value }),
     onSuccess: async (_r, { t, value }) => {
       toast.success(value ? `“${t.name}” archived` : `“${t.name}” restored`);
       await invalidate();
@@ -75,7 +92,9 @@ export function TemplatesPage() {
           <Link href={`/templates/${t.id}`} className="truncate font-medium hover:underline">
             {t.name}
           </Link>
-          {t.description ? <span className="truncate text-xs text-muted-foreground">{t.description}</span> : null}
+          {t.description ? (
+            <span className="truncate text-xs text-muted-foreground">{t.description}</span>
+          ) : null}
         </div>
       ),
     },
@@ -86,16 +105,42 @@ export function TemplatesPage() {
         <div className="grid gap-0.5">
           <span>{t.objectiveLabel}</span>
           <span className="text-xs text-muted-foreground">
-            {t.destination && t.optimizationGoal ? (goalRule(t.objective, t.destination, t.optimizationGoal)?.label ?? t.optimizationGoal) : '—'}
+            {t.destination && t.optimizationGoal
+              ? (goalRule(t.objective, t.destination, t.optimizationGoal)?.label ?? t.optimizationGoal)
+              : '—'}
           </span>
         </div>
       ),
     },
-    { id: 'budget', header: 'Budget', cell: (t) => <span className="tabular-nums">{describeBudget(t.budget)}</span> },
+    {
+      id: 'budget',
+      header: 'Budget',
+      cell: (t) => <span className="tabular-nums">{describeBudget(t.budget)}</span>,
+    },
     { id: 'countries', header: 'Countries', cell: (t) => describeCountries(t.countries) },
-    { id: 'groups', header: 'Groups', align: 'right', cell: (t) => <span className="tabular-nums">{t.variantsCount}</span> },
-    { id: 'used', header: 'Last used', sortField: 'lastUsedAt', cell: (t) => (t.lastUsedAt ? <RelativeTime value={t.lastUsedAt} /> : <span className="text-muted-foreground">Never</span>) },
-    { id: 'updated', header: 'Updated', sortField: 'updatedAt', cell: (t) => <RelativeTime value={t.updatedAt} /> },
+    {
+      id: 'groups',
+      header: 'Groups',
+      align: 'right',
+      cell: (t) => <span className="tabular-nums">{t.variantsCount}</span>,
+    },
+    {
+      id: 'used',
+      header: 'Last used',
+      sortField: 'lastUsedAt',
+      cell: (t) =>
+        t.lastUsedAt ? (
+          <RelativeTime value={t.lastUsedAt} />
+        ) : (
+          <span className="text-muted-foreground">Never</span>
+        ),
+    },
+    {
+      id: 'updated',
+      header: 'Updated',
+      sortField: 'updatedAt',
+      cell: (t) => <RelativeTime value={t.updatedAt} />,
+    },
     {
       id: 'actions',
       header: <span className="sr-only">Actions</span>,
@@ -183,14 +228,31 @@ export function TemplatesPage() {
           <DataTableToolbar
             state={state}
             searchPlaceholder="Search templates"
-            filters={<FilterSelect state={state} filterKey="objective" allLabel="All objectives" options={OBJECTIVE_RULES.map((o) => ({ value: o.objective, label: o.label }))} />}
+            filters={
+              <FilterSelect
+                state={state}
+                filterKey="objective"
+                allLabel="All objectives"
+                options={OBJECTIVE_RULES.map((o) => ({ value: o.objective, label: o.label }))}
+              />
+            }
           />
         }
         emptyState={
           <EmptyState
             icon={LayoutTemplate}
-            title={archived ? 'No archived templates' : state.hasActiveFilters ? 'No templates match' : 'No templates yet'}
-            description={archived || state.hasActiveFilters ? undefined : 'Save your usual objective, budget, targeting, placements and naming once and reuse them for every launch.'}
+            title={
+              archived
+                ? 'No archived templates'
+                : state.hasActiveFilters
+                  ? 'No templates match'
+                  : 'No templates yet'
+            }
+            description={
+              archived || state.hasActiveFilters
+                ? undefined
+                : 'Save your usual objective, budget, targeting, placements and naming once and reuse them for every launch.'
+            }
             action={
               canManage && !archived && !state.hasActiveFilters ? (
                 <Button asChild>
@@ -214,7 +276,9 @@ export function TemplatesPage() {
         onConfirm={async () => {
           if (!deleting) return;
           const res = await templatesApi.remove(deleting.id);
-          toast.success(res.archived ? 'The template was used by launches and has been archived' : 'Template deleted');
+          toast.success(
+            res.archived ? 'The template was used by launches and has been archived' : 'Template deleted',
+          );
           await invalidate();
         }}
       />

@@ -15,7 +15,12 @@ export interface TemplateListItem {
   objectiveLabel: string;
   destination?: string;
   optimizationGoal?: string;
-  budget?: { level?: 'CAMPAIGN' | 'ADSET'; type?: 'DAILY' | 'LIFETIME'; amount?: string; bidStrategy?: string };
+  budget?: {
+    level?: 'CAMPAIGN' | 'ADSET';
+    type?: 'DAILY' | 'LIFETIME';
+    amount?: string;
+    bidStrategy?: string;
+  };
   countries: string[];
   variantsCount: number;
   isArchived: boolean;
@@ -39,10 +44,12 @@ export interface TemplateDetail {
 }
 
 export const templatesApi = {
-  list: (params: Record<string, string | number>, signal?: AbortSignal) => api.get<Paginated<TemplateListItem>>('/templates', params, { signal }),
+  list: (params: Record<string, string | number>, signal?: AbortSignal) =>
+    api.get<Paginated<TemplateListItem>>('/templates', params, { signal }),
   get: (id: string) => api.get<TemplateDetail>(`/templates/${id}`),
   create: (body: z.input<typeof templateCreateSchema>) => api.post<TemplateDetail>('/templates', body),
-  update: (id: string, body: z.input<typeof templateUpdateSchema>) => api.patch<TemplateDetail>(`/templates/${id}`, body),
+  update: (id: string, body: z.input<typeof templateUpdateSchema>) =>
+    api.patch<TemplateDetail>(`/templates/${id}`, body),
   clone: (id: string) => api.post<TemplateDetail>(`/templates/${id}/clone`),
   remove: (id: string) => api.delete<{ archived: boolean; deleted: boolean }>(`/templates/${id}`),
 };
@@ -57,5 +64,9 @@ export function useTemplates(params: Record<string, string | number>, enabled = 
 }
 
 export function useTemplate(id: string | null | undefined) {
-  return useQuery({ queryKey: queryKeys.templates.detail(id ?? ''), queryFn: () => templatesApi.get(id as string), enabled: !!id });
+  return useQuery({
+    queryKey: queryKeys.templates.detail(id ?? ''),
+    queryFn: () => templatesApi.get(id as string),
+    enabled: !!id,
+  });
 }

@@ -38,18 +38,28 @@ export class RulesService {
       ...(q.q ? { name: { contains: q.q, mode: 'insensitive' } } : {}),
     };
     const [rows, total] = await Promise.all([
-      this.prisma.autoRule.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+      this.prisma.autoRule.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
       this.prisma.autoRule.count({ where }),
     ]);
     const counts = await this.prisma.autoRuleExecution.groupBy({
       by: ['ruleId', 'result'],
-      where: { ruleId: { in: rows.map((r) => r.id) }, executedAt: { gte: new Date(Date.now() - 7 * 86400_000) } },
+      where: {
+        ruleId: { in: rows.map((r) => r.id) },
+        executedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+      },
       _count: { _all: true },
     });
     return {
       items: rows.map((r) => ({
         ...this.toDto(r),
-        stats7d: Object.fromEntries(counts.filter((c) => c.ruleId === r.id).map((c) => [c.result, c._count._all])),
+        stats7d: Object.fromEntries(
+          counts.filter((c) => c.ruleId === r.id).map((c) => [c.result, c._count._all]),
+        ),
       })),
       total,
       page: q.page,
@@ -64,7 +74,10 @@ export class RulesService {
   }
 
   async get(userId: string, id: string) {
-    return this.toDto(await this.findOwned(userId, id));
+    const rule = this.toDto(await this.findOwned(userId, id));
+    // When "Run now" is allowed again (enforced by runNow(); this only drives the countdown).
+    const wait = await this.redis.client.pttl(this.redis.key('rules', 'run-now', id));
+    return { ...rule, nextManualRunAt: wait > 0 ? new Date(Date.now() + wait) : null };
   }
 
   async create(userId: string, input: RuleInput) {
@@ -72,8 +85,17 @@ export class RulesService {
     const count = await this.prisma.autoRule.count({ where: { userId, deletedAt: null } });
     if (count >= maxRulesPerUser) throw AppError.validation(`You can have at most ${maxRulesPerUser} rules`);
     const data = await this.prepare(userId, input);
-    const rule = await this.prisma.autoRule.create({ data: { ...data, userId, nextRunAt: input.isActive ? new Date(Date.now() + 60_000) : null } });
-    await this.audit.log({ action: 'rule.created', actorUserId: userId, subjectUserId: userId, targetType: 'rule', targetId: rule.id, metadata: { name: rule.name, action: rule.action } });
+    const rule = await this.prisma.autoRule.create({
+      data: { ...data, userId, nextRunAt: input.isActive ? new Date(Date.now() + 60_000) : null },
+    });
+    await this.audit.log({
+      action: 'rule.created',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'rule',
+      targetId: rule.id,
+      metadata: { name: rule.name, action: rule.action },
+    });
     return this.toDto(rule);
   }
 
@@ -82,23 +104,50 @@ export class RulesService {
     const data = await this.prepare(userId, input);
     const rule = await this.prisma.autoRule.update({
       where: { id },
-      data: { ...data, nextRunAt: input.isActive ? existing.nextRunAt ?? new Date(Date.now() + 60_000) : null },
+      data: {
+        ...data,
+        nextRunAt: input.isActive ? (existing.nextRunAt ?? new Date(Date.now() + 60_000)) : null,
+      },
     });
-    await this.audit.log({ action: 'rule.updated', actorUserId: userId, subjectUserId: userId, targetType: 'rule', targetId: id });
+    await this.audit.log({
+      action: 'rule.updated',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'rule',
+      targetId: id,
+    });
     return this.toDto(rule);
   }
 
   async setActive(userId: string, id: string, isActive: boolean) {
     await this.findOwned(userId, id);
-    const rule = await this.prisma.autoRule.update({ where: { id }, data: { isActive, nextRunAt: isActive ? new Date(Date.now() + 60_000) : null } });
-    await this.audit.log({ action: isActive ? 'rule.activated' : 'rule.deactivated', actorUserId: userId, subjectUserId: userId, targetType: 'rule', targetId: id });
+    const rule = await this.prisma.autoRule.update({
+      where: { id },
+      data: { isActive, nextRunAt: isActive ? new Date(Date.now() + 60_000) : null },
+    });
+    await this.audit.log({
+      action: isActive ? 'rule.activated' : 'rule.deactivated',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'rule',
+      targetId: id,
+    });
     return this.toDto(rule);
   }
 
   async remove(userId: string, id: string) {
     await this.findOwned(userId, id);
-    await this.prisma.autoRule.update({ where: { id }, data: { deletedAt: new Date(), isActive: false, nextRunAt: null } });
-    await this.audit.log({ action: 'rule.deleted', actorUserId: userId, subjectUserId: userId, targetType: 'rule', targetId: id });
+    await this.prisma.autoRule.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false, nextRunAt: null },
+    });
+    await this.audit.log({
+      action: 'rule.deleted',
+      actorUserId: userId,
+      subjectUserId: userId,
+      targetType: 'rule',
+      targetId: id,
+    });
   }
 
   /** "Run now" (respects the same safeguards; cooldowns still apply). At most once per minute per rule. */
@@ -110,7 +159,12 @@ export class RulesService {
       throw AppError.cooldown(`This rule was started moments ago. Try again in ${ttl} s.`, ttl);
     }
     const now = Date.now();
-    await this.queue.add(QUEUES.AUTO_RULES, JOBS.AUTO_RULE_CHECK, { ruleId: id, userId, slot: `manual-${now}` }, { jobId: jobId('rule', id, 'manual', now), attempts: 3 });
+    await this.queue.add(
+      QUEUES.AUTO_RULES,
+      JOBS.AUTO_RULE_CHECK,
+      { ruleId: id, userId, slot: `manual-${now}` },
+      { jobId: jobId('rule', id, 'manual', now), attempts: 3 },
+    );
     return { queued: true };
   }
 
@@ -134,8 +188,17 @@ export class RulesService {
     return {
       items: rows.map((r) => {
         const currency = r.rule.currency;
-        const money = (v: string | null) => (v && /^\d+$/.test(v) && currency && (r.action.endsWith('BUDGET')) ? `${minorToMajor(v, currency)} ${currency}` : v);
-        return { ...r, ruleName: r.rule.name, rule: undefined, oldValueDisplay: money(r.oldValue), newValueDisplay: money(r.newValue) };
+        const money = (v: string | null) =>
+          v && /^\d+$/.test(v) && currency && r.action.endsWith('BUDGET')
+            ? `${minorToMajor(v, currency)} ${currency}`
+            : v;
+        return {
+          ...r,
+          ruleName: r.rule.name,
+          rule: undefined,
+          oldValueDisplay: money(r.oldValue),
+          newValueDisplay: money(r.newValue),
+        };
       }),
       total,
       page: q.page,
@@ -147,25 +210,42 @@ export class RulesService {
   private async prepare(userId: string, input: RuleInput) {
     const { minCheckIntervalMinutes } = await this.settings.get('rules');
     if (input.checkIntervalMinutes < minCheckIntervalMinutes) {
-      throw AppError.validation(`Minimum check interval is ${minCheckIntervalMinutes} minutes.`, [{ path: 'checkIntervalMinutes', message: `Minimum ${minCheckIntervalMinutes} minutes` }]);
+      throw AppError.validation(`Minimum check interval is ${minCheckIntervalMinutes} minutes.`, [
+        { path: 'checkIntervalMinutes', message: `Minimum ${minCheckIntervalMinutes} minutes` },
+      ]);
     }
-    const accounts = await this.prisma.adAccount.findMany({ where: { id: { in: input.scope.adAccountIds }, userId }, select: { id: true, currency: true } });
-    if (accounts.length !== new Set(input.scope.adAccountIds).size) throw AppError.notFound('Some ad accounts');
+    const accounts = await this.prisma.adAccount.findMany({
+      where: { id: { in: input.scope.adAccountIds }, userId },
+      select: { id: true, currency: true },
+    });
+    if (accounts.length !== new Set(input.scope.adAccountIds).size)
+      throw AppError.notFound('Some ad accounts');
     if (input.scope.campaignIds.length) {
-      const owned = await this.prisma.campaign.count({ where: { id: { in: input.scope.campaignIds }, userId, adAccountId: { in: input.scope.adAccountIds } } });
-      if (owned !== new Set(input.scope.campaignIds).size) throw AppError.validation('Some campaigns do not belong to the selected ad accounts');
+      const owned = await this.prisma.campaign.count({
+        where: { id: { in: input.scope.campaignIds }, userId, adAccountId: { in: input.scope.adAccountIds } },
+      });
+      if (owned !== new Set(input.scope.campaignIds).size)
+        throw AppError.validation('Some campaigns do not belong to the selected ad accounts');
     }
     const currencies = [...new Set(accounts.map((a) => a.currency))];
     const usesMoney =
-      input.conditions.some((c) => RULE_METRIC_LABELS[c.metric].money) || ['SET_BUDGET'].includes(input.action) || !!input.minBudget || !!input.maxBudget;
+      input.conditions.some((c) => RULE_METRIC_LABELS[c.metric].money) ||
+      ['SET_BUDGET'].includes(input.action) ||
+      !!input.minBudget ||
+      !!input.maxBudget;
     if (usesMoney && currencies.length > 1) {
-      throw AppError.validation(`Money amounts are ambiguous across currencies (${currencies.join(', ')}). Select ad accounts with the same currency.`, [
-        { path: 'scope.adAccountIds', message: 'Use accounts with one currency' },
-      ]);
+      throw AppError.validation(
+        `Money amounts are ambiguous across currencies (${currencies.join(', ')}). Select ad accounts with the same currency.`,
+        [{ path: 'scope.adAccountIds', message: 'Use accounts with one currency' }],
+      );
     }
     // Budget amounts must exist in the account currency (no decimals for JPY, at most 2 for USD), otherwise
     // every run of the rule would fail to convert them.
-    const amounts = { actionValue: input.action === 'SET_BUDGET' ? input.actionValue : undefined, minBudget: input.minBudget, maxBudget: input.maxBudget };
+    const amounts = {
+      actionValue: input.action === 'SET_BUDGET' ? input.actionValue : undefined,
+      minBudget: input.minBudget,
+      maxBudget: input.maxBudget,
+    };
     for (const [path, amount] of Object.entries(amounts)) {
       if (amount === undefined) continue;
       try {
@@ -186,7 +266,8 @@ export class RulesService {
       timeRangeValue: input.timeRangeValue ?? null,
       action: input.action,
       actionValue: input.actionValue ?? null,
-      actionValueType: input.action === 'SET_BUDGET' ? 'ABSOLUTE' : input.action.endsWith('_BUDGET') ? 'PERCENT' : null,
+      actionValueType:
+        input.action === 'SET_BUDGET' ? 'ABSOLUTE' : input.action.endsWith('_BUDGET') ? 'PERCENT' : null,
       currency: currencies[0] ?? null,
       maxBudgetChangePercent: input.maxBudgetChangePercent ?? null,
       minBudget: input.minBudget ?? null,

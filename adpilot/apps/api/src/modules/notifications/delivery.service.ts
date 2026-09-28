@@ -44,7 +44,11 @@ export class DeliveryService {
     });
   }
 
-  async markFinal(deliveryId: string, status: 'FAILED' | 'SKIPPED' | 'UNCERTAIN', error: string): Promise<void> {
+  async markFinal(
+    deliveryId: string,
+    status: 'FAILED' | 'SKIPPED' | 'UNCERTAIN',
+    error: string,
+  ): Promise<void> {
     await this.prisma.notificationDelivery.update({
       where: { id: deliveryId },
       data: { status, lastError: error.slice(0, 1000) },

@@ -44,7 +44,10 @@ export function DropdownMenuItem({
   inset,
   variant = 'default',
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & { inset?: boolean; variant?: 'default' | 'destructive' }) {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
+  inset?: boolean;
+  variant?: 'default' | 'destructive';
+}) {
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
@@ -117,11 +120,15 @@ export function DropdownMenuSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
-  return <DropdownMenuPrimitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />;
+  return (
+    <DropdownMenuPrimitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />
+  );
 }
 
 export function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
-  return <span className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />;
+  return (
+    <span className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />
+  );
 }
 
 export function DropdownMenuSubTrigger({

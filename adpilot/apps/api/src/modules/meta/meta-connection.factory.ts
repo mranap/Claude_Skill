@@ -68,7 +68,15 @@ export class MetaConnectionFactory {
   }
 
   /** Connection for "test before save" calls; nothing is persisted. */
-  async forTest(userId: string, input: { accessToken: string; proxy?: ProxyInput | null; appId?: string | null; appSecret?: string | null }): Promise<MetaConnection> {
+  async forTest(
+    userId: string,
+    input: {
+      accessToken: string;
+      proxy?: ProxyInput | null;
+      appId?: string | null;
+      appSecret?: string | null;
+    },
+  ): Promise<MetaConnection> {
     if (input.proxy) await this.assertProxyAllowed(input.proxy.host);
     return {
       userId,

@@ -71,7 +71,8 @@ export function SelectContent({
           'relative z-50 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto',
           'rounded-lg border bg-popover text-popover-foreground shadow-overlay',
           'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
-          position === 'popper' && 'w-full min-w-(--radix-select-trigger-width) data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
+          position === 'popper' &&
+            'w-full min-w-(--radix-select-trigger-width) data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}
         {...props}
@@ -80,7 +81,10 @@ export function SelectContent({
           <ChevronUp className="size-4" />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport
-          className={cn('p-1', position === 'popper' && 'h-(--radix-select-trigger-height) w-full scroll-my-1')}
+          className={cn(
+            'p-1',
+            position === 'popper' && 'h-(--radix-select-trigger-height) w-full scroll-my-1',
+          )}
         >
           {children}
         </SelectPrimitive.Viewport>
@@ -132,6 +136,9 @@ export function SelectItem({
   );
 }
 
-export function SelectSeparator({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+export function SelectSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
   return <SelectPrimitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />;
 }

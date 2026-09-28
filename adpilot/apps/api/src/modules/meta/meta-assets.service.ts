@@ -57,8 +57,11 @@ export class MetaAssetsService {
       try {
         return await fn();
       } catch (err) {
-        if (err instanceof MetaApiError && (err.category === 'AUTH' || err.category === 'RATE_LIMIT')) throw err;
-        warnings.push(`${label}: ${err instanceof MetaApiError ? err.details.friendlyMessage : (err as Error).message}`);
+        if (err instanceof MetaApiError && (err.category === 'AUTH' || err.category === 'RATE_LIMIT'))
+          throw err;
+        warnings.push(
+          `${label}: ${err instanceof MetaApiError ? err.details.friendlyMessage : (err as Error).message}`,
+        );
         return fallback;
       }
     };
@@ -66,14 +69,26 @@ export class MetaAssetsService {
     // 1. Businesses (needs business_management)
     const businesses = await optional(
       'Business portfolios',
-      () => this.graph.paginate<{ id: string; name: string; verification_status?: string }>(conn, '/me/businesses', { fields: BUSINESS_FIELDS }, 'assets.businesses'),
+      () =>
+        this.graph.paginate<{ id: string; name: string; verification_status?: string }>(
+          conn,
+          '/me/businesses',
+          { fields: BUSINESS_FIELDS },
+          'assets.businesses',
+        ),
       [],
     );
     const businessRows = new Map<string, string>();
     for (const b of businesses) {
       const row = await this.prisma.businessAccount.upsert({
         where: { profileId_metaBusinessId: { profileId, metaBusinessId: b.id } },
-        create: { userId, profileId, metaBusinessId: b.id, name: b.name, verificationStatus: b.verification_status ?? null },
+        create: {
+          userId,
+          profileId,
+          metaBusinessId: b.id,
+          name: b.name,
+          verificationStatus: b.verification_status ?? null,
+        },
         update: { name: b.name, verificationStatus: b.verification_status ?? null, lastSyncedAt: new Date() },
       });
       businessRows.set(b.id, row.id);
@@ -81,13 +96,24 @@ export class MetaAssetsService {
 
     // 2. Ad accounts: /me/adaccounts + business owned/client accounts
     const accounts = new Map<string, MetaAdAccountData>();
-    const own = await this.graph.paginate<MetaAdAccountData>(conn, '/me/adaccounts', { fields: AD_ACCOUNT_FIELDS }, 'assets.adaccounts');
+    const own = await this.graph.paginate<MetaAdAccountData>(
+      conn,
+      '/me/adaccounts',
+      { fields: AD_ACCOUNT_FIELDS },
+      'assets.adaccounts',
+    );
     for (const a of own) if (a.account_id) accounts.set(a.account_id, a);
     for (const b of businesses) {
       for (const edge of ['owned_ad_accounts', 'client_ad_accounts'] as const) {
         const list = await optional(
           `${b.name} ${edge.replace(/_/g, ' ')}`,
-          () => this.graph.paginate<MetaAdAccountData>(conn, `/${b.id}/${edge}`, { fields: AD_ACCOUNT_FIELDS }, `assets.${edge}`),
+          () =>
+            this.graph.paginate<MetaAdAccountData>(
+              conn,
+              `/${b.id}/${edge}`,
+              { fields: AD_ACCOUNT_FIELDS },
+              `assets.${edge}`,
+            ),
           [],
         );
         for (const a of list) if (a.account_id && !accounts.has(a.account_id)) accounts.set(a.account_id, a);
@@ -99,8 +125,10 @@ export class MetaAssetsService {
     let newAccounts = 0;
     for (const a of accounts.values()) {
       const metaAccountId = a.account_id!;
-      const existing = await this.prisma.adAccount.findUnique({ where: { profileId_metaAccountId: { profileId, metaAccountId } } });
-      const businessId = a.business?.id ? businessRows.get(a.business.id) ?? null : null;
+      const existing = await this.prisma.adAccount.findUnique({
+        where: { profileId_metaAccountId: { profileId, metaAccountId } },
+      });
+      const businessId = a.business?.id ? (businessRows.get(a.business.id) ?? null) : null;
       if (!existing) {
         newAccounts++;
         await this.prisma.adAccount.create({
@@ -133,7 +161,8 @@ export class MetaAssetsService {
           },
         });
       } else {
-        if (businessId !== existing.businessId) await this.prisma.adAccount.update({ where: { id: existing.id }, data: { businessId } });
+        if (businessId !== existing.businessId)
+          await this.prisma.adAccount.update({ where: { id: existing.id }, data: { businessId } });
         await this.accountStatus.apply(existing, a, { notify: true });
       }
     }
@@ -148,7 +177,17 @@ export class MetaAssetsService {
     for (const p of myPages) pages.set(p.id, { ...p, source: 'ME_ACCOUNTS' });
     for (const b of businesses) {
       for (const edge of ['owned_pages', 'client_pages'] as const) {
-        const list = await optional(`${b.name} ${edge.replace(/_/g, ' ')}`, () => this.graph.paginate<MetaPage>(conn, `/${b.id}/${edge}`, { fields: PAGE_FIELDS }, `assets.${edge}`), []);
+        const list = await optional(
+          `${b.name} ${edge.replace(/_/g, ' ')}`,
+          () =>
+            this.graph.paginate<MetaPage>(
+              conn,
+              `/${b.id}/${edge}`,
+              { fields: PAGE_FIELDS },
+              `assets.${edge}`,
+            ),
+          [],
+        );
         for (const p of list) if (!pages.has(p.id)) pages.set(p.id, { ...p, source: 'BUSINESS' });
       }
     }
@@ -160,7 +199,14 @@ export class MetaAssetsService {
     for (const acc of connected) {
       const promotable = await optional(
         `${acc.name} promotable pages`,
-        () => this.graph.paginate<MetaPage>(conn, `/${actId(acc.metaAccountId)}/promote_pages`, { fields: PAGE_FIELDS }, 'assets.promote_pages', { metaAccountId: acc.metaAccountId }),
+        () =>
+          this.graph.paginate<MetaPage>(
+            conn,
+            `/${actId(acc.metaAccountId)}/promote_pages`,
+            { fields: PAGE_FIELDS },
+            'assets.promote_pages',
+            { metaAccountId: acc.metaAccountId },
+          ),
         [],
       );
       for (const p of promotable) if (!pages.has(p.id)) pages.set(p.id, { ...p, source: 'PROMOTE_PAGES' });
@@ -213,14 +259,33 @@ export class MetaAssetsService {
   ): Promise<number> {
     const pixels = await optional(
       'Pixels',
-      () => this.graph.paginate<{ id: string; name: string; last_fired_time?: string; is_unavailable?: boolean }>(conn, `/${actId(metaAccountId)}/adspixels`, { fields: PIXEL_FIELDS }, 'assets.pixels', { metaAccountId }),
+      () =>
+        this.graph.paginate<{ id: string; name: string; last_fired_time?: string; is_unavailable?: boolean }>(
+          conn,
+          `/${actId(metaAccountId)}/adspixels`,
+          { fields: PIXEL_FIELDS },
+          'assets.pixels',
+          { metaAccountId },
+        ),
       [],
     );
     for (const px of pixels) {
       await this.prisma.pixel.upsert({
         where: { adAccountId_metaPixelId: { adAccountId, metaPixelId: px.id } },
-        create: { userId, adAccountId, metaPixelId: px.id, name: px.name, lastFiredTime: px.last_fired_time ? new Date(px.last_fired_time) : null, isUnavailable: !!px.is_unavailable },
-        update: { name: px.name, lastFiredTime: px.last_fired_time ? new Date(px.last_fired_time) : null, isUnavailable: !!px.is_unavailable, lastSyncedAt: new Date() },
+        create: {
+          userId,
+          adAccountId,
+          metaPixelId: px.id,
+          name: px.name,
+          lastFiredTime: px.last_fired_time ? new Date(px.last_fired_time) : null,
+          isUnavailable: !!px.is_unavailable,
+        },
+        update: {
+          name: px.name,
+          lastFiredTime: px.last_fired_time ? new Date(px.last_fired_time) : null,
+          isUnavailable: !!px.is_unavailable,
+          lastSyncedAt: new Date(),
+        },
       });
     }
     return pixels.length;
@@ -236,7 +301,13 @@ export class MetaAssetsService {
     const audiences = await optional(
       'Custom audiences',
       () =>
-        this.graph.paginate<{ id: string; name: string; subtype?: string; approximate_count_lower_bound?: number; approximate_count_upper_bound?: number }>(
+        this.graph.paginate<{
+          id: string;
+          name: string;
+          subtype?: string;
+          approximate_count_lower_bound?: number;
+          approximate_count_upper_bound?: number;
+        }>(
           conn,
           `/${actId(metaAccountId)}/customaudiences`,
           { fields: CUSTOM_AUDIENCE_FIELDS },
@@ -255,14 +326,26 @@ export class MetaAssetsService {
           metaAudienceId: au.id,
           name: au.name,
           subtype: au.subtype ?? null,
-          approximateCountMin: au.approximate_count_lower_bound !== undefined ? BigInt(Math.max(0, au.approximate_count_lower_bound)) : null,
-          approximateCountMax: au.approximate_count_upper_bound !== undefined ? BigInt(Math.max(0, au.approximate_count_upper_bound)) : null,
+          approximateCountMin:
+            au.approximate_count_lower_bound !== undefined
+              ? BigInt(Math.max(0, au.approximate_count_lower_bound))
+              : null,
+          approximateCountMax:
+            au.approximate_count_upper_bound !== undefined
+              ? BigInt(Math.max(0, au.approximate_count_upper_bound))
+              : null,
         },
         update: {
           name: au.name,
           subtype: au.subtype ?? null,
-          approximateCountMin: au.approximate_count_lower_bound !== undefined ? BigInt(Math.max(0, au.approximate_count_lower_bound)) : null,
-          approximateCountMax: au.approximate_count_upper_bound !== undefined ? BigInt(Math.max(0, au.approximate_count_upper_bound)) : null,
+          approximateCountMin:
+            au.approximate_count_lower_bound !== undefined
+              ? BigInt(Math.max(0, au.approximate_count_lower_bound))
+              : null,
+          approximateCountMax:
+            au.approximate_count_upper_bound !== undefined
+              ? BigInt(Math.max(0, au.approximate_count_upper_bound))
+              : null,
           lastSyncedAt: new Date(),
         },
       });

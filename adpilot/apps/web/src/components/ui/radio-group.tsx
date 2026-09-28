@@ -5,10 +5,15 @@ import type * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
 export function RadioGroup({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
-  return <RadioGroupPrimitive.Root data-slot="radio-group" className={cn('grid gap-2.5', className)} {...props} />;
+  return (
+    <RadioGroupPrimitive.Root data-slot="radio-group" className={cn('grid gap-2.5', className)} {...props} />
+  );
 }
 
-export function RadioGroupItem({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+export function RadioGroupItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
   return (
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
@@ -62,7 +67,9 @@ export function RadioCard({
       ) : null}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-sm font-medium text-foreground">{title}</span>
-        {description ? <span className="text-xs leading-relaxed text-muted-foreground">{description}</span> : null}
+        {description ? (
+          <span className="text-xs leading-relaxed text-muted-foreground">{description}</span>
+        ) : null}
       </span>
       <span
         aria-hidden

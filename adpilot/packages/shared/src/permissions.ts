@@ -50,7 +50,10 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = Object.values(PERMISSIONS);
 export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, { group: string; description: string }> = {
   'app.meta_profiles.manage': { group: 'Product', description: 'Connect Meta profiles, tokens and proxies' },
   'app.campaigns.launch': { group: 'Product', description: 'Create and launch campaigns' },
-  'app.campaigns.manage': { group: 'Product', description: 'Pause/start campaigns, change budgets, bulk actions' },
+  'app.campaigns.manage': {
+    group: 'Product',
+    description: 'Pause/start campaigns, change budgets, bulk actions',
+  },
   'app.templates.manage': { group: 'Product', description: 'Create and edit campaign templates' },
   'app.creatives.manage': { group: 'Product', description: 'Upload and manage creatives' },
   'app.rules.manage': { group: 'Product', description: 'Create and manage automated rules' },
@@ -65,7 +68,10 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, { group: string; des
   'admin.users.sessions': { group: 'Users', description: 'View and terminate user sessions' },
   'admin.roles.manage': { group: 'Access control', description: 'Manage roles and permissions' },
   'admin.settings.view': { group: 'System', description: 'View system settings' },
-  'admin.settings.manage': { group: 'System', description: 'Change general, file, statistics and queue settings' },
+  'admin.settings.manage': {
+    group: 'System',
+    description: 'Change general, file, statistics and queue settings',
+  },
   'admin.smtp.manage': { group: 'System', description: 'Configure SMTP' },
   'admin.telegram.manage': { group: 'System', description: 'Configure the Telegram bot' },
   'admin.storage.manage': { group: 'System', description: 'Manage storage and file limits' },

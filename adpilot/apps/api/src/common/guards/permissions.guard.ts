@@ -24,14 +24,17 @@ export class PermissionsGuard implements CanActivate {
     if (!required?.length && !anyOf?.length) return true;
     const user = context.switchToHttp().getRequest<{ user?: AuthUser }>().user;
     if (!user) throw new AppError('UNAUTHORIZED', 'Please sign in to continue');
-    if (anyOf?.length && !anyOf.some((p) => hasPermission(user.roleKey, user.permissions, p))) throw AppError.forbidden();
+    if (anyOf?.length && !anyOf.some((p) => hasPermission(user.roleKey, user.permissions, p)))
+      throw AppError.forbidden();
     if (!required?.length) return true;
     if (!hasPermission(user.roleKey, user.permissions, required)) throw AppError.forbidden();
 
     if (required.some((p) => p.startsWith('admin.'))) {
       const security = await this.settings.get('security');
       if (security.require2faForAdmins && !user.twoFactorEnabled) {
-        throw AppError.forbidden('Enable two-factor authentication in Settings → Security to use admin features');
+        throw AppError.forbidden(
+          'Enable two-factor authentication in Settings → Security to use admin features',
+        );
       }
     }
     return true;

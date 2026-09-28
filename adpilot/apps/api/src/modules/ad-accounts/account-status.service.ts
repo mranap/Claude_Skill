@@ -42,7 +42,11 @@ export class AccountStatusService {
     private readonly activity: ActivityService,
   ) {}
 
-  async apply(account: AdAccount, data: MetaAdAccountData, opts: { notify: boolean }): Promise<{ changed: boolean }> {
+  async apply(
+    account: AdAccount,
+    data: MetaAdAccountData,
+    opts: { notify: boolean },
+  ): Promise<{ changed: boolean }> {
     const now = new Date();
     const details = {
       name: data.name ?? account.name,
@@ -52,9 +56,12 @@ export class AccountStatusService {
       amountSpent: toBigIntOrNull(data.amount_spent) ?? account.amountSpent,
       balance: toBigIntOrNull(data.balance) ?? account.balance,
       spendCap: data.spend_cap !== undefined ? toBigIntOrNull(data.spend_cap) : account.spendCap,
-      minDailyBudget: data.min_daily_budget !== undefined ? toBigIntOrNull(data.min_daily_budget) : account.minDailyBudget,
+      minDailyBudget:
+        data.min_daily_budget !== undefined ? toBigIntOrNull(data.min_daily_budget) : account.minDailyBudget,
       minCampaignGroupSpendCap:
-        data.min_campaign_group_spend_cap !== undefined ? toBigIntOrNull(data.min_campaign_group_spend_cap) : account.minCampaignGroupSpendCap,
+        data.min_campaign_group_spend_cap !== undefined
+          ? toBigIntOrNull(data.min_campaign_group_spend_cap)
+          : account.minCampaignGroupSpendCap,
       isPrepayAccount: data.is_prepay_account ?? account.isPrepayAccount,
       defaultDsaPayor: data.default_dsa_payor ?? account.defaultDsaPayor,
       defaultDsaBeneficiary: data.default_dsa_beneficiary ?? account.defaultDsaBeneficiary,
@@ -68,7 +75,10 @@ export class AccountStatusService {
     const newStatus = data.account_status ?? null;
     const statusUnchanged = newStatus === null || newStatus === account.accountStatus;
     if (statusUnchanged) {
-      await this.prisma.adAccount.update({ where: { id: account.id }, data: { ...details, disableReason: data.disable_reason ?? account.disableReason } });
+      await this.prisma.adAccount.update({
+        where: { id: account.id },
+        data: { ...details, disableReason: data.disable_reason ?? account.disableReason },
+      });
       return { changed: false };
     }
 
@@ -79,7 +89,12 @@ export class AccountStatusService {
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.adAccount.updateMany({
         where: { id: account.id, accountStatus: account.accountStatus },
-        data: { ...details, accountStatus: newStatus, statusKey: newKey, disableReason: data.disable_reason ?? null },
+        data: {
+          ...details,
+          accountStatus: newStatus,
+          statusKey: newKey,
+          disableReason: data.disable_reason ?? null,
+        },
       });
       if (updated.count !== 1) return null; // another worker already recorded this change
       const historyId = randomUUID();
@@ -100,7 +115,12 @@ export class AccountStatusService {
             `\n${AD_ACCOUNT_STATUS_DISPLAY[newKey].description}`,
           link: `/ad-accounts/${account.id}`,
           dedupeKey: `account-status:${historyId}`,
-          data: { adAccountId: account.id, from: account.accountStatus, to: newStatus, disableReason: data.disable_reason ?? null },
+          data: {
+            adAccountId: account.id,
+            from: account.accountStatus,
+            to: newStatus,
+            disableReason: data.disable_reason ?? null,
+          },
         });
       }
       await tx.accountStatusHistory.create({

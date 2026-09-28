@@ -40,13 +40,19 @@ export function adSetDailyMinimum(input: AdSetMinimumInput): AdSetMinimum | null
   if (input.accountMinDaily !== null && input.accountMinDaily > 0n) {
     min =
       perResult && input.bidStrategy === 'LOWEST_COST_WITHOUT_CAP'
-        ? { daily: input.accountMinDaily * PER_RESULT_FACTOR, basis: '5 × the ad account minimum when billing on link clicks or ThruPlays' }
+        ? {
+            daily: input.accountMinDaily * PER_RESULT_FACTOR,
+            basis: '5 × the ad account minimum when billing on link clicks or ThruPlays',
+          }
         : { daily: input.accountMinDaily, basis: 'the ad account minimum' };
   }
   if (input.bidStrategy === 'LOWEST_COST_WITH_BID_CAP' && input.bidAmount !== null && input.bidAmount > 0n) {
     const byBid = perResult ? input.bidAmount * PER_RESULT_FACTOR : input.bidAmount;
     if (!min || byBid > min.daily) {
-      min = { daily: byBid, basis: perResult ? '5 × the bid cap when billing on link clicks or ThruPlays' : 'the bid cap' };
+      min = {
+        daily: byBid,
+        basis: perResult ? '5 × the bid cap when billing on link clicks or ThruPlays' : 'the bid cap',
+      };
     }
   }
   return min;

@@ -20,7 +20,8 @@ export const adminSettingsApi = {
   update: <K extends SettingKey>(key: K, values: Record<string, unknown>, secrets: SecretPatch = {}) =>
     api.put<AdminSettingGroup<K> & { _saved?: boolean }>(`/admin/settings/${key}`, { values, secrets }),
   verifySmtp: () => api.post<OkResponse>('/admin/settings/smtp/verify'),
-  testSmtp: (to?: string) => api.post<{ ok: boolean; messageId?: string }>('/admin/settings/smtp/test', to ? { to } : {}),
+  testSmtp: (to?: string) =>
+    api.post<{ ok: boolean; messageId?: string }>('/admin/settings/smtp/test', to ? { to } : {}),
   testTelegram: () => api.post<TelegramBotTestResult>('/admin/settings/telegram/test'),
   testMeta: () => api.post<MetaConnectivityResult>('/admin/settings/meta/test'),
 };
@@ -37,13 +38,18 @@ export function useSaveSettings<K extends SettingKey>(key: K) {
       adminSettingsApi.update(key, values, secrets),
     onSuccess: (updated) => {
       const { _saved: _ignored, ...group } = updated;
-      queryClient.setQueryData<AdminSettingsResponse>(queryKeys.admin.settings, (old) => (old ? { ...old, [key]: group } : old));
+      queryClient.setQueryData<AdminSettingsResponse>(queryKeys.admin.settings, (old) =>
+        old ? { ...old, [key]: group } : old,
+      );
     },
   });
 }
 
 /** Keeps only the fields that belong to the zod schema (drops `<secret>Set` flags). */
-export function pickSchemaValues<T extends Record<string, unknown>>(shape: Record<string, unknown>, values: T): T {
+export function pickSchemaValues<T extends Record<string, unknown>>(
+  shape: Record<string, unknown>,
+  values: T,
+): T {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(shape)) out[key] = values[key];
   return out as T;
@@ -53,7 +59,8 @@ export function pickSchemaValues<T extends Record<string, unknown>>(shape: Recor
 export function secretErrors(error: unknown): Record<string, string> {
   if (!(error instanceof ApiError)) return {};
   const out: Record<string, string> = {};
-  for (const fe of error.fieldErrors) if (fe.path.startsWith('secrets.')) out[fe.path.slice('secrets.'.length)] = fe.message;
+  for (const fe of error.fieldErrors)
+    if (fe.path.startsWith('secrets.')) out[fe.path.slice('secrets.'.length)] = fe.message;
   return out;
 }
 

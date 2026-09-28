@@ -91,7 +91,15 @@ export function OptionalInput({
   onChange: (value: string | undefined) => void;
   controlProps?: FieldControlProps;
 }) {
-  return <Input {...props} {...controlProps} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} onBlur={onBlur} />;
+  return (
+    <Input
+      {...props}
+      {...controlProps}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+      onBlur={onBlur}
+    />
+  );
 }
 
 /** Money amount (decimal string in major units) with the currency as suffix. */
@@ -143,12 +151,17 @@ export function CheckboxGroup<T extends string>({
   return (
     <div className={cn('grid gap-2', columns === 2 && 'sm:grid-cols-2', columns === 3 && 'sm:grid-cols-3')}>
       {options.map((o) => (
-        <label key={o.value} className={cn('flex items-start gap-2.5 rounded-md text-sm', disabled && 'opacity-60')}>
+        <label
+          key={o.value}
+          className={cn('flex items-start gap-2.5 rounded-md text-sm', disabled && 'opacity-60')}
+        >
           <Checkbox
             className="mt-0.5"
             checked={set.has(o.value)}
             disabled={disabled}
-            onCheckedChange={(checked) => onChange(checked === true ? [...value, o.value] : value.filter((v) => v !== o.value))}
+            onCheckedChange={(checked) =>
+              onChange(checked === true ? [...value, o.value] : value.filter((v) => v !== o.value))
+            }
           />
           <span className="grid gap-0.5">
             <span>{o.label}</span>

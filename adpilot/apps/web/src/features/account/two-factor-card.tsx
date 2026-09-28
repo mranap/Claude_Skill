@@ -14,7 +14,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CopyButton } from '@/components/ui/copy-button';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,7 +39,10 @@ function CodeInput({
   value,
   onChange,
   ...props
-}: Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange'> & { value: string; onChange: (value: string) => void }) {
+}: Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange'> & {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <Input
       {...props}
@@ -65,10 +76,15 @@ export function TwoFactorCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Two-factor authentication
-          {user.twoFactorEnabled ? <Badge variant="success">Enabled</Badge> : <Badge variant="warning">Off</Badge>}
+          {user.twoFactorEnabled ? (
+            <Badge variant="success">Enabled</Badge>
+          ) : (
+            <Badge variant="warning">Off</Badge>
+          )}
         </CardTitle>
         <CardDescription>
-          Require a code from an authenticator app (Google Authenticator, 1Password, Authy…) every time you sign in.
+          Require a code from an authenticator app (Google Authenticator, 1Password, Authy…) every time you
+          sign in.
         </CardDescription>
         <CardAction className="hidden sm:flex">
           {user.twoFactorEnabled ? null : (
@@ -88,7 +104,9 @@ export function TwoFactorCard() {
               </span>
               <div>
                 <p className="text-sm font-medium">Authenticator app</p>
-                <p className="text-[13px] text-muted-foreground">Codes are required at sign-in. Keep your recovery codes somewhere safe.</p>
+                <p className="text-[13px] text-muted-foreground">
+                  Codes are required at sign-in. Keep your recovery codes somewhere safe.
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -105,7 +123,8 @@ export function TwoFactorCard() {
         ) : (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[13px] text-muted-foreground">
-              Your account is protected by a password only. Administrators may require 2FA to use admin features.
+              Your account is protected by a password only. Administrators may require 2FA to use admin
+              features.
             </p>
             <Button className="sm:hidden" onClick={openSetup}>
               <ShieldCheck />
@@ -162,7 +181,9 @@ function SetupDialog({
       <DialogContent size="md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Enable two-factor authentication</DialogTitle>
-          <DialogDescription>Three quick steps. You’ll need your phone with an authenticator app.</DialogDescription>
+          <DialogDescription>
+            Three quick steps. You’ll need your phone with an authenticator app.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-5">
           <Stepper steps={SETUP_STEPS} current={step} className="mx-auto max-w-sm" />
@@ -186,13 +207,16 @@ function SetupDialog({
                 />
                 <div className="grid gap-3 text-sm">
                   <p className="text-muted-foreground">
-                    Scan the QR code with your authenticator app. If you can’t scan it, enter this setup key manually:
+                    Scan the QR code with your authenticator app. If you can’t scan it, enter this setup key
+                    manually:
                   </p>
                   <div className="flex items-center gap-1 rounded-md border bg-muted/40 px-3 py-2">
                     <code className="flex-1 font-mono text-[13px] break-all">{secretGroups}</code>
                     <CopyButton value={data.secret} />
                   </div>
-                  <p className="text-xs text-muted-foreground">Account: {user.email} · Type: time-based (TOTP), 6 digits.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Account: {user.email} · Type: time-based (TOTP), 6 digits.
+                  </p>
                 </div>
               </div>
             )
@@ -206,7 +230,15 @@ function SetupDialog({
                 label="6-digit code from your app"
                 description="Codes change every 30 seconds. If it keeps failing, check that the time on your phone is set automatically."
                 render={({ field, controlProps }) => (
-                  <CodeInput {...controlProps} name={field.name} ref={field.ref} value={field.value} onChange={field.onChange} onBlur={field.onBlur} autoFocus />
+                  <CodeInput
+                    {...controlProps}
+                    name={field.name}
+                    ref={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    autoFocus
+                  />
                 )}
               />
             </Form>
@@ -215,8 +247,8 @@ function SetupDialog({
             <div className="grid gap-4">
               <RecoveryCodes codes={codes} email={user.email} />
               <label className="flex items-center gap-2.5 text-sm">
-                <Checkbox checked={saved} onCheckedChange={(v) => setSaved(v === true)} />
-                I have saved my recovery codes in a safe place
+                <Checkbox checked={saved} onCheckedChange={(v) => setSaved(v === true)} />I have saved my
+                recovery codes in a safe place
               </label>
             </div>
           ) : null}
@@ -256,7 +288,10 @@ function SetupDialog({
 function DisableDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const [useRecovery, setUseRecovery] = useState(false);
-  const form = useForm({ resolver: zodResolver(disable2faSchema), defaultValues: { password: '', code: '' } });
+  const form = useForm({
+    resolver: zodResolver(disable2faSchema),
+    defaultValues: { password: '', code: '' },
+  });
 
   const onSubmit = async (values: z.output<typeof disable2faSchema>) => {
     await accountApi.disable2fa(values);
@@ -271,7 +306,9 @@ function DisableDialog({ onClose }: { onClose: () => void }) {
         <Form form={form} onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
             <DialogTitle>Disable two-factor authentication?</DialogTitle>
-            <DialogDescription>Your account will be protected by the password only. Confirm with your password and a code.</DialogDescription>
+            <DialogDescription>
+              Your account will be protected by the password only. Confirm with your password and a code.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4">
             <FormRootError />
@@ -279,7 +316,9 @@ function DisableDialog({ onClose }: { onClose: () => void }) {
               control={form.control}
               name="password"
               label="Password"
-              render={({ field, controlProps }) => <PasswordInput {...field} {...controlProps} autoComplete="current-password" autoFocus />}
+              render={({ field, controlProps }) => (
+                <PasswordInput {...field} {...controlProps} autoComplete="current-password" autoFocus />
+              )}
             />
             <FormField
               control={form.control}
@@ -299,9 +338,22 @@ function DisableDialog({ onClose }: { onClose: () => void }) {
               }
               render={({ field, controlProps }) =>
                 useRecovery ? (
-                  <Input {...field} {...controlProps} placeholder="xxxx-xxxx" className="max-w-44 font-mono" autoComplete="off" />
+                  <Input
+                    {...field}
+                    {...controlProps}
+                    placeholder="xxxx-xxxx"
+                    className="max-w-44 font-mono"
+                    autoComplete="off"
+                  />
                 ) : (
-                  <CodeInput {...controlProps} name={field.name} ref={field.ref} value={field.value} onChange={field.onChange} onBlur={field.onBlur} />
+                  <CodeInput
+                    {...controlProps}
+                    name={field.name}
+                    ref={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                  />
                 )
               }
             />
@@ -320,7 +372,9 @@ function DisableDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const regenerateSchema = z.object({ code: totpCodeSchema.refine((v) => /^\d{6}$/.test(v), 'Enter the 6-digit code from your app') });
+const regenerateSchema = z.object({
+  code: totpCodeSchema.refine((v) => /^\d{6}$/.test(v), 'Enter the 6-digit code from your app'),
+});
 
 function RegenerateDialog({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -353,7 +407,10 @@ function RegenerateDialog({ onClose }: { onClose: () => void }) {
           <Form form={form} onSubmit={onSubmit} className="flex min-h-0 flex-col">
             <DialogHeader>
               <DialogTitle>Generate new recovery codes</DialogTitle>
-              <DialogDescription>This replaces all existing recovery codes. Enter a code from your authenticator app to continue.</DialogDescription>
+              <DialogDescription>
+                This replaces all existing recovery codes. Enter a code from your authenticator app to
+                continue.
+              </DialogDescription>
             </DialogHeader>
             <DialogBody className="grid gap-4">
               <FormRootError />
@@ -362,7 +419,15 @@ function RegenerateDialog({ onClose }: { onClose: () => void }) {
                 name="code"
                 label="Authentication code"
                 render={({ field, controlProps }) => (
-                  <CodeInput {...controlProps} name={field.name} ref={field.ref} value={field.value} onChange={field.onChange} onBlur={field.onBlur} autoFocus />
+                  <CodeInput
+                    {...controlProps}
+                    name={field.name}
+                    ref={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    autoFocus
+                  />
                 )}
               />
             </DialogBody>

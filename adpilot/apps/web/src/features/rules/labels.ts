@@ -51,7 +51,8 @@ export function describeTimeRange(rule: Pick<RuleDto, 'timeRange' | 'timeRangeVa
 export function describeAction(rule: Pick<RuleDto, 'action' | 'actionValue' | 'currency'>): string {
   if (rule.action === 'INCREASE_BUDGET') return `Increase budget by ${rule.actionValue ?? '?'} %`;
   if (rule.action === 'DECREASE_BUDGET') return `Decrease budget by ${rule.actionValue ?? '?'} %`;
-  if (rule.action === 'SET_BUDGET') return `Set budget to ${rule.actionValue ? formatAmount(rule.actionValue, rule.currency) : '?'}`;
+  if (rule.action === 'SET_BUDGET')
+    return `Set budget to ${rule.actionValue ? formatAmount(rule.actionValue, rule.currency) : '?'}`;
   return ACTION_LABELS[rule.action];
 }
 

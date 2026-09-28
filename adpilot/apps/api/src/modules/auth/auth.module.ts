@@ -11,7 +11,14 @@ import { TwoFactorService } from './two-factor.service';
 @Global()
 @Module({
   controllers: [AuthController, AccountController],
-  providers: [AuthService, AuthCacheService, CsrfService, SessionService, TwoFactorService, LoginGuardService],
+  providers: [
+    AuthService,
+    AuthCacheService,
+    CsrfService,
+    SessionService,
+    TwoFactorService,
+    LoginGuardService,
+  ],
   exports: [AuthService, AuthCacheService, CsrfService, SessionService, LoginGuardService],
 })
 export class AuthModule {}

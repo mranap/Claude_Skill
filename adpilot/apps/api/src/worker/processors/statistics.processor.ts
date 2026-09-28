@@ -32,22 +32,40 @@ export class StatisticsProcessor implements QueueProcessor {
       where: { id: job.data.adAccountId, userId: job.data.userId, isConnected: true },
       include: { profile: { include: { proxy: true } } },
     });
-    if (!account || account.profile.deletedAt || !account.profile.isEnabled || account.profile.status !== 'ACTIVE') return { skipped: 'inactive' };
+    if (
+      !account ||
+      account.profile.deletedAt ||
+      !account.profile.isEnabled ||
+      account.profile.status !== 'ACTIVE'
+    )
+      return { skipped: 'inactive' };
     await this.prisma.adAccount.update({ where: { id: account.id }, data: { statsSyncStatus: 'RUNNING' } });
     const conn = await this.connections.forProfile(account.profile);
     try {
       const { entitySyncIntervalMinutes } = await this.settings.get('meta');
-      const entitiesDue = !account.entitiesSyncedAt || Date.now() - account.entitiesSyncedAt.getTime() > entitySyncIntervalMinutes * 60_000 || job.data.reason !== 'scheduled';
+      const entitiesDue =
+        !account.entitiesSyncedAt ||
+        Date.now() - account.entitiesSyncedAt.getTime() > entitySyncIntervalMinutes * 60_000 ||
+        job.data.reason !== 'scheduled';
       const entities = entitiesDue ? await this.entities.syncAccount(account, conn) : null;
-      const result = await this.insights.syncAccount(account, conn, { backfill: job.data.reason === 'backfill' });
+      const result = await this.insights.syncAccount(account, conn, {
+        backfill: job.data.reason === 'backfill',
+      });
       await this.prisma.adAccount.update({
         where: { id: account.id },
-        data: { statsSyncStatus: 'SUCCESS', statsSyncError: null, lastStatsSyncAt: new Date(), statsBackfilledAt: account.statsBackfilledAt ?? new Date() },
+        data: {
+          statsSyncStatus: 'SUCCESS',
+          statsSyncError: null,
+          lastStatsSyncAt: new Date(),
+          statsBackfilledAt: account.statsBackfilledAt ?? new Date(),
+        },
       });
       return { entities, ...result };
     } catch (err) {
       const rateLimited = err instanceof MetaApiError && err.category === 'RATE_LIMIT';
-      const final = !rateLimited && (job.attemptsMade + 1 >= (job.opts.attempts ?? 1) || (err instanceof MetaApiError && !err.retryable));
+      const final =
+        !rateLimited &&
+        (job.attemptsMade + 1 >= (job.opts.attempts ?? 1) || (err instanceof MetaApiError && !err.retryable));
       await this.prisma.adAccount.update({
         where: { id: account.id },
         data: {
@@ -61,12 +79,19 @@ export class StatisticsProcessor implements QueueProcessor {
           type: 'STATISTICS_SYNC_FAILED',
           severity: 'WARNING',
           title: `Statistics sync failed: ${account.name}`,
-          body: err instanceof MetaApiError ? err.details.friendlyMessage : 'Statistics could not be synchronised. The platform will try again at the next interval.',
+          body:
+            err instanceof MetaApiError
+              ? err.details.friendlyMessage
+              : 'Statistics could not be synchronised. The platform will try again at the next interval.',
           link: `/ad-accounts/${account.id}`,
           dedupeKey: `stats-failed:${account.id}:${new Date().toISOString().slice(0, 10)}`,
         });
       }
-      return handleMetaJobError(err, job, token, { profileId: account.profileId, profileStatus: this.profileStatus, tokenFingerprint: conn.tokenFingerprint });
+      return handleMetaJobError(err, job, token, {
+        profileId: account.profileId,
+        profileStatus: this.profileStatus,
+        tokenFingerprint: conn.tokenFingerprint,
+      });
     }
   }
 }

@@ -53,7 +53,12 @@ export function useSettingsForm(): UseFormReturn<SettingsFormValues> {
 }
 
 /** Watches the objective/destination/goal triple and resolves the matching rules. */
-export function useGoal(): { objective: Objective; destination: string; goal: string; rule: GoalRule | undefined } {
+export function useGoal(): {
+  objective: Objective;
+  destination: string;
+  goal: string;
+  rule: GoalRule | undefined;
+} {
   const { control } = useSettingsForm();
   const [objective, destination, goal] = useWatch({
     control,

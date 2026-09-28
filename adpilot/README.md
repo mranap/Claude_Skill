@@ -31,6 +31,7 @@ notified by e-mail and Telegram — with a Super Admin panel to run the platform
 ## Features
 
 **Users & access**
+
 - E-mail + password sign-in (Argon2id), optional TOTP two-factor authentication with recovery codes.
 - Users are created by administrators (invitation link or temporary password that must be changed).
 - Password reset, e-mail change with confirmation, session list with remote sign-out, login history.
@@ -38,6 +39,7 @@ notified by e-mail and Telegram — with a Super Admin panel to run the platform
 - Strict tenant isolation: every query is scoped to the owner; foreign ids answer `404`.
 
 **Meta integration**
+
 - **Meta profiles**: access token (System User token recommended) + optional HTTP/HTTPS/SOCKS5 proxy and
   optional app credentials. Test token / proxy / connection before saving. Tokens are encrypted (AES-256-GCM)
   and only ever shown masked (`EAAB****7ds`). Token expiry, revocation and missing permissions are detected.
@@ -62,15 +64,18 @@ notified by e-mail and Telegram — with a Super Admin panel to run the platform
   day, no repeated action, dry run, execution history, crash-safe (intent recorded before calling Meta).
 
 **Notifications**
+
 - In-app notification center (always), e-mail (SMTP) and Telegram (secure deep-link linking) per
   notification type: E-mail / Telegram / Both / Off. Outbox with at-most-once delivery for ambiguous failures.
 
 **Super Admin**
+
 - Users, roles/permissions, settings (general, security, files, statistics, account checks, rules, Meta, SMTP
   with test e-mail, Telegram, queues, retention, maintenance, backups), audit log, system log, Meta API log,
   queue/worker monitoring, Meta rate-limit view, storage, backups, broadcasts, maintenance mode.
 
 **Production features**
+
 - Drafts, clone of templates/launches, dry run, activity timeline, notification center, global search
   (ad account id, campaign, ad set, ad, template), bulk actions, graceful shutdown, health checks, backups.
 
@@ -157,6 +162,7 @@ Secret settings (SMTP password, bot token, app secret) are write-only and stored
 ## Meta app, tokens and permissions
 
 ### Recommended setup
+
 1. In [Meta for Developers](https://developers.facebook.com/) create a **Business** type app and add the
    **Marketing API** product. Apps need **Advanced Access** to `ads_management` / `ads_read` for accounts they do
    not own (Meta App Review); in development mode they work for ad accounts of the app's own Business.
@@ -170,16 +176,16 @@ Secret settings (SMTP password, bot token, app secret) are write-only and stored
 
 ### Permissions
 
-| Permission | Level | Used for | If missing |
-|---|---|---|---|
-| `ads_management` | **Required** | Creating campaigns/ad sets/creatives/ads, uploading images and videos, pause/start, budget changes, automated rules | Launches, bulk actions and rules fail with "Requires ads_management permission"; the profile is marked *Permission revoked* |
-| `ads_read` | **Required** | Reading ad accounts, statuses, campaigns, Insights statistics | Discovery, account monitoring and statistics fail |
-| `business_management` | Recommended | Listing businesses and their owned/client ad accounts and Pages | Only ad accounts/Pages the token user has direct access to are discovered (a warning is shown) |
-| `pages_show_list` | Recommended | Listing Pages usable as ad identity | Page pickers may be empty; enter Page access through Business Manager |
-| `pages_read_engagement` | Recommended | Reading Page details and connected Instagram accounts | Instagram account selection unavailable (ads use the Page for Instagram placements) |
-| `pages_manage_ads` | Optional | Ads that create/boost Page posts or use Page-owned objects | Some Page-based ad formats are rejected by Meta |
-| `leads_retrieval` | Optional | Reading Instant Form lead details (not needed to count leads) | Only lead counts (from Insights) are available |
-| `instagram_basic` | Optional | Instagram account details for placements | Instagram identity falls back to the Page |
+| Permission              | Level        | Used for                                                                                                            | If missing                                                                                                                  |
+| ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `ads_management`        | **Required** | Creating campaigns/ad sets/creatives/ads, uploading images and videos, pause/start, budget changes, automated rules | Launches, bulk actions and rules fail with "Requires ads_management permission"; the profile is marked _Permission revoked_ |
+| `ads_read`              | **Required** | Reading ad accounts, statuses, campaigns, Insights statistics                                                       | Discovery, account monitoring and statistics fail                                                                           |
+| `business_management`   | Recommended  | Listing businesses and their owned/client ad accounts and Pages                                                     | Only ad accounts/Pages the token user has direct access to are discovered (a warning is shown)                              |
+| `pages_show_list`       | Recommended  | Listing Pages usable as ad identity                                                                                 | Page pickers may be empty; enter Page access through Business Manager                                                       |
+| `pages_read_engagement` | Recommended  | Reading Page details and connected Instagram accounts                                                               | Instagram account selection unavailable (ads use the Page for Instagram placements)                                         |
+| `pages_manage_ads`      | Optional     | Ads that create/boost Page posts or use Page-owned objects; listing a Page's Instant Forms in the launch wizard     | Some Page-based ad formats are rejected by Meta; Instant Form IDs have to be pasted                                         |
+| `leads_retrieval`       | Optional     | Reading Instant Form lead details (not needed to count leads)                                                       | Only lead counts (from Insights) are available                                                                              |
+| `instagram_basic`       | Optional     | Instagram account details for placements                                                                            | Instagram identity falls back to the Page                                                                                   |
 
 AdPilot checks the granted scopes with `debug_token` / `me/permissions` whenever a token is saved and on a
 schedule, and shows missing required/recommended permissions on the profile.

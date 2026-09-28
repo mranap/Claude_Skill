@@ -1,6 +1,17 @@
 'use client';
 
-import { CircleAlert, Ellipsis, Globe, KeyRound, Pencil, Plug, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  CircleAlert,
+  Ellipsis,
+  Globe,
+  KeyRound,
+  Pencil,
+  Plug,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -30,13 +41,24 @@ import type { MetaProfileDto } from './types';
 
 const WEEK = 7 * 86400_000;
 
-export function TokenExpiry({ profile, now }: { profile: Pick<MetaProfileDto, 'tokenExpiresAt' | 'status'>; now: number }) {
+export function TokenExpiry({
+  profile,
+  now,
+}: {
+  profile: Pick<MetaProfileDto, 'tokenExpiresAt' | 'status'>;
+  now: number;
+}) {
   if (!profile.tokenExpiresAt) {
     return <span className="text-muted-foreground">{profile.status === 'ACTIVE' ? 'Never' : '—'}</span>;
   }
   const left = new Date(profile.tokenExpiresAt).getTime() - now;
   return (
-    <span className={cn('flex flex-col', left < 0 ? 'text-destructive-fg' : left < WEEK ? 'text-warning-fg' : undefined)}>
+    <span
+      className={cn(
+        'flex flex-col',
+        left < 0 ? 'text-destructive-fg' : left < WEEK ? 'text-warning-fg' : undefined,
+      )}
+    >
       <span>{formatDate(profile.tokenExpiresAt)}</span>
       <RelativeTime value={profile.tokenExpiresAt} className="text-xs text-muted-foreground" />
     </span>
@@ -60,7 +82,9 @@ export function ProfilesPage() {
           <Link href={`/meta-profiles/${p.id}`} className="truncate font-medium hover:underline">
             {p.name}
           </Link>
-          <span className="truncate text-xs text-muted-foreground">{p.metaUserName ? `Meta user ${p.metaUserName}` : (p.notes ?? 'Not validated yet')}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {p.metaUserName ? `Meta user ${p.metaUserName}` : (p.notes ?? 'Not validated yet')}
+          </span>
         </div>
       ),
       interactive: true,
@@ -100,7 +124,14 @@ export function ProfilesPage() {
             <span className="flex items-center gap-1.5 text-xs">
               <span
                 aria-hidden
-                className={cn('size-1.5 rounded-full', p.proxy.lastTestOk === true ? 'bg-success' : p.proxy.lastTestOk === false ? 'bg-destructive' : 'bg-muted-foreground/50')}
+                className={cn(
+                  'size-1.5 rounded-full',
+                  p.proxy.lastTestOk === true
+                    ? 'bg-success'
+                    : p.proxy.lastTestOk === false
+                      ? 'bg-destructive'
+                      : 'bg-muted-foreground/50',
+                )}
               />
               {p.proxy.type} proxy
             </span>
@@ -134,7 +165,11 @@ export function ProfilesPage() {
       cell: (p) => (
         <div className="grid gap-0.5">
           {isSyncing(p) || p.syncStatus === 'FAILED' ? <StatusBadge status={p.syncStatus} size="sm" /> : null}
-          {p.lastSyncAt ? <RelativeTime value={p.lastSyncAt} className="text-xs text-muted-foreground" /> : <span className="text-xs text-muted-foreground">Never</span>}
+          {p.lastSyncAt ? (
+            <RelativeTime value={p.lastSyncAt} className="text-xs text-muted-foreground" />
+          ) : (
+            <span className="text-xs text-muted-foreground">Never</span>
+          )}
         </div>
       ),
     },
@@ -169,7 +204,10 @@ export function ProfilesPage() {
                 Test proxy
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem disabled={p.status !== 'ACTIVE' || isSyncing(p)} onSelect={() => actions.sync.mutate(p)}>
+            <DropdownMenuItem
+              disabled={p.status !== 'ACTIVE' || isSyncing(p)}
+              onSelect={() => actions.sync.mutate(p)}
+            >
               <RefreshCw />
               Sync now
             </DropdownMenuItem>
@@ -221,10 +259,22 @@ export function ProfilesPage() {
           />
         }
       />
-      <ProfileDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={(res) => router.push(`/meta-profiles/${res.profile.id}`)} />
-      <ProfileDialog open={dialog.state?.kind === 'edit'} onOpenChange={(open) => !open && dialog.close()} profile={dialog.state?.kind === 'edit' ? dialog.state.profile : undefined} />
+      <ProfileDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSaved={(res) => router.push(`/meta-profiles/${res.profile.id}`)}
+      />
+      <ProfileDialog
+        open={dialog.state?.kind === 'edit'}
+        onOpenChange={(open) => !open && dialog.close()}
+        profile={dialog.state?.kind === 'edit' ? dialog.state.profile : undefined}
+      />
       {dialog.state?.kind === 'delete' ? (
-        <DeleteProfileDialog profile={dialog.state.profile} open onOpenChange={(open) => !open && dialog.close()} />
+        <DeleteProfileDialog
+          profile={dialog.state.profile}
+          open
+          onOpenChange={(open) => !open && dialog.close()}
+        />
       ) : null}
     </>
   );

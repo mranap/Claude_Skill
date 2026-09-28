@@ -10,7 +10,10 @@ export function Command({ className, ...props }: React.ComponentProps<typeof Com
   return (
     <CommandPrimitive
       data-slot="command"
-      className={cn('flex size-full flex-col overflow-hidden rounded-[inherit] bg-popover text-popover-foreground', className)}
+      className={cn(
+        'flex size-full flex-col overflow-hidden rounded-[inherit] bg-popover text-popover-foreground',
+        className,
+      )}
       {...props}
     />
   );
@@ -70,7 +73,10 @@ export function CommandGroup({ className, ...props }: React.ComponentProps<typeo
   );
 }
 
-export function CommandSeparator({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+export function CommandSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
   return <CommandPrimitive.Separator className={cn('-mx-1 h-px bg-border', className)} {...props} />;
 }
 
@@ -89,12 +95,22 @@ export function CommandItem({ className, ...props }: React.ComponentProps<typeof
   );
 }
 
-export function CommandLoading({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Loading>) {
-  return <CommandPrimitive.Loading className={cn('px-3 py-2 text-xs text-muted-foreground', className)} {...props} />;
+export function CommandLoading({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Loading>) {
+  return (
+    <CommandPrimitive.Loading
+      className={cn('px-3 py-2 text-xs text-muted-foreground', className)}
+      {...props}
+    />
+  );
 }
 
 export function CommandShortcut({ className, ...props }: React.ComponentProps<'span'>) {
-  return <span className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />;
+  return (
+    <span className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />
+  );
 }
 
 export function CommandDialog({
@@ -114,11 +130,7 @@ export function CommandDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        hideClose
-        size="md"
-        className="top-[15%] translate-y-0 overflow-hidden p-0 sm:max-w-xl"
-      >
+      <DialogContent hideClose size="md" className="top-[15%] translate-y-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
         <Command loop {...commandProps}>
