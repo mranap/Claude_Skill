@@ -34,6 +34,9 @@ export const queryKeys = {
     pages: (id: string) => ['ad-accounts', 'pages', id] as const,
     activity: (id: string, params: Record<string, unknown>) =>
       ['ad-accounts', 'activity', id, params] as const,
+    locales: (id: string) => ['ad-accounts', 'targeting', 'locales', id] as const,
+    interests: (id: string, q: string) => ['ad-accounts', 'targeting', 'interests', id, q] as const,
+    leadForms: (id: string, pageId: string) => ['ad-accounts', 'lead-forms', id, pageId] as const,
   },
   creatives: {
     all: ['creatives'] as const,
