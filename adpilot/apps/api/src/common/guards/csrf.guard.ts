@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AppConfig } from '../../config/app-config';
-import { SKIP_CSRF } from '../decorators/auth.decorators';
+import { IS_PUBLIC, SKIP_CSRF } from '../decorators/auth.decorators';
 import { AppError } from '../errors/app-error';
 import { CsrfService } from '../../modules/auth/csrf.service';
 import { cookieNames } from '../../modules/auth/cookies';
@@ -39,7 +39,8 @@ export class CsrfGuard implements CanActivate {
 
     const cookie = (req.cookies as Record<string, string> | undefined)?.[cookieNames(this.config).csrf];
     const header = req.headers['x-csrf-token'];
-    const ok = this.csrf.verify(cookie, typeof header === 'string' ? header : undefined, req.user?.sessionId ?? null);
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()]) === true;
+    const ok = this.csrf.verify(cookie, typeof header === 'string' ? header : undefined, req.user?.sessionId ?? null, isPublic);
     if (!ok) throw new AppError('CSRF_INVALID', 'Security token is missing or expired. Reload the page and try again.');
     return true;
   }

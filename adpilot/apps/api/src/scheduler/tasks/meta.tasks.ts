@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { QueueService, jobId } from '../../infra/queue/queue.service';
@@ -98,14 +99,15 @@ export class AccountStatusTask implements SchedulerTask {
       entry.ids.push(r.id);
       byProfile.set(r.profileId, entry);
     }
-    const s = slot(new Date(), MINUTE);
+    // The UPDATE above claims every account exactly once, so each batch gets its own job id. (A per-minute id
+    // would silently drop a second claim within the same minute, e.g. after a leader failover.)
     for (const [profileId, { userId, ids }] of byProfile) {
       for (let i = 0; i < ids.length; i += 50) {
         await this.queue.add(
           QUEUES.ACCOUNT_STATUS,
           JOBS.ACCOUNT_STATUS_CHECK,
           { profileId, userId, adAccountIds: ids.slice(i, i + 50) },
-          { jobId: jobId('status', profileId, s, i / 50), attempts: 3 },
+          { jobId: jobId('status', profileId, randomUUID()), attempts: 3 },
         );
       }
     }

@@ -29,8 +29,8 @@ export class AdminUsersController {
 
   @Get(':id')
   @RequirePermissions('admin.users.view')
-  get(@Param('id', uuid) id: string) {
-    return this.users.get(id);
+  get(@CurrentUser() actor: AuthUser, @Param('id', uuid) id: string) {
+    return this.users.get(id, actor);
   }
 
   @Post()

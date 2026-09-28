@@ -28,6 +28,8 @@ export interface NotifyInput {
   dedupeKey?: string;
   /** Overrides user preferences (used by administrator broadcasts). */
   channels?: ('EMAIL' | 'TELEGRAM')[];
+  /** false = external channels only; the notification is not listed in the in-app center (default true). */
+  inApp?: boolean;
 }
 
 /**
@@ -60,6 +62,7 @@ export class NotificationsService {
             link: input.link ?? null,
             data: (input.data ?? undefined) as Prisma.InputJsonValue | undefined,
             dedupeKey: input.dedupeKey ?? null,
+            showInApp: input.inApp ?? true,
           },
         });
         const deliveries = [];

@@ -41,7 +41,20 @@ export class RuleMetricsService {
     if (hourly) since = windowStart!.toFormat('yyyy-MM-dd');
 
     const counters = new Map<string, BaseCounters>();
-    const fields = [cfg.idField, 'objective', ...(level !== 'CAMPAIGN' ? ['optimization_goal'] : []), 'spend', 'impressions', ...(hourly ? [] : ['reach']), 'clicks', 'inline_link_clicks', 'actions', 'action_values'].join(',');
+    const fields = [
+      cfg.idField,
+      'objective',
+      ...(level !== 'CAMPAIGN' ? ['optimization_goal'] : []),
+      'spend',
+      'impressions',
+      ...(hourly ? [] : ['reach']),
+      'clicks',
+      'inline_link_clicks',
+      'actions',
+      'action_values',
+      // Not combined with the hourly breakdown (not every field supports it); the local results mapping applies.
+      ...(hourly ? [] : ['video_thruplay_watched_actions', 'results']),
+    ].join(',');
     for (let i = 0; i < metaIds.length; i += 100) {
       const ids = metaIds.slice(i, i + 100);
       const rows = await this.graph.paginate<InsightRow & { hourly_stats_aggregated_by_advertiser_time_zone?: string }>(
@@ -53,7 +66,6 @@ export class RuleMetricsService {
           time_range: { since, until },
           ...(hourly ? { time_increment: 1, breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone' } : { time_increment: 'all_days' }),
           filtering: [{ field: cfg.filter, operator: 'IN', value: ids }],
-          use_unified_attribution_setting: true,
           limit: 500,
         },
         'insights.rules',

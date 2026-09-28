@@ -66,6 +66,8 @@ interface MetaAd {
 const CAMPAIGN_STATUSES = ['ACTIVE', 'PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
 const ADSET_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
 const AD_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'PENDING_REVIEW', 'DISAPPROVED', 'PREAPPROVED', 'PENDING_BILLING_INFO', 'ARCHIVED'];
+const MAX_CAMPAIGNS = 5000;
+const MAX_ADSETS = 10_000;
 const MAX_ADS = 10_000;
 
 const date = (v?: string) => (v ? new Date(v) : null);
@@ -88,17 +90,21 @@ export class EntitySyncService {
     const metaAccountId = account.metaAccountId;
     const act = actId(metaAccountId);
     const [campaigns, adSets, ads] = await Promise.all([
-      this.graph.paginate<MetaCampaign>(conn, `/${act}/campaigns`, { fields: CAMPAIGN_FIELDS, effective_status: CAMPAIGN_STATUSES }, 'entities.campaigns', { metaAccountId }, 5000),
-      this.graph.paginate<MetaAdSet>(conn, `/${act}/adsets`, { fields: ADSET_FIELDS, effective_status: ADSET_STATUSES }, 'entities.adsets', { metaAccountId }, 10_000),
+      this.graph.paginate<MetaCampaign>(conn, `/${act}/campaigns`, { fields: CAMPAIGN_FIELDS, effective_status: CAMPAIGN_STATUSES }, 'entities.campaigns', { metaAccountId }, MAX_CAMPAIGNS),
+      this.graph.paginate<MetaAdSet>(conn, `/${act}/adsets`, { fields: ADSET_FIELDS, effective_status: ADSET_STATUSES }, 'entities.adsets', { metaAccountId }, MAX_ADSETS),
       this.graph.paginate<MetaAd>(conn, `/${act}/ads`, { fields: AD_FIELDS, effective_status: AD_STATUSES }, 'entities.ads', { metaAccountId }, MAX_ADS),
     ]);
     await this.upsert(account, campaigns, adSets, ads, {});
-    // Objects that disappeared from Meta (deleted) are flagged, but only when the listing was complete.
+    // Objects that disappeared from Meta (deleted) are flagged — per level, and only when that listing was
+    // complete (a truncated list must never mark existing objects as deleted).
+    if (campaigns.length < MAX_CAMPAIGNS) {
+      await this.prisma.campaign.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaCampaignId: { notIn: campaigns.map((c) => c.id) } }, data: { isDeleted: true } });
+    }
+    if (adSets.length < MAX_ADSETS) {
+      await this.prisma.adSet.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaAdSetId: { notIn: adSets.map((s) => s.id) } }, data: { isDeleted: true } });
+    }
     if (ads.length < MAX_ADS) {
-      const seen = { c: new Set(campaigns.map((c) => c.id)), s: new Set(adSets.map((s) => s.id)), a: new Set(ads.map((a) => a.id)) };
-      await this.prisma.campaign.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaCampaignId: { notIn: [...seen.c] } }, data: { isDeleted: true } });
-      await this.prisma.adSet.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaAdSetId: { notIn: [...seen.s] } }, data: { isDeleted: true } });
-      await this.prisma.ad.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaAdId: { notIn: [...seen.a] } }, data: { isDeleted: true } });
+      await this.prisma.ad.updateMany({ where: { adAccountId: account.id, isDeleted: false, metaAdId: { notIn: ads.map((a) => a.id) } }, data: { isDeleted: true } });
     }
     await this.prisma.adAccount.update({ where: { id: account.id }, data: { entitiesSyncedAt: new Date() } });
     return { campaigns: campaigns.length, adSets: adSets.length, ads: ads.length };

@@ -19,7 +19,7 @@ const CACHE_TTL_MS = 30_000;
 type Stored = Record<string, unknown>;
 
 export interface SecretPatch {
-  /** undefined → keep current value, null → clear, string → replace. */
+  /** undefined or '' → keep the current value, null → clear, non-empty string → replace. */
   [field: string]: string | null | undefined;
 }
 
@@ -118,9 +118,10 @@ export class SettingsService implements OnModuleInit, BeforeApplicationShutdown 
     const next: Stored = { ...(parsed.data as Stored) };
     for (const field of SECRET_SETTING_FIELDS[key] ?? []) {
       const incoming = secrets[field];
-      if (incoming === undefined) {
+      if (incoming === undefined || incoming === '') {
+        // An empty input keeps the stored secret: clearing it must be explicit (null).
         if (typeof current[field] === 'string') next[field] = current[field];
-      } else if (incoming !== null && incoming !== '') {
+      } else if (incoming !== null) {
         next[field] = this.encryption.encrypt(incoming, Aad.setting(`${key}.${field}`));
       }
     }

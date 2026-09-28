@@ -9,8 +9,8 @@
  */
 import busboy from 'busboy';
 import { createHash, createHmac, randomInt } from 'node:crypto';
-import { AddressInfo } from 'node:net';
-import http, { IncomingMessage, ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 
 export interface EmuToken {
   token: string;
@@ -119,9 +119,9 @@ export class MetaEmulator {
     return `http://127.0.0.1:${this.port}`;
   }
 
-  async start(): Promise<void> {
+  async start(port = 0): Promise<void> {
     this.server = http.createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((r) => this.server.listen(0, '127.0.0.1', () => r()));
+    await new Promise<void>((r) => this.server.listen(port, '127.0.0.1', () => r()));
     this.port = (this.server.address() as AddressInfo).port;
   }
 
@@ -202,6 +202,11 @@ export class MetaEmulator {
 
   inject(fault: Fault): void {
     this.faults.push(fault);
+  }
+
+  /** Creates an object as if it had been made in Ads Manager (outside the platform). */
+  createObject(type: Obj['type'], account: string, fields: Record<string, unknown>): Obj {
+    return this.store(type, account, fields);
   }
 
   objectsOf(type: Obj['type']): Obj[] {
@@ -698,4 +703,16 @@ export class MetaEmulator {
     }
     return this.page(rows, p);
   }
+}
+
+// DEVELOPMENT/TEST ONLY: `node --experimental-strip-types test/support/meta-emulator.ts [port]` runs the emulator
+// standalone for manual UI testing (start the API/worker with META_GRAPH_BASE_URL and
+// META_GRAPH_VIDEO_BASE_URL pointing to it). Prints the seeded access token and object ids.
+if (process.argv[1]?.endsWith('meta-emulator.ts')) {
+  const emulator = new MetaEmulator();
+  const world = emulator.seed();
+  emulator.videoPollsUntilReady = 1;
+  void emulator.start(Number(process.argv[2] ?? 4010)).then(() => {
+    console.log(JSON.stringify({ baseUrl: emulator.baseUrl, ...world }, null, 2));
+  });
 }

@@ -64,8 +64,10 @@ export class AdminUsersService {
           lastLoginAt: true,
           createdAt: true,
           twoFactorEnabled: true,
+          mustChangePassword: true,
+          lockedUntil: true,
           storageUsedBytes: true,
-          role: { select: { id: true, key: true, name: true } },
+          role: { select: { id: true, key: true, name: true, permissions: { select: { permission: { select: { key: true } } } } } },
           _count: { select: { metaProfiles: { where: { deletedAt: null } }, adAccounts: { where: { isConnected: true } }, campaigns: true, creativeFiles: { where: { deletedAt: null } } } },
         },
       }),
@@ -74,6 +76,7 @@ export class AdminUsersService {
     return {
       items: users.map((u) => ({
         ...u,
+        role: { id: u.role.id, key: u.role.key, name: u.role.name, permissions: u.role.permissions.map((p) => p.permission.key) },
         usage: {
           metaProfiles: u._count.metaProfiles,
           adAccounts: u._count.adAccounts,
@@ -89,7 +92,7 @@ export class AdminUsersService {
     };
   }
 
-  async get(id: string) {
+  async get(id: string, actor?: AuthUser) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -124,7 +127,8 @@ export class AdminUsersService {
       },
     });
     if (!user) throw AppError.notFound('User');
-    const sessions = await this.sessions.listActive(id);
+    // `current` marks the administrator's own session, so revoking it can be confirmed explicitly in the UI.
+    const sessions = (await this.sessions.listActive(id)).map((s) => ({ ...s, current: s.id === actor?.sessionId }));
     const recentLogins = await this.prisma.loginEvent.findMany({
       where: { userId: id },
       orderBy: { createdAt: 'desc' },

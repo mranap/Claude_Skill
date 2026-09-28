@@ -89,6 +89,7 @@ export class BroadcastService {
             body: b.body,
             dedupeKey: `broadcast:${b.id}`,
             channels: b.channels as ('EMAIL' | 'TELEGRAM')[],
+            inApp: b.inApp,
           });
           count++;
         }

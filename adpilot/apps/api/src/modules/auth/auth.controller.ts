@@ -92,6 +92,18 @@ export class AuthController {
     return { ok: true };
   }
 
+  /**
+   * Session probe for the web app: never answers 401. `refreshable` tells whether a refresh cookie is present
+   * (the access token may simply have expired — then POST /auth/refresh restores the session).
+   */
+  @Public()
+  @Get('session')
+  async session(@Req() req: AuthedRequest) {
+    if (req.user) return { authenticated: true, user: await this.auth.me(req.user.id) };
+    const refresh = (req.cookies as Record<string, string> | undefined)?.[cookieNames(this.config).refresh];
+    return { authenticated: false, refreshable: !!refresh };
+  }
+
   @AllowPendingPasswordChange()
   @Get('me')
   async me(@Req() req: AuthedRequest) {

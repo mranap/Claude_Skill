@@ -33,7 +33,7 @@ export class NotificationsController {
 
   @Get()
   async list(@CurrentUser() user: AuthUser, @Query(zod(listSchema)) q: z.infer<typeof listSchema>) {
-    const where = { userId: user.id, ...(q.unreadOnly ? { readAt: null } : {}) };
+    const where = { userId: user.id, showInApp: true, ...(q.unreadOnly ? { readAt: null } : {}) };
     const [items, total, unread] = await Promise.all([
       this.prisma.notification.findMany({
         where,
@@ -54,14 +54,14 @@ export class NotificationsController {
         },
       }),
       this.prisma.notification.count({ where }),
-      this.prisma.notification.count({ where: { userId: user.id, readAt: null } }),
+      this.prisma.notification.count({ where: { userId: user.id, showInApp: true, readAt: null } }),
     ]);
     return { items, total, page: q.page, pageSize: q.pageSize, unread };
   }
 
   @Get('unread-count')
   async unreadCount(@CurrentUser() user: AuthUser) {
-    return { unread: await this.prisma.notification.count({ where: { userId: user.id, readAt: null } }) };
+    return { unread: await this.prisma.notification.count({ where: { userId: user.id, showInApp: true, readAt: null } }) };
   }
 
   @Post(':id/read')

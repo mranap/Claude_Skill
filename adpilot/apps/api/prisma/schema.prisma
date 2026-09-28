@@ -441,6 +441,8 @@ model Notification {
   link       String?
   data       Json?
   dedupeKey  String?
+  /// false = delivered only by e-mail/Telegram (e.g. a broadcast without in-app delivery), hidden in the center.
+  showInApp  Boolean                @default(true)
   readAt     DateTime?
   createdAt  DateTime               @default(now())
   deliveries NotificationDelivery[]

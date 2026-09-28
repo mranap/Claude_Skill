@@ -123,6 +123,28 @@ describe('authentication & sessions', () => {
     expectStatus(await user.client.patch('/api/account/profile', { name: 'Valid' }), 200);
   });
 
+  it('rejects a pre-login (anonymous) CSRF token on authenticated endpoints', async () => {
+    const user = await stack.createUser(admin);
+    // Obtain an anonymous token from a fresh client and replay it together with the user's session cookie.
+    const anon = await stack.client().init();
+    const anonToken = anon.cookie('ap_csrf')!;
+    user.client.setCookie('ap_csrf', anonToken);
+    const res = await user.client.patch('/api/account/profile', { name: 'X' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('CSRF_INVALID');
+  });
+
+  it('session probe and platform status never answer 401', async () => {
+    const anon = await stack.client().get('/api/auth/session');
+    expect(anon.status).toBe(200);
+    expect(anon.body).toEqual({ authenticated: false, refreshable: false });
+    const me = expectStatus(await admin.get('/api/auth/session'), 200).body;
+    expect(me.authenticated).toBe(true);
+    expect(me.user.email).toBe(stack.superAdmin.email);
+    const status = expectStatus(await stack.client().get('/api/system/status'), 200).body;
+    expect(status).toEqual({ maintenance: { enabled: false, message: null }, platformName: 'AdPilot' });
+  });
+
   it('password reset links are single-use and sign out other sessions', async () => {
     const user = await stack.createUser(admin);
     const anon = await stack.client().init();

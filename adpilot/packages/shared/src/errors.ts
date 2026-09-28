@@ -48,17 +48,19 @@ export interface MetaErrorDetails {
   retryAfterMs?: number;
 }
 
-export type MetaErrorCategory =
-  | 'RATE_LIMIT'
-  | 'AUTH'
-  | 'PERMISSION'
-  | 'VALIDATION'
-  | 'POLICY'
-  | 'NOT_FOUND'
-  | 'TRANSIENT'
-  | 'NETWORK'
-  | 'PROXY'
-  | 'UNKNOWN';
+export const META_ERROR_CATEGORIES = [
+  'RATE_LIMIT',
+  'AUTH',
+  'PERMISSION',
+  'VALIDATION',
+  'POLICY',
+  'NOT_FOUND',
+  'TRANSIENT',
+  'NETWORK',
+  'PROXY',
+  'UNKNOWN',
+] as const;
+export type MetaErrorCategory = (typeof META_ERROR_CATEGORIES)[number];
 
 export interface ApiErrorBody {
   error: {
