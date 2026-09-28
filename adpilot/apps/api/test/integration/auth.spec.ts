@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { base32Decode, hotp } from '../../src/modules/auth/totp';
-import { linkFrom } from '../support/fake-smtp';
+import { linkFrom, tokenFrom } from '../support/fake-smtp';
 import { TestStack } from '../support/harness';
 import { ApiClient, expectStatus, type ApiResponse } from '../support/http-client';
 
@@ -152,10 +152,10 @@ describe('authentication & sessions', () => {
     // Unknown e-mail: same answer, nothing sent (no account enumeration).
     expectStatus(await anon.post('/api/auth/password/forgot', { email: 'ghost@adpilot.test' }), 202);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
-    const token = new URL(linkFrom(mail, '/reset-password')).searchParams.get('token')!;
+    const token = tokenFrom(linkFrom(mail, '/reset-password'));
     expect(stack.smtp.to('ghost@adpilot.test')).toHaveLength(0);
 
-    expect(expectStatus(await anon.get(`/api/auth/password/reset/validate?token=${token}`), 200).body.valid).toBe(true);
+    expect(expectStatus(await anon.post('/api/auth/password/reset/validate', { token }), 200).body.valid).toBe(true);
     expectStatus(await anon.post('/api/auth/password/reset', { token, password: 'ResetPassw0rd!' }), 200);
     const reuse = await anon.post('/api/auth/password/reset', { token, password: 'AnotherPassw0rd!' });
     expect(reuse.status).toBe(400);
@@ -168,7 +168,7 @@ describe('authentication & sessions', () => {
     const anon = await stack.client().init();
     expectStatus(await anon.post('/api/auth/password/forgot', { email: user.email }), 202);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
-    const token = new URL(linkFrom(mail, '/reset-password')).searchParams.get('token')!;
+    const token = tokenFrom(linkFrom(mail, '/reset-password'));
     await stack.prisma.passwordResetToken.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
     expect((await anon.post('/api/auth/password/reset', { token, password: 'ResetPassw0rd!' })).status).toBe(400);
   });

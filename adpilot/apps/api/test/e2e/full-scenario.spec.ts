@@ -9,7 +9,7 @@ import { AccountStatusTask } from '../../src/scheduler/tasks/meta.tasks';
 import { StatisticsSyncTask } from '../../src/scheduler/tasks/statistics.tasks';
 import { AutoRulesTask } from '../../src/scheduler/tasks/rules.tasks';
 import { FakeProxy } from '../support/fake-proxy';
-import { linkFrom } from '../support/fake-smtp';
+import { linkFrom, tokenFrom } from '../support/fake-smtp';
 import { TestStack } from '../support/harness';
 import { ApiClient, expectStatus } from '../support/http-client';
 import { generateMedia, uploadCreative } from '../support/media';
@@ -60,9 +60,9 @@ describe('full platform scenario (28 steps)', () => {
 
   it('2. The user gets access through the one-time invitation link', async () => {
     const mail = await stack.smtp.waitFor((m) => m.to.includes(email));
-    const token = new URL(linkFrom(mail, '/reset-password')).searchParams.get('token')!;
+    const token = tokenFrom(linkFrom(mail, '/reset-password'));
     const anon = await stack.client().init();
-    expect(expectStatus(await anon.get(`/api/auth/password/reset/validate?token=${token}`), 200).body).toMatchObject({ valid: true, purpose: 'INVITE' });
+    expect(expectStatus(await anon.post('/api/auth/password/reset/validate', { token }), 200).body).toMatchObject({ valid: true, purpose: 'INVITE' });
     expectStatus(await anon.post('/api/auth/password/reset', { token, password }), 200);
     expect((await anon.post('/api/auth/password/reset', { token, password: 'Another-Passw0rd-1' })).status).toBe(400);
   });
@@ -90,6 +90,9 @@ describe('full platform scenario (28 steps)', () => {
     profileId = res.profile.id;
     expect(res.profile.tokenMask).not.toContain(world.token.slice(4, 20));
     expect(res.inspection.valid).toBe(true);
+    // Discovery runs in the background; the user sees the accounts once it finishes. (A proxy attached later
+    // applies to jobs that start after the change, so the assertions below need this first sync settled.)
+    await stack.waitFor(async () => (await stack.prisma.metaProfile.findUniqueOrThrow({ where: { id: profileId } })).lastSyncAt !== null);
   });
 
   it('6. The user adds a proxy to the profile', async () => {

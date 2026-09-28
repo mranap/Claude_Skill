@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { linkFrom } from '../support/fake-smtp';
+import { linkFrom, tokenFrom } from '../support/fake-smtp';
 import { TestStack, type TestUser } from '../support/harness';
 import { ApiClient, expectStatus } from '../support/http-client';
 
@@ -78,7 +78,7 @@ describe('Super Admin operations', () => {
     expect((await user.client.post('/api/account/email', { newEmail, password: 'wrong-password-1' })).status).toBe(400);
     expectStatus(await user.client.post('/api/account/email', { newEmail, password: user.password }), 202);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(newEmail));
-    const token = new URL(linkFrom(mail, '/confirm-email')).searchParams.get('token')!;
+    const token = tokenFrom(linkFrom(mail, '/confirm-email'));
     const anon = await stack.client().init();
     expectStatus(await anon.post('/api/auth/email/confirm', { token }), 200);
     expect((await anon.post('/api/auth/email/confirm', { token })).status).toBe(400);
@@ -92,7 +92,7 @@ describe('Super Admin operations', () => {
     expectStatus(await admin.post(`/api/admin/users/${user.id}/reset-password`, { mode: 'link' }), 200);
     expect((await user.client.get('/api/auth/me')).status).toBe(401);
     const mail = await stack.smtp.waitFor((m) => m.to.includes(user.email) && /reset/i.test(m.subject));
-    const token = new URL(linkFrom(mail, '/reset-password')).searchParams.get('token')!;
+    const token = tokenFrom(linkFrom(mail, '/reset-password'));
     const anon = await stack.client().init();
     expectStatus(await anon.post('/api/auth/password/reset', { token, password: 'AdminReset-2026' }), 200);
     user.client = stack.client();

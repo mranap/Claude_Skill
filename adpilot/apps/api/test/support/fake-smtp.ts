@@ -191,6 +191,13 @@ function decodeMimeWords(value: string): string {
   );
 }
 
+/** The one-time token of an e-mail link (carried in the URL fragment: `#token=…`). */
+export function tokenFrom(url: string): string {
+  const token = new URLSearchParams(new URL(url).hash.slice(1)).get('token');
+  if (!token) throw new Error(`No token in the fragment of ${url}`);
+  return token;
+}
+
 /** Extracts the first URL containing `fragment` from a captured e-mail. */
 export function linkFrom(mail: CapturedMail, fragment: string): string {
   const urls = mail.text.match(/https?:\/\/[^\s"'<>]+/g) ?? [];

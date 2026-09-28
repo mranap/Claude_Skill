@@ -41,7 +41,8 @@ export class MailService {
   }
 
   async sendInvitation(to: string, token: string, hours: number, userId: string): Promise<void> {
-    const url = this.link(`/reset-password?token=${encodeURIComponent(token)}&invite=1`);
+    // One-time tokens travel in the URL fragment: never sent to a server, logged or leaked through Referer.
+    const url = this.link(`/reset-password?invite=1#token=${encodeURIComponent(token)}`);
     await this.enqueue(to, MailTemplates.invitation(await this.platformName(), url, hours), 'invitation', {
       sensitive: true,
       userId,
@@ -49,7 +50,7 @@ export class MailService {
   }
 
   async sendPasswordReset(to: string, token: string, minutes: number, userId: string): Promise<void> {
-    const url = this.link(`/reset-password?token=${encodeURIComponent(token)}`);
+    const url = this.link(`/reset-password#token=${encodeURIComponent(token)}`);
     await this.enqueue(to, MailTemplates.passwordReset(await this.platformName(), url, minutes), 'password_reset', {
       sensitive: true,
       userId,
@@ -57,7 +58,7 @@ export class MailService {
   }
 
   async sendEmailChangeConfirmation(to: string, token: string, userId: string): Promise<void> {
-    const url = this.link(`/confirm-email?token=${encodeURIComponent(token)}`);
+    const url = this.link(`/confirm-email#token=${encodeURIComponent(token)}`);
     await this.enqueue(to, MailTemplates.emailChangeConfirm(await this.platformName(), url), 'email_change', {
       sensitive: true,
       userId,

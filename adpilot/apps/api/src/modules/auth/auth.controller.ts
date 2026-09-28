@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
   confirmEmailSchema,
@@ -20,6 +20,8 @@ import { clearAuthCookies, cookieNames, setAccessCookie, setCsrfCookie, setRefre
 import type { AuthUser } from './auth.types';
 
 type AuthedRequest = Request & { user?: AuthUser };
+
+const validateTokenSchema = z.object({ token: z.string().max(500) });
 
 @Controller('auth')
 export class AuthController {
@@ -119,11 +121,13 @@ export class AuthController {
     return { ok: true, message: 'If an account exists for this e-mail, a reset link has been sent.' };
   }
 
+  /** POST (not GET) so the token never appears in a URL, access log or Referer header. */
   @Public()
-  @Get('password/reset/validate')
-  async validateReset(@Query('token') token: string) {
-    if (typeof token !== 'string' || token.length < 20) return { valid: false };
-    return this.auth.validateResetToken(token);
+  @Post('password/reset/validate')
+  @HttpCode(200)
+  async validateReset(@Body(zod(validateTokenSchema)) body: z.infer<typeof validateTokenSchema>) {
+    if (body.token.length < 20) return { valid: false };
+    return this.auth.validateResetToken(body.token);
   }
 
   @Public()

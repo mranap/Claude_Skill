@@ -84,6 +84,8 @@ describe('automated rules (safeguards, idempotency, live state)', () => {
     const exec = await stack.prisma.autoRuleExecution.findFirstOrThrow({ where: { ruleId: created.id, result: 'SUCCESS' } });
     expect(exec).toMatchObject({ oldValue: '4000', newValue: '3500' });
     expect(exec.reason).toMatch(/minimum 35\.00 USD/);
+    // One summary notification per run, sent after all matching objects were handled.
+    await stack.waitFor(async () => (await stack.prisma.notification.count({ where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' } })) > 0);
     const notes = await stack.prisma.notification.findMany({ where: { userId: user.id, type: 'AUTO_RULE_TRIGGERED' } });
     expect(notes).toHaveLength(1);
 

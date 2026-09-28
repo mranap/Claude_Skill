@@ -4,7 +4,7 @@
  * multipart uploads (as used by @aws-sdk/lib-storage). Not for production use.
  */
 import http, { IncomingMessage, ServerResponse } from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
 
 interface StoredObject {
