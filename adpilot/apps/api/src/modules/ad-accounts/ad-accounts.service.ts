@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   AD_ACCOUNT_STATUS_DISPLAY,
@@ -179,7 +180,8 @@ export class AdAccountsService {
 
   /** Pixels/audiences/pages for newly connected accounts are fetched by an asset sync. */
   private async afterConnect(userId: string, _accountIds: string[], profileId: string) {
-    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId, userId, reason: 'manual' }, { jobId: jobId('meta-sync', profileId, Math.floor(Date.now() / 60_000)) });
+    // Unique job per request: the worker coalesces redundant syncs (see MetaSyncProcessor).
+    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId, userId, reason: 'manual' }, { jobId: jobId('meta-sync', profileId, randomUUID()) });
   }
 
   toDto(r: AdAccount & { profile: { id: string; name: string; status: string } }) {

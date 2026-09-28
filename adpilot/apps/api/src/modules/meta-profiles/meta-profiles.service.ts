@@ -261,7 +261,8 @@ export class MetaProfilesService {
       throw AppError.conflict(`The profile token is ${META_PROFILE_STATUS_LABELS[profile.status].toLowerCase()}; fix the token first`);
     }
     await this.prisma.metaProfile.update({ where: { id }, data: { syncStatus: 'QUEUED' } });
-    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId: id, userId, reason }, { jobId: jobId('meta-sync', id, Math.floor(Date.now() / 60_000)) });
+    // Unique job per request: the worker coalesces redundant syncs (see MetaSyncProcessor).
+    await this.queue.add(QUEUES.META_SYNC, JOBS.META_SYNC, { profileId: id, userId, reason }, { jobId: jobId('meta-sync', id, randomUUID()) });
     return { queued: true };
   }
 

@@ -101,7 +101,6 @@ export function buildTargeting(s: TemplateSettings, v: Variant): Record<string, 
     if (p.publisherPlatforms.includes('facebook') && p.facebookPositions.length) targeting.facebook_positions = p.facebookPositions;
     if (p.publisherPlatforms.includes('instagram') && p.instagramPositions.length) targeting.instagram_positions = p.instagramPositions;
     if (p.publisherPlatforms.includes('audience_network') && p.audienceNetworkPositions.length) targeting.audience_network_positions = p.audienceNetworkPositions;
-    if (p.publisherPlatforms.includes('messenger') && p.messengerPositions.length) targeting.messenger_positions = p.messengerPositions;
     if (p.publisherPlatforms.includes('threads') && p.threadsPositions.length) targeting.threads_positions = p.threadsPositions;
     if (p.devicePlatforms.length) targeting.device_platforms = p.devicePlatforms;
   }

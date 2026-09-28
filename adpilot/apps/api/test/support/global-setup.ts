@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import IORedis from 'ioredis';
 import pg from 'pg';
-import { testDatabaseUrl } from './test-env';
+import { testDatabaseUrl, testRedisUrl } from './test-env';
 
 /**
  * Runs once per `vitest run` (integration/e2e projects): creates the `<name>_test` database when needed
@@ -20,6 +21,18 @@ export default async function globalSetup(): Promise<void> {
     if (!exists.rowCount) await client.query(`CREATE DATABASE "${dbName}"`);
   } finally {
     await client.end();
+  }
+  // Remove queues/caches left behind by earlier (aborted) runs.
+  const redis = new IORedis(testRedisUrl());
+  try {
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', 'adpilot-test*', 'COUNT', 1000);
+      cursor = next;
+      if (keys.length) await redis.del(...keys);
+    } while (cursor !== '0');
+  } finally {
+    redis.disconnect();
   }
   execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
     cwd: resolve(process.cwd()),

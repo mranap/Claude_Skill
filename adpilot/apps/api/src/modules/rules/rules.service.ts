@@ -13,6 +13,7 @@ import { JOBS, QUEUES } from '../../infra/queue/queues';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../../common/errors/app-error';
+import { RedisService } from '../../infra/redis/redis.service';
 import { describeCondition } from './rule-engine.service';
 import { Prisma, type AutoRule } from '../../generated/prisma/client';
 
@@ -25,6 +26,7 @@ export class RulesService {
     private readonly queue: QueueService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
+    private readonly redis: RedisService,
   ) {}
 
   async list(userId: string, q: z.infer<typeof ruleListQuerySchema>) {
@@ -98,10 +100,16 @@ export class RulesService {
     await this.audit.log({ action: 'rule.deleted', actorUserId: userId, subjectUserId: userId, targetType: 'rule', targetId: id });
   }
 
-  /** "Run now" (respects the same safeguards; cooldowns still apply). */
+  /** "Run now" (respects the same safeguards; cooldowns still apply). At most once per minute per rule. */
   async runNow(userId: string, id: string) {
     await this.findOwned(userId, id);
-    await this.queue.add(QUEUES.AUTO_RULES, JOBS.AUTO_RULE_CHECK, { ruleId: id, userId, slot: `manual-${Date.now()}` }, { jobId: jobId('rule', id, 'manual', Math.floor(Date.now() / 60_000)), attempts: 3 });
+    const gate = this.redis.key('rules', 'run-now', id);
+    if ((await this.redis.client.set(gate, '1', 'PX', 60_000, 'NX')) !== 'OK') {
+      const ttl = Math.max(1, Math.ceil((await this.redis.client.pttl(gate)) / 1000));
+      throw AppError.cooldown(`This rule was started moments ago. Try again in ${ttl} s.`, ttl);
+    }
+    const now = Date.now();
+    await this.queue.add(QUEUES.AUTO_RULES, JOBS.AUTO_RULE_CHECK, { ruleId: id, userId, slot: `manual-${now}` }, { jobId: jobId('rule', id, 'manual', now), attempts: 3 });
     return { queued: true };
   }
 

@@ -14,9 +14,9 @@ import {
   DEVICE_PLATFORMS,
   FACEBOOK_POSITIONS,
   INSTAGRAM_POSITIONS,
-  MESSENGER_POSITIONS,
   PUBLISHER_PLATFORMS,
   THREADS_POSITIONS,
+  placementIssues,
 } from '../meta/placements';
 import { COUNTRY_CODES } from '../meta/countries';
 import { moneyStringSchema, paginationQuerySchema } from './common';
@@ -46,7 +46,8 @@ export const interestSchema = z.object({ id: metaIdSchema, name: z.string().trim
 
 export const GENDERS = ['ALL', 'MALE', 'FEMALE'] as const;
 
-export const targetingSchema = z.object({
+export const targetingSchema = z
+  .object({
   /** Default countries; a language/geo group can override them. */
   countries: z.array(countrySchema).max(250).default([]),
   excludedCountries: z.array(countrySchema).max(250).default([]),
@@ -60,21 +61,41 @@ export const targetingSchema = z.object({
   customAudienceIds: z.array(metaIdSchema).max(100).default([]),
   excludedCustomAudienceIds: z.array(metaIdSchema).max(100).default([]),
   interests: z.array(interestSchema).max(200).default([]),
-});
+  })
+  .superRefine((t, ctx) => {
+    if (t.ageMin > t.ageMax) ctx.addIssue({ code: 'custom', path: ['ageMin'], message: 'Minimum age is greater than maximum age' });
+    // Advantage+ audience (Meta targeting reference): age_min may only be 18–25 and age_max is fixed at 65.
+    if (t.advantageAudience) {
+      if (t.ageMin < 18 || t.ageMin > 25) ctx.addIssue({ code: 'custom', path: ['ageMin'], message: 'With Advantage+ audience the minimum age must be between 18 and 25' });
+      if (t.ageMax !== 65) ctx.addIssue({ code: 'custom', path: ['ageMax'], message: 'With Advantage+ audience the maximum age is always 65+' });
+    }
+  });
 
-export const placementsSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('AUTOMATIC') }),
-  z.object({
-    mode: z.literal('MANUAL'),
-    publisherPlatforms: z.array(z.enum(PUBLISHER_PLATFORMS)).min(1),
-    facebookPositions: z.array(z.enum(FACEBOOK_POSITIONS)).default([]),
-    instagramPositions: z.array(z.enum(INSTAGRAM_POSITIONS)).default([]),
-    audienceNetworkPositions: z.array(z.enum(AUDIENCE_NETWORK_POSITIONS)).default([]),
-    messengerPositions: z.array(z.enum(MESSENGER_POSITIONS)).default([]),
-    threadsPositions: z.array(z.enum(THREADS_POSITIONS)).default([]),
-    devicePlatforms: z.array(z.enum(DEVICE_PLATFORMS)).default([]),
-  }),
-]);
+/** Stored configurations may still list Messenger, which Meta no longer offers; it is dropped on read. */
+const publisherPlatformsSchema = z.preprocess(
+  (v) => (Array.isArray(v) ? v.filter((p) => p !== 'messenger') : v),
+  z.array(z.enum(PUBLISHER_PLATFORMS)).min(1, 'Select at least one platform'),
+);
+
+export const placementsSchema = z
+  .discriminatedUnion('mode', [
+    z.object({ mode: z.literal('AUTOMATIC') }),
+    z.object({
+      mode: z.literal('MANUAL'),
+      publisherPlatforms: publisherPlatformsSchema,
+      facebookPositions: z.array(z.enum(FACEBOOK_POSITIONS)).default([]),
+      instagramPositions: z.array(z.enum(INSTAGRAM_POSITIONS)).default([]),
+      audienceNetworkPositions: z.array(z.enum(AUDIENCE_NETWORK_POSITIONS)).default([]),
+      threadsPositions: z.array(z.enum(THREADS_POSITIONS)).default([]),
+      devicePlatforms: z.array(z.enum(DEVICE_PLATFORMS)).default([]),
+    }),
+  ])
+  .superRefine((p, ctx) => {
+    if (p.mode !== 'MANUAL') return;
+    for (const issue of placementIssues(p)) {
+      if (issue.severity === 'error') ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
+    }
+  });
 
 export const budgetSchema = z.object({
   /** CAMPAIGN = Advantage campaign budget (budget on the campaign), ADSET = budget per ad set. */
@@ -85,11 +106,12 @@ export const budgetSchema = z.object({
   bidStrategy: z.enum(BID_STRATEGIES).default('LOWEST_COST_WITHOUT_CAP'),
   /** Cost per result goal / bid cap, in major units. */
   bidAmount: moneyStringSchema.optional(),
-  /** Minimum ROAS, e.g. "1.5" = 150 %. */
+  /** Minimum ROAS, e.g. "1.5" = 150 %. Meta accepts 0.01–1000 (sent ×10 000 as roas_average_floor). */
   roasFloor: z
     .string()
     .trim()
     .regex(/^\d{1,4}(\.\d{1,4})?$/)
+    .refine((v) => Number(v) >= 0.01 && Number(v) <= 1000, 'The minimum ROAS must be between 0.01 and 1000')
     .optional(),
   /** Ad set budget sharing (is_adset_budget_sharing_enabled) — ADSET level only. */
   budgetSharing: z.boolean().default(false),
@@ -115,11 +137,17 @@ export const identitySchema = z.object({
   instagramUserId: metaIdSchema.optional(),
 });
 
+/**
+ * Ad set attribution (attribution_spec). Meta accepts click-through 1 or 7 days and view-through 1 day;
+ * ENGAGED_VIDEO_VIEW (shown as "engage-through" in Ads Manager since March 2026) 1 day. DEFAULT sends no
+ * attribution_spec; CUSTOM starts from the current Ads Manager default (7-day click, 1-day engage-through,
+ * 1-day view). Longer view windows were removed by Meta.
+ */
 export const attributionSchema = z.object({
   mode: z.enum(['DEFAULT', 'CUSTOM']).default('DEFAULT'),
   clickDays: z.union([z.literal(1), z.literal(7)]).default(7),
   viewDays: z.union([z.literal(0), z.literal(1)]).default(1),
-  engagedViewDays: z.union([z.literal(0), z.literal(1)]).default(0),
+  engagedViewDays: z.union([z.literal(0), z.literal(1)]).default(1),
 });
 
 export const dsaSchema = z.object({

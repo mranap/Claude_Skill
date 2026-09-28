@@ -5,6 +5,7 @@ import {
   launchConfigSchema,
   majorToMinor,
   minorToMajor,
+  placementIssues,
   targetsEu,
   type LaunchConfig,
   type Variant,
@@ -165,14 +166,33 @@ export class LaunchValidatorService {
       if (restricted && (ageMin !== 18 || ageMax !== 65 || (v.genders ?? t.genders) !== 'ALL')) {
         err(`variants.${i}`, 'Housing, employment and financial products ads must target ages 18–65+ and all genders');
       }
+      if (t.advantageAudience) {
+        // Advantage+ audience: age_min may only be 18–25 and age_max is fixed at 65 (Meta targeting reference).
+        if (ageMin < 18 || ageMin > 25) err(`variants.${i}.ageMin`, `"${v.label}": with Advantage+ audience the minimum age must be between 18 and 25`);
+        if (ageMax !== 65) err(`variants.${i}.ageMax`, `"${v.label}": with Advantage+ audience the maximum age is always 65+`);
+      }
       if (!v.ads.length) err(`variants.${i}.ads`, `Add at least one ad to "${v.label}"`);
       this.validateAds(v, i, config, errors, warnings);
     });
-    if (restricted && (t.interests.length || t.excludedCustomAudienceIds.length)) {
-      warn('settings.targeting', 'Special ad categories limit detailed targeting options; Meta may reject some criteria');
+    if (restricted && t.excludedCountries.length) {
+      err('settings.targeting.excludedCountries', 'Housing, employment and financial products ads cannot exclude locations');
     }
-    if (t.advantageAudience && (t.ageMax < 65 || t.genders !== 'ALL' || t.interests.length)) {
-      warn('settings.targeting.advantageAudience', 'With Advantage+ audience, age max, gender and interests are used as suggestions; only the minimum age and locations are strict');
+    if (restricted && t.interests.length) {
+      warn('settings.targeting.interests', 'Special ad categories limit detailed targeting options; Meta may reject some interests');
+    }
+    if (special.includes('ISSUES_ELECTIONS_POLITICS') && targetsEu([...allCountries])) {
+      err('settings.specialAdCategories', 'Political and social issue ads cannot be delivered in the EU');
+    }
+    if (t.advantageAudience && (t.genders !== 'ALL' || t.interests.length || t.customAudienceIds.length)) {
+      warn(
+        'settings.targeting.advantageAudience',
+        'With Advantage+ audience, gender, interests and custom audiences are used as suggestions; locations, languages, minimum age and excluded audiences stay strict',
+      );
+    }
+    if (s.placements.mode === 'MANUAL') {
+      for (const issue of placementIssues(s.placements)) {
+        if (issue.severity === 'warning') warn(`settings.placements.${issue.path}`, issue.message);
+      }
     }
     if (special.length && !s.specialAdCategoryCountries.length) {
       warn('settings.specialAdCategoryCountries', 'Special ad category countries will default to the targeted countries');
@@ -200,6 +220,7 @@ export class LaunchValidatorService {
     }
     const files = await this.prisma.creativeFile.findMany({ where: { id: { in: [...creativeIds] }, userId, deletedAt: null } });
     const creatives = new Map(files.map((f) => [f.id, f]));
+    const instagramPlacements = s.placements.mode === 'AUTOMATIC' || s.placements.publisherPlatforms.includes('instagram');
     config.variants.forEach((v, i) =>
       v.ads.forEach((ad, j) => {
         const path = `variants.${i}.ads.${j}`;
@@ -208,6 +229,10 @@ export class LaunchValidatorService {
           if (!f) return err(p, 'Creative not found in your library');
           if (f.status !== 'READY') return err(p, `Creative "${f.originalName}" is not ready`);
           if (expected && f.type !== expected) err(p, `"${f.originalName}" is ${f.type === 'VIDEO' ? 'a video' : 'an image'}; this format needs ${expected === 'VIDEO' ? 'a video' : 'an image'}`);
+          // Instagram needs a video thumbnail of at least 600 px width (the thumbnail is a frame of the video).
+          if (f.type === 'VIDEO' && f.width !== null && f.width < 600 && instagramPlacements) {
+            warn(p, `"${f.originalName}" is narrower than 600 px; Instagram placements may reject its thumbnail`);
+          }
         };
         if (s.creative.format === 'CAROUSEL') ad.cards.forEach((c, k) => check(c.creativeFileId, `${path}.cards.${k}.creativeFileId`));
         else if (ad.creativeFileId) check(ad.creativeFileId, `${path}.creativeFileId`, s.creative.format === 'SINGLE_VIDEO' ? 'VIDEO' : 'IMAGE');

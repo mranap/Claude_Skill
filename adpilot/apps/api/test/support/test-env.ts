@@ -40,7 +40,8 @@ export function applyTestEnv(): void {
     DATABASE_URL: databaseUrl,
     DATABASE_POOL_SIZE: '5',
     REDIS_URL: redisUrl,
-    QUEUE_PREFIX: 'adpilot-test',
+    // Unique per test process: a leftover process from an aborted run can never consume this run's jobs.
+    QUEUE_PREFIX: `adpilot-test-${process.pid}`,
     ENCRYPTION_KEYS: `t1:${randomBytes(32).toString('base64')}`,
     ENCRYPTION_ACTIVE_KEY_ID: 't1',
     JWT_ACCESS_SECRET: secret(48),

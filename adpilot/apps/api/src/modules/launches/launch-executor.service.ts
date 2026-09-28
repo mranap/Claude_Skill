@@ -364,7 +364,7 @@ export class LaunchExecutorService {
       list.find((o) => o.name === name && !known.has(o.id) && (!o.created_time || new Date(o.created_time).getTime() >= since))?.id ?? null;
     type Row = { id: string; name: string; created_time?: string };
     /** Account-level lookup: name filter first; if Meta rejects the filter, scan the most recent objects. */
-    const accountLookup = async (edge: 'campaigns' | 'adcreatives', fields: string, category: string): Promise<Row[]> => {
+    const accountLookup = async (edge: 'campaigns', fields: string, category: string): Promise<Row[]> => {
       const needle = name.includes(job.code) ? job.code : name.slice(0, 100);
       try {
         return await this.graph.paginate<Row>(conn, `/${actId(metaAccountId)}/${edge}`, { fields, filtering: [{ field: 'name', operator: 'CONTAIN', value: needle }] }, category, { metaAccountId }, 500);
@@ -375,7 +375,11 @@ export class LaunchExecutorService {
     };
     try {
       if (item.kind === 'CAMPAIGN') return pick(await accountLookup('campaigns', 'id,name,created_time', 'reconcile.campaign'));
-      if (item.kind === 'CREATIVE') return pick(await accountLookup('adcreatives', 'id,name', 'reconcile.creative'));
+      if (item.kind === 'CREATIVE') {
+        // Name filtering is not documented for /adcreatives: scan the most recent creatives instead. A creative
+        // missed here only leaves an unused creative behind (it cannot deliver), never a duplicate ad.
+        return pick(await this.graph.paginate<Row>(conn, `/${actId(metaAccountId)}/adcreatives`, { fields: 'id,name' }, 'reconcile.creative', { metaAccountId }, 500));
+      }
       const parentMetaId = item.parentKey ? this.refCache.get(`${job.id}:${item.parentKey}`)?.metaId : undefined;
       if (!parentMetaId) return null;
       if (item.kind === 'ADSET') {

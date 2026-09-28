@@ -68,7 +68,11 @@ export interface Fault {
   /** Matches "METHOD /path" (path without version prefix). */
   match: RegExp;
   times: number;
-  kind: 'error' | 'drop-after-process' | 'delay';
+  /**
+   * error: Graph error response; drop-after-process: the object is created but the answer is lost;
+   * drop-before-process: the connection breaks after the request was sent, nothing is created; delay: slow answer.
+   */
+  kind: 'error' | 'drop-after-process' | 'drop-before-process' | 'delay';
   status?: number;
   error?: Record<string, unknown>;
   headers?: Record<string, string>;
@@ -220,6 +224,10 @@ export class MetaEmulator {
 
       const fault = this.takeFault(`${method} ${path}`);
       if (fault?.kind === 'delay') await new Promise((r) => setTimeout(r, fault.delayMs ?? 1000));
+      if (fault?.kind === 'drop-before-process') {
+        req.socket.destroy();
+        return;
+      }
       if (fault?.kind === 'error') {
         for (const [k, v] of Object.entries(fault.headers ?? {})) res.setHeader(k, v);
         return this.send(res, fault.status ?? 400, { error: fault.error });
@@ -480,8 +488,16 @@ export class MetaEmulator {
     const targeting = this.json<Record<string, unknown>>(p.targeting);
     const countries = (targeting.geo_locations as { countries?: string[] } | undefined)?.countries ?? [];
     if (!countries.length) return bad('(#100) Targeting spec must include geo_locations', 1487756, 'You must choose a location to target.');
-    if (!(targeting.targeting_automation as { advantage_audience?: number } | undefined) || (targeting.targeting_automation as { advantage_audience?: number }).advantage_audience === undefined) {
+    const automation = targeting.targeting_automation as { advantage_audience?: number } | undefined;
+    if (!automation || automation.advantage_audience === undefined) {
       return bad('(#100) Advantage audience flag is required', 1870227, 'To create your ad set, you need to enable or disable the Advantage+ audience feature.');
+    }
+    if (automation.advantage_audience === 1) {
+      const ageMin = Number(targeting.age_min ?? 18);
+      const ageMax = Number(targeting.age_max ?? 65);
+      if (ageMin > 25 || ageMax < 65) {
+        return bad('(#100) Invalid age for Advantage+ audience', 1870189, 'You can add a lower maximum age as a suggestion instead when creating or editing an ad set.');
+      }
     }
     const cbo = campaign.fields.daily_budget !== undefined || campaign.fields.lifetime_budget !== undefined;
     if (!cbo && !p.daily_budget && !p.lifetime_budget) return bad('(#100) A budget is required when the campaign has no campaign budget', 1487838);
@@ -641,9 +657,25 @@ export class MetaEmulator {
         const linkClicks = ov?.inline_link_clicks ?? Math.round(clicks * 0.8);
         const leads = ov?.leads ?? h % 7;
         const purchases = ov?.purchases ?? h % 3;
+        const adset = level === 'adset' ? this.objects.get(o.id) : level === 'ad' ? this.objects.get(o.adset_id ?? '') : undefined;
+        const campaign = level === 'account' ? undefined : this.objects.get(o.campaign_id ?? '');
+        const goal = adset?.fields.optimization_goal as string | undefined;
+        const event = (adset?.fields.promoted_object as { custom_event_type?: string } | undefined)?.custom_event_type;
+        const fields = String(p.fields ?? '').split(',');
+        const resultIndicator =
+          goal === 'OFFSITE_CONVERSIONS' && event === 'LEAD' ? 'actions:offsite_conversion.fb_pixel_lead'
+          : goal === 'OFFSITE_CONVERSIONS' && event === 'PURCHASE' ? 'actions:offsite_conversion.fb_pixel_purchase'
+          : goal === 'OFFSITE_CONVERSIONS' && event ? `actions:offsite_conversion.fb_pixel_${event.toLowerCase()}`
+          : goal === 'LINK_CLICKS' ? 'actions:link_click'
+          : goal === 'LEAD_GENERATION' ? 'actions:onsite_conversion.lead_grouped'
+          : undefined;
+        const resultValue = resultIndicator?.includes('lead') ? leads : resultIndicator?.includes('purchase') ? purchases : resultIndicator === 'actions:link_click' ? linkClicks : h % 5;
         rows.push({
           account_id: act,
           account_currency: acc.currency,
+          ...(campaign && fields.includes('objective') ? { objective: campaign.fields.objective } : {}),
+          ...(goal && fields.includes('optimization_goal') ? { optimization_goal: goal } : {}),
+          ...(resultIndicator && fields.includes('results') ? { results: [{ indicator: resultIndicator, values: [{ value: String(resultValue), attribution_windows: ['default'] }] }] } : {}),
           ...(level !== 'account' ? { campaign_id: o.campaign_id, campaign_name: this.objects.get(o.campaign_id ?? '')?.fields.name } : {}),
           ...(level === 'adset' || level === 'ad' ? { adset_id: o.adset_id, adset_name: this.objects.get(o.adset_id ?? '')?.fields.name } : {}),
           ...(level === 'ad' ? { ad_id: o.id, ad_name: o.name } : {}),

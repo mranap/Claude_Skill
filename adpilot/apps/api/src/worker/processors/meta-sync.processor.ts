@@ -11,6 +11,9 @@ import { TokenInspectorService } from '../../modules/meta/token-inspector.servic
 import { MetaApiError } from '../../modules/meta/graph/meta-errors';
 import { QueueProcessor } from '../processor';
 import { handleMetaJobError } from '../meta-job-errors';
+import { deferJob } from '../job-errors';
+import { LockService } from '../../infra/locks/lock.service';
+import { RedisService } from '../../infra/redis/redis.service';
 
 const DAY = 86400_000;
 
@@ -27,6 +30,8 @@ export class MetaSyncProcessor implements QueueProcessor {
     private readonly assets: MetaAssetsService,
     private readonly profileStatus: MetaProfileStatusService,
     private readonly inspector: TokenInspectorService,
+    private readonly locks: LockService,
+    private readonly redis: RedisService,
   ) {}
 
   async process(job: Job, token?: string): Promise<unknown> {
@@ -38,7 +43,28 @@ export class MetaSyncProcessor implements QueueProcessor {
     return this.prisma.metaProfile.findFirst({ where: { id: profileId, deletedAt: null, isEnabled: true }, include: { proxy: true } });
   }
 
+  /**
+   * Every sync request is its own job; runs are serialised per profile and coalesced: a request is skipped
+   * when a sync that *started after the request was made* already ran (it saw the same or newer state).
+   * A request made while a sync is running waits for it and then runs, so changes made meanwhile (e.g. an
+   * ad account connected mid-sync) are always picked up.
+   */
   private async assetSync(job: Job<MetaSyncJob>, token?: string) {
+    const { profileId } = job.data;
+    const startedKey = this.redis.key('meta-sync', 'started', profileId);
+    const lastStarted = Number((await this.redis.client.get(startedKey)) ?? 0);
+    if (lastStarted >= job.timestamp) return { skipped: 'covered by a newer sync' };
+    const lock = await this.locks.acquire(`meta-sync:${profileId}`, 15 * 60_000);
+    if (!lock) return deferJob(job, token, 10_000);
+    try {
+      await this.redis.client.set(startedKey, String(Date.now()), 'EX', 7 * 24 * 3600);
+      return await this.runAssetSync(job, token);
+    } finally {
+      await this.locks.release(lock);
+    }
+  }
+
+  private async runAssetSync(job: Job<MetaSyncJob>, token?: string) {
     const { profileId, userId } = job.data;
     const profile = await this.loadProfile(profileId);
     if (!profile || profile.userId !== userId) return { skipped: 'profile not found' };

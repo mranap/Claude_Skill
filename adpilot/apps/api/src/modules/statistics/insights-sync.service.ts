@@ -26,13 +26,16 @@ const METRIC_FIELDS = [
   'video_thruplay_watched_actions',
 ];
 
-/** Level-specific identity fields (only fields valid for the requested level are asked for). */
+/**
+ * Level-specific fields (only fields valid for the requested level are asked for). `results` is Meta's own
+ * "Results" metric (the outcome of the optimisation goal and conversion event, as in Ads Manager).
+ */
 export function insightFields(level: string): string {
   const ids: Record<string, string[]> = {
     account: [],
-    campaign: ['campaign_id', 'campaign_name', 'objective'],
-    adset: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'objective', 'optimization_goal'],
-    ad: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'objective', 'optimization_goal'],
+    campaign: ['campaign_id', 'campaign_name', 'objective', 'results'],
+    adset: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'objective', 'optimization_goal', 'results'],
+    ad: ['campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'objective', 'optimization_goal', 'results'],
   };
   return [...(ids[level] ?? []), ...METRIC_FIELDS].join(',');
 }
@@ -64,6 +67,13 @@ export interface InsightRow {
   action_values?: ActionValue[];
   /** ThruPlays (video played to completion or for at least 15 seconds); a separate field, not an `actions` entry. */
   video_thruplay_watched_actions?: ActionValue[];
+  /** Meta's "Results": e.g. [{ indicator: 'actions:offsite_conversion.fb_pixel_lead', values: [{ value: '12' }] }]. */
+  results?: MetaResult[];
+}
+
+export interface MetaResult {
+  indicator?: string;
+  values?: { value?: string | number; attribution_windows?: string[] }[];
 }
 
 const LEVELS: { level: EntityLevel; api: string }[] = [
@@ -106,8 +116,52 @@ export function extractConversions(row: InsightRow) {
   return { leads, purchases, purchaseValue };
 }
 
-/** "Results" as Ads Manager reports them for the optimisation of the row. */
+/** Friendly result type for Meta's result indicator (e.g. "actions:offsite_conversion.fb_pixel_lead" → "leads"). */
+export function resultTypeFromIndicator(indicator: string): string {
+  const type = indicator.replace(/^actions:/, '');
+  if (/thruplay/.test(type)) return 'thruplays';
+  if (/lead/.test(type)) return 'leads';
+  if (/purchase/.test(type)) return 'purchases';
+  const known: Record<string, string> = {
+    link_click: 'link_clicks',
+    landing_page_view: 'landing_page_views',
+    reach: 'reach',
+    impressions: 'impressions',
+    post_engagement: 'post_engagements',
+    like: 'page_likes',
+    video_view: 'video_views',
+  };
+  return known[type] ?? type.replace(/^offsite_conversion\.fb_pixel_/, '').replace(/^onsite_conversion\./, '').slice(0, 60);
+}
+
+/** Parses Meta's `results` field; null when absent or not understood (then the local mapping is used). */
+export function metaResults(row: InsightRow): { value: string; type: string } | null {
+  const list = row.results;
+  if (!Array.isArray(list) || !list.length) return null;
+  let total = new Decimal(0);
+  let indicator: string | undefined;
+  let found = false;
+  for (const r of list) {
+    const values = Array.isArray(r?.values) ? r.values : [];
+    // One value per attribution window setting: take the default one only (never sum windows).
+    const v = values.find((x) => !x.attribution_windows || x.attribution_windows.includes('default')) ?? values[0];
+    const raw = v?.value;
+    if (raw === undefined || !/^\d+(\.\d+)?$/.test(String(raw))) continue;
+    total = total.plus(String(raw));
+    indicator ??= r.indicator;
+    found = true;
+  }
+  if (!found) return null;
+  return { value: total.toString(), type: indicator ? resultTypeFromIndicator(indicator) : 'results' };
+}
+
+/**
+ * "Results" as Ads Manager reports them: Meta's own `results` field when present, otherwise derived from the
+ * optimisation goal of the row.
+ */
 export function computeResults(row: InsightRow, conv: ReturnType<typeof extractConversions>): { value: string | null; type: string | null } {
+  const reported = metaResults(row);
+  if (reported) return reported;
   const goal = row.optimization_goal ?? '';
   const objective = row.objective ?? '';
   const act = (t: string) => actionValue(row.actions, [t]);
@@ -138,6 +192,15 @@ export function computeResults(row: InsightRow, conv: ReturnType<typeof extractC
       if (objective === 'OUTCOME_SALES') return { value: conv.purchases, type: 'purchases' };
       return { value: null, type: null };
   }
+}
+
+export function isTooMuchData(err: unknown): boolean {
+  if (!(err instanceof MetaApiError)) return false;
+  const code = err.metaCode;
+  const sub = err.metaSubcode;
+  if (code === 100 && (sub === 1487534 || sub === 1504018)) return true;
+  if (code === 2 && sub === 1504038) return true;
+  return /reduce the amount of data|too many rows/i.test(err.details.message ?? '');
 }
 
 /**
@@ -177,7 +240,6 @@ export class InsightsSyncService {
           fields: insightFields(level),
           time_range: { since, until },
           time_increment: 1,
-          use_unified_attribution_setting: true,
           limit: 500,
         },
         `insights.${level}`,
@@ -185,9 +247,9 @@ export class InsightsSyncService {
         200_000,
       );
     } catch (err) {
-      // "Please reduce the amount of data you're asking for" → split the range and try again.
-      const tooMuch = err instanceof MetaApiError && (err.metaCode === 1 || /reduce the amount of data/i.test(err.details.message ?? '')) && since !== until;
-      if (!tooMuch) throw err;
+      // Too many rows / request timed out (Insights error codes 100/1487534, 100/1504018, 2/1504038, or the
+      // generic "reduce the amount of data" message) → split the date range and try again.
+      if (!(isTooMuchData(err) && since !== until)) throw err;
       const s = DateTime.fromISO(since, { zone: 'UTC' });
       const u = DateTime.fromISO(until, { zone: 'UTC' });
       const mid = s.plus({ days: Math.floor(u.diff(s, 'days').days / 2) });

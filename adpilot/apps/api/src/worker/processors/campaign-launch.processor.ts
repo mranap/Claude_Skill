@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { LAUNCH_JOB_TERMINAL_STATUSES, type LaunchJobStatus } from '@adpilot/shared';
 import { CampaignCreateJob, QUEUES } from '../../infra/queue/queues';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { LaunchExecutorService } from '../../modules/launches/launch-executor.service';
@@ -23,6 +24,8 @@ export class CampaignLaunchProcessor implements QueueProcessor {
   async process(job: Job<CampaignCreateJob>, token?: string): Promise<unknown> {
     const launch = await this.prisma.launchJob.findUnique({ where: { id: job.data.launchJobId }, select: { userId: true, status: true } });
     if (!launch || launch.userId !== job.data.userId) return { skipped: 'not found' };
+    // A stray job (e.g. re-queued by recovery) for a finished launch ends here instead of deferring forever.
+    if (LAUNCH_JOB_TERMINAL_STATUSES.includes(launch.status as LaunchJobStatus)) return { skipped: `already ${launch.status}` };
     try {
       const outcome = await this.executor.run(job.data.launchJobId);
       if (outcome.kind === 'busy') return deferJob(job, token, 30_000);

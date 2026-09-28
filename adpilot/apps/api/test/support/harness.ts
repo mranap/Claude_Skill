@@ -9,6 +9,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { SYSTEM_ROLES } from '@adpilot/shared';
 import IORedis from 'ioredis';
+import { Queue } from 'bullmq';
 import { AppModule } from '../../src/app.module';
 import { WorkerModule } from '../../src/worker.module';
 import { SchedulerModule } from '../../src/scheduler.module';
@@ -226,6 +227,34 @@ export class TestStack {
     this.telegram.validTokens.add(botToken);
     await this.setSettings('telegram', { enabled: true, mode: 'WEBHOOK', botUsername: this.telegram.botUsername }, { botToken, webhookSecret: 'tg-webhook-secret-for-tests' });
     return botToken;
+  }
+
+  /**
+   * Moves delayed jobs of a queue to "waiting" — simulates the passing of time for deferred jobs (video
+   * processing, rate-limit cool-downs, retry back-off) without changing any production timing.
+   */
+  async promoteDelayed(queueName: string): Promise<number> {
+    const connection = new IORedis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
+    const queue = new Queue(queueName, { connection, prefix: `${process.env.QUEUE_PREFIX}:bull` });
+    try {
+      const delayed = await queue.getDelayed();
+      for (const job of delayed) await job.promote().catch(() => undefined);
+      return delayed.length;
+    } finally {
+      await queue.close();
+      connection.disconnect();
+    }
+  }
+
+  /** Forgets all Meta rate-limit blocks (simulates the cool-down having passed). */
+  async clearMetaRateLimits(): Promise<void> {
+    const redis = new IORedis(process.env.REDIS_URL!);
+    try {
+      const keys = await redis.keys(`${process.env.QUEUE_PREFIX}:meta:rl:*`);
+      if (keys.length) await redis.del(...keys);
+    } finally {
+      redis.disconnect();
+    }
   }
 
   /** Polls until the predicate returns a truthy value. */
