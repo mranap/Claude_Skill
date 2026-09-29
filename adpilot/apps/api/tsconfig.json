@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "node20",
+    "moduleResolution": "node16",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "isolatedModules": false,
+    "declaration": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "test", "prisma.config.ts", "vitest.config.mts"]
+}

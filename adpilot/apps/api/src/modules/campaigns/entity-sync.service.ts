@@ -1,0 +1,456 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { NotificationsService, type NotifyInput } from '../notifications/notifications.service';
+import { ActivityService } from '../activity/activity.service';
+import { MetaConnection, MetaGraphClient } from '../meta/graph/meta-graph.client';
+import { ADSET_FIELDS, AD_FIELDS, CAMPAIGN_FIELDS, actId, toBigIntOrNull } from '../meta/meta-fields';
+import { Prisma, type AdAccount } from '../../generated/prisma/client';
+
+interface MetaCampaign {
+  id: string;
+  name: string;
+  objective?: string;
+  status?: string;
+  effective_status?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  budget_remaining?: string;
+  spend_cap?: string;
+  bid_strategy?: string;
+  buying_type?: string;
+  special_ad_categories?: string[];
+  is_adset_budget_sharing_enabled?: boolean;
+  start_time?: string;
+  stop_time?: string;
+  created_time?: string;
+  updated_time?: string;
+  issues_info?: unknown;
+}
+
+interface MetaAdSet {
+  id: string;
+  name: string;
+  campaign_id: string;
+  status?: string;
+  effective_status?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  budget_remaining?: string;
+  optimization_goal?: string;
+  billing_event?: string;
+  bid_strategy?: string;
+  bid_amount?: number | string;
+  destination_type?: string;
+  targeting?: { geo_locations?: { countries?: string[] } } & Record<string, unknown>;
+  start_time?: string;
+  end_time?: string;
+  created_time?: string;
+  updated_time?: string;
+  issues_info?: unknown;
+}
+
+interface MetaAd {
+  id: string;
+  name: string;
+  adset_id: string;
+  campaign_id: string;
+  status?: string;
+  effective_status?: string;
+  creative?: { id: string };
+  ad_review_feedback?: unknown;
+  issues_info?: unknown;
+  created_time?: string;
+  updated_time?: string;
+}
+
+const CAMPAIGN_STATUSES = ['ACTIVE', 'PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
+const ADSET_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
+const AD_STATUSES = [
+  'ACTIVE',
+  'PAUSED',
+  'CAMPAIGN_PAUSED',
+  'ADSET_PAUSED',
+  'IN_PROCESS',
+  'WITH_ISSUES',
+  'PENDING_REVIEW',
+  'DISAPPROVED',
+  'PREAPPROVED',
+  'PENDING_BILLING_INFO',
+  'ARCHIVED',
+];
+const MAX_CAMPAIGNS = 5000;
+const MAX_ADSETS = 10_000;
+const MAX_ADS = 10_000;
+
+const date = (v?: string) => (v ? new Date(v) : null);
+const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Mirrors campaigns, ad sets and ads of connected ad accounts into the database (campaign table, rules,
+ * bulk actions) and detects delivery-relevant changes made outside the platform: a campaign that stopped
+ * delivering or an ad that Meta rejected produce one notification per change.
+ *
+ * A sync writes a snapshot that Meta returned over some time (paginated lists). A row written after the
+ * snapshot started (a launch that finished meanwhile, a status or budget change made by the platform) holds
+ * newer data: it is neither overwritten with the snapshot nor flagged as deleted because the lists miss it.
+ */
+@Injectable()
+export class EntitySyncService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly graph: MetaGraphClient,
+    private readonly notifications: NotificationsService,
+    private readonly activity: ActivityService,
+  ) {}
+
+  async syncAccount(
+    account: AdAccount,
+    conn: MetaConnection,
+  ): Promise<{ campaigns: number; adSets: number; ads: number }> {
+    const metaAccountId = account.metaAccountId;
+    const act = actId(metaAccountId);
+    const since = new Date();
+    const [campaigns, adSets, ads] = await Promise.all([
+      this.graph.paginate<MetaCampaign>(
+        conn,
+        `/${act}/campaigns`,
+        { fields: CAMPAIGN_FIELDS, effective_status: CAMPAIGN_STATUSES },
+        'entities.campaigns',
+        { metaAccountId },
+        MAX_CAMPAIGNS,
+      ),
+      this.graph.paginate<MetaAdSet>(
+        conn,
+        `/${act}/adsets`,
+        { fields: ADSET_FIELDS, effective_status: ADSET_STATUSES },
+        'entities.adsets',
+        { metaAccountId },
+        MAX_ADSETS,
+      ),
+      this.graph.paginate<MetaAd>(
+        conn,
+        `/${act}/ads`,
+        { fields: AD_FIELDS, effective_status: AD_STATUSES },
+        'entities.ads',
+        { metaAccountId },
+        MAX_ADS,
+      ),
+    ]);
+    await this.upsert(account, campaigns, adSets, ads, {}, since);
+    // Objects that disappeared from Meta (deleted) are flagged — per level, and only when that listing was
+    // complete (a truncated list must never mark existing objects as deleted) and the row was not written
+    // after the listing started (it may be newer than the listing, e.g. created by a launch meanwhile).
+    const stale = { adAccountId: account.id, isDeleted: false, updatedAt: { lt: since } };
+    if (campaigns.length < MAX_CAMPAIGNS) {
+      await this.prisma.campaign.updateMany({
+        where: { ...stale, metaCampaignId: { notIn: campaigns.map((c) => c.id) } },
+        data: { isDeleted: true },
+      });
+    }
+    if (adSets.length < MAX_ADSETS) {
+      await this.prisma.adSet.updateMany({
+        where: { ...stale, metaAdSetId: { notIn: adSets.map((s) => s.id) } },
+        data: { isDeleted: true },
+      });
+    }
+    if (ads.length < MAX_ADS) {
+      await this.prisma.ad.updateMany({
+        where: { ...stale, metaAdId: { notIn: ads.map((a) => a.id) } },
+        data: { isDeleted: true },
+      });
+    }
+    await this.prisma.adAccount.update({ where: { id: account.id }, data: { entitiesSyncedAt: new Date() } });
+    return { campaigns: campaigns.length, adSets: adSets.length, ads: ads.length };
+  }
+
+  /** Syncs one campaign with its ad sets and ads (after a launch). */
+  async syncCampaignTree(
+    account: AdAccount,
+    conn: MetaConnection,
+    campaignMetaId: string,
+    links: { launchJobId?: string; templateId?: string | null },
+  ) {
+    const metaAccountId = account.metaAccountId;
+    const since = new Date();
+    const [campaign, adSets, ads] = await Promise.all([
+      this.graph.get<MetaCampaign>(
+        conn,
+        `/${campaignMetaId}`,
+        { fields: CAMPAIGN_FIELDS },
+        'entities.campaign',
+        { metaAccountId },
+      ),
+      this.graph.paginate<MetaAdSet>(
+        conn,
+        `/${campaignMetaId}/adsets`,
+        { fields: ADSET_FIELDS },
+        'entities.adsets',
+        { metaAccountId },
+        2000,
+      ),
+      this.graph.paginate<MetaAd>(
+        conn,
+        `/${campaignMetaId}/ads`,
+        { fields: AD_FIELDS },
+        'entities.ads',
+        { metaAccountId },
+        5000,
+      ),
+    ]);
+    await this.upsert(account, [campaign], adSets, ads, links, since);
+  }
+
+  /** Writes a snapshot read from Meta after `since`; rows written after `since` are newer and kept as they are. */
+  private async upsert(
+    account: AdAccount,
+    campaigns: MetaCampaign[],
+    adSets: MetaAdSet[],
+    ads: MetaAd[],
+    links: { launchJobId?: string; templateId?: string | null },
+    since: Date,
+  ) {
+    const countriesByCampaign = new Map<string, Set<string>>();
+    for (const s of adSets) {
+      const set = countriesByCampaign.get(s.campaign_id) ?? new Set<string>();
+      for (const c of s.targeting?.geo_locations?.countries ?? []) set.add(c);
+      countriesByCampaign.set(s.campaign_id, set);
+    }
+
+    const campaignIds = new Map<string, string>();
+    for (const c of campaigns) {
+      const prev = await this.prisma.campaign.findUnique({
+        where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: c.id } },
+      });
+      if (prev && prev.updatedAt > since) {
+        campaignIds.set(c.id, prev.id);
+        continue;
+      }
+      const data = {
+        name: c.name,
+        objective: c.objective ?? null,
+        status: c.status ?? null,
+        effectiveStatus: c.effective_status ?? null,
+        dailyBudget: toBigIntOrNull(c.daily_budget),
+        lifetimeBudget: toBigIntOrNull(c.lifetime_budget),
+        budgetRemaining: toBigIntOrNull(c.budget_remaining),
+        spendCap: toBigIntOrNull(c.spend_cap),
+        bidStrategy: c.bid_strategy ?? null,
+        buyingType: c.buying_type ?? null,
+        specialAdCategories: c.special_ad_categories ?? [],
+        budgetSharing: c.is_adset_budget_sharing_enabled ?? null,
+        startTime: date(c.start_time),
+        stopTime: date(c.stop_time),
+        countries: [...(countriesByCampaign.get(c.id) ?? new Set(prev?.countries ?? []))],
+        issuesInfo: (c.issues_info ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        metaCreatedTime: date(c.created_time),
+        metaUpdatedTime: date(c.updated_time),
+        isDeleted: false,
+        lastSyncedAt: new Date(),
+      };
+      const stoppedAs =
+        prev?.effectiveStatus === 'ACTIVE' &&
+        c.effective_status &&
+        c.effective_status !== 'ACTIVE' &&
+        c.effective_status !== 'IN_PROCESS'
+          ? c.effective_status
+          : null;
+      const row = await this.writeWithAlert(
+        (db) =>
+          prev
+            ? db.campaign.update({ where: { id: prev.id }, data })
+            : db.campaign.create({
+                data: {
+                  ...data,
+                  userId: account.userId,
+                  adAccountId: account.id,
+                  metaCampaignId: c.id,
+                  launchJobId: links.launchJobId ?? null,
+                  templateId: links.templateId ?? null,
+                },
+              }),
+        prev && stoppedAs ? this.stoppedAlert(account, prev.id, c.id, c.name, stoppedAs) : null,
+      );
+      campaignIds.set(c.id, row.id);
+      if (stoppedAs) await this.recordStopped(account, c.id, c.name, stoppedAs);
+    }
+
+    const adSetIds = new Map<string, { id: string; campaignId: string }>();
+    for (const s of adSets) {
+      const where = { adAccountId_metaAdSetId: { adAccountId: account.id, metaAdSetId: s.id } };
+      const prev = await this.prisma.adSet.findUnique({
+        where,
+        select: { id: true, campaignId: true, updatedAt: true },
+      });
+      if (prev && prev.updatedAt > since) {
+        adSetIds.set(s.id, { id: prev.id, campaignId: prev.campaignId });
+        continue;
+      }
+      let campaignId = campaignIds.get(s.campaign_id);
+      if (!campaignId) {
+        campaignId = (
+          await this.prisma.campaign.findUnique({
+            where: { adAccountId_metaCampaignId: { adAccountId: account.id, metaCampaignId: s.campaign_id } },
+            select: { id: true },
+          })
+        )?.id;
+      }
+      if (!campaignId) continue;
+      const data = {
+        name: s.name,
+        campaignId,
+        metaCampaignId: s.campaign_id,
+        status: s.status ?? null,
+        effectiveStatus: s.effective_status ?? null,
+        dailyBudget: toBigIntOrNull(s.daily_budget),
+        lifetimeBudget: toBigIntOrNull(s.lifetime_budget),
+        budgetRemaining: toBigIntOrNull(s.budget_remaining),
+        optimizationGoal: s.optimization_goal ?? null,
+        billingEvent: s.billing_event ?? null,
+        bidStrategy: s.bid_strategy ?? null,
+        bidAmount: toBigIntOrNull(s.bid_amount),
+        destinationType: s.destination_type ?? null,
+        countries: s.targeting?.geo_locations?.countries ?? [],
+        targeting: (s.targeting ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        startTime: date(s.start_time),
+        endTime: date(s.end_time),
+        issuesInfo: (s.issues_info ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        metaCreatedTime: date(s.created_time),
+        metaUpdatedTime: date(s.updated_time),
+        isDeleted: false,
+        lastSyncedAt: new Date(),
+      };
+      const row = await this.prisma.adSet.upsert({
+        where,
+        create: { ...data, userId: account.userId, adAccountId: account.id, metaAdSetId: s.id },
+        update: data,
+      });
+      adSetIds.set(s.id, { id: row.id, campaignId });
+    }
+
+    for (const a of ads) {
+      let parent = adSetIds.get(a.adset_id);
+      if (!parent) {
+        const s = await this.prisma.adSet.findUnique({
+          where: { adAccountId_metaAdSetId: { adAccountId: account.id, metaAdSetId: a.adset_id } },
+          select: { id: true, campaignId: true },
+        });
+        if (s) parent = s;
+      }
+      if (!parent) continue;
+      const where = { adAccountId_metaAdId: { adAccountId: account.id, metaAdId: a.id } };
+      const prev = await this.prisma.ad.findUnique({
+        where,
+        select: { effectiveStatus: true, updatedAt: true },
+      });
+      if (prev && prev.updatedAt > since) continue;
+      const data = {
+        name: a.name,
+        adSetId: parent.id,
+        campaignId: parent.campaignId,
+        metaAdSetId: a.adset_id,
+        metaCampaignId: a.campaign_id,
+        status: a.status ?? null,
+        effectiveStatus: a.effective_status ?? null,
+        metaCreativeId: a.creative?.id ?? null,
+        reviewFeedback: (a.ad_review_feedback ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        issuesInfo: (a.issues_info ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        metaCreatedTime: date(a.created_time),
+        metaUpdatedTime: date(a.updated_time),
+        isDeleted: false,
+        lastSyncedAt: new Date(),
+      };
+      const rejected =
+        (a.effective_status === 'DISAPPROVED' || a.effective_status === 'WITH_ISSUES') &&
+        prev?.effectiveStatus !== a.effective_status;
+      await this.writeWithAlert(
+        (db) =>
+          db.ad.upsert({
+            where,
+            create: { ...data, userId: account.userId, adAccountId: account.id, metaAdId: a.id },
+            update: data,
+          }),
+        rejected ? this.rejectedAlert(account, parent.campaignId, a) : null,
+      );
+      if (rejected) await this.recordRejected(account, a);
+    }
+  }
+
+  /**
+   * Runs a mirror write; when the change it records must be alerted, the notification is written in the same
+   * transaction. Otherwise a failure between the two would keep the new status and lose the alert for good (the
+   * next sync sees no change any more).
+   */
+  private async writeWithAlert<T>(
+    write: (db: Prisma.TransactionClient) => Promise<T>,
+    alert: NotifyInput | null,
+  ): Promise<T> {
+    if (!alert) return write(this.prisma);
+    const { row, pending } = await this.prisma.$transaction(async (tx) => ({
+      row: await write(tx),
+      pending: await this.notifications.notifyInTx(tx, alert),
+    }));
+    await this.notifications.dispatch(pending);
+    return row;
+  }
+
+  private stoppedAlert(
+    account: AdAccount,
+    campaignRowId: string,
+    metaId: string,
+    name: string,
+    status: string,
+  ): NotifyInput {
+    return {
+      userId: account.userId,
+      type: 'CAMPAIGN_STOPPED',
+      severity: 'WARNING',
+      title: `Campaign stopped: ${name}`,
+      body: `Campaign "${name}" in ${account.name} is no longer active (status: ${status.replace(/_/g, ' ').toLowerCase()}).`,
+      link: `/campaigns/${campaignRowId}`,
+      dedupeKey: `campaign-stopped:${metaId}:${status}:${today()}`,
+    };
+  }
+
+  private async recordStopped(account: AdAccount, metaId: string, name: string, status: string) {
+    await this.activity.record({
+      userId: account.userId,
+      type: 'STATUS_CHANGED',
+      title: `Campaign "${name}" → ${status.replace(/_/g, ' ').toLowerCase()}`,
+      source: 'META_SYNC',
+      adAccountId: account.id,
+      entityLevel: 'CAMPAIGN',
+      entityMetaId: metaId,
+      entityName: name,
+      details: { status },
+    });
+  }
+
+  private rejectedAlert(account: AdAccount, campaignRowId: string, ad: MetaAd): NotifyInput {
+    const feedback = ad.ad_review_feedback as { global?: Record<string, string> } | undefined;
+    const reasons = feedback?.global ? Object.values(feedback.global).join(' ') : '';
+    return {
+      userId: account.userId,
+      type: 'AD_REJECTED',
+      severity: 'ERROR',
+      title: `Ad ${ad.effective_status === 'DISAPPROVED' ? 'rejected' : 'has issues'}: ${ad.name}`,
+      body: `Meta reports "${ad.effective_status}" for ad "${ad.name}" in ${account.name}.${reasons ? `\nReason: ${reasons.slice(0, 600)}` : ''}`,
+      link: `/campaigns/${campaignRowId}`,
+      // Per day, like campaign-stopped: a rejection after the ad was approved again is a new event.
+      dedupeKey: `ad-status:${ad.id}:${ad.effective_status}:${today()}`,
+    };
+  }
+
+  private async recordRejected(account: AdAccount, ad: MetaAd) {
+    await this.activity.record({
+      userId: account.userId,
+      type: 'AD_REJECTED',
+      title: `Ad "${ad.name}" → ${ad.effective_status}`,
+      source: 'META_SYNC',
+      adAccountId: account.id,
+      entityLevel: 'AD',
+      entityMetaId: ad.id,
+      entityName: ad.name,
+      details: { status: ad.effective_status, feedback: ad.ad_review_feedback ?? null },
+    });
+  }
+}

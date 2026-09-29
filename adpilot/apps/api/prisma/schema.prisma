@@ -1,0 +1,1267 @@
+// AdPilot database schema.
+// Conventions:
+//   * UUID primary keys everywhere (no sequential ids are exposed through the API).
+//   * Every tenant-owned row carries `userId`; services always filter by it (see docs/SECURITY.md).
+//   * Secrets are stored only as AES-256-GCM ciphertext (`*Enc` columns). The master key lives outside the DB.
+//   * Money coming from Meta budgets/balances is stored in the account currency's minor units (BigInt);
+//     Insights spend/values are stored as Decimal in major units, exactly as Meta returns them.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum NotificationType {
+  AD_ACCOUNT_STATUS_CHANGED
+  TOKEN_EXPIRED
+  TOKEN_REVOKED
+  TOKEN_EXPIRING_SOON
+  CAMPAIGN_STOPPED
+  CAMPAIGN_LAUNCHED
+  AD_REJECTED
+  AUTO_RULE_TRIGGERED
+  BUDGET_CHANGED
+  CAMPAIGN_CREATION_FAILED
+  STATISTICS_SYNC_FAILED
+  ACCOUNT_SYNC_FAILED
+  SECURITY_ALERT
+  SYSTEM_MESSAGE
+}
+
+enum NotificationChannelPref {
+  EMAIL
+  TELEGRAM
+  BOTH
+  OFF
+}
+
+enum DeliveryChannel {
+  EMAIL
+  TELEGRAM
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+  UNCERTAIN
+}
+
+enum NotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum ProxyType {
+  HTTP
+  HTTPS
+  SOCKS5
+}
+
+enum MetaProfileStatus {
+  UNCHECKED
+  ACTIVE
+  EXPIRED
+  INVALID
+  PERMISSION_REVOKED
+  ERROR
+}
+
+enum TokenType {
+  USER
+  SYSTEM_USER
+  PAGE
+  APP
+  UNKNOWN
+}
+
+enum SyncStatus {
+  IDLE
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum AdAccountStatusKey {
+  ACTIVE
+  DISABLED
+  UNSETTLED
+  PENDING_RISK_REVIEW
+  PENDING_SETTLEMENT
+  IN_GRACE_PERIOD
+  PENDING_CLOSURE
+  CLOSED
+  ANY_ACTIVE
+  ANY_CLOSED
+  UNKNOWN
+}
+
+enum CreativeType {
+  IMAGE
+  VIDEO
+}
+
+enum CreativeFileStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum MetaAssetStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum DraftStatus {
+  DRAFT
+  LAUNCHED
+  ARCHIVED
+}
+
+enum LaunchJobStatus {
+  QUEUED
+  VALIDATING
+  UPLOADING_CREATIVES
+  CREATING_CAMPAIGN
+  CREATING_ADSETS
+  CREATING_ADS
+  VERIFYING
+  ACTIVATING
+  COMPLETED
+  PARTIAL_FAILURE
+  FAILED
+  CANCELLED
+}
+
+enum LaunchItemKind {
+  MEDIA_IMAGE
+  MEDIA_VIDEO
+  CAMPAIGN
+  ADSET
+  CREATIVE
+  AD
+}
+
+enum LaunchItemStatus {
+  PENDING
+  IN_FLIGHT
+  CREATED
+  VERIFIED
+  FAILED
+  SKIPPED
+}
+
+enum EntityLevel {
+  ACCOUNT
+  CAMPAIGN
+  ADSET
+  AD
+}
+
+enum RuleAction {
+  PAUSE
+  START
+  INCREASE_BUDGET
+  DECREASE_BUDGET
+  SET_BUDGET
+  NOTIFY_ONLY
+}
+
+enum RuleTimeRange {
+  TODAY
+  YESTERDAY
+  LAST_N_HOURS
+  LAST_N_DAYS
+}
+
+enum RuleExecutionResult {
+  PENDING
+  SUCCESS
+  FAILED
+  SKIPPED
+  DRY_RUN
+  NOTIFIED
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+}
+
+enum BroadcastAudience {
+  ALL
+  SELECTED
+}
+
+enum JobRunStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+// ─────────────────────────── Users & access ───────────────────────────
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  group       String
+  description String
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                        String     @id @default(uuid()) @db.Uuid
+  email                     String     @unique
+  name                      String?
+  passwordHash              String
+  status                    UserStatus @default(ACTIVE)
+  roleId                    String     @db.Uuid
+  role                      Role       @relation(fields: [roleId], references: [id])
+  timezone                  String     @default("UTC")
+  mustChangePassword        Boolean    @default(false)
+  passwordChangedAt         DateTime?
+  twoFactorEnabled          Boolean    @default(false)
+  twoFactorSecretEnc        String?
+  twoFactorPendingSecretEnc String?
+  twoFactorRecoveryHashes   String[]   @default([])
+  failedLoginCount          Int        @default(0)
+  lockedUntil               DateTime?
+  lastLoginAt               DateTime?
+  lastLoginIp               String?
+  blockedAt                 DateTime?
+  blockedReason             String?
+  deletedAt                 DateTime?
+  storageUsedBytes          BigInt     @default(0)
+  storageQuotaBytes         BigInt?
+  createdById               String?    @db.Uuid
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailChangeTokens       EmailChangeToken[]
+  loginEvents             LoginEvent[]
+  notificationPreferences NotificationPreference[]
+  telegramConnection      TelegramConnection?
+  telegramLinkCodes       TelegramLinkCode[]
+  notifications           Notification[]
+  proxies                 Proxy[]
+  metaProfiles            MetaProfile[]
+  businessAccounts        BusinessAccount[]
+  adAccounts              AdAccount[]
+  pages                   Page[]
+  pixels                  Pixel[]
+  customAudiences         CustomAudience[]
+  creativeFiles           CreativeFile[]
+  templates               CampaignTemplate[]
+  drafts                  LaunchDraft[]
+  launchJobs              LaunchJob[]
+  campaigns               Campaign[]
+  adSets                  AdSet[]
+  ads                     Ad[]
+  autoRules               AutoRule[]
+  activityEvents          ActivityEvent[]
+  bulkOperations          BulkOperation[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Session {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @db.Uuid
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash    String    @unique
+  previousRefreshHash String?   @unique
+  rotatedAt           DateTime?
+  userAgent           String?
+  ip                  String?
+  createdAt           DateTime  @default(now())
+  lastUsedAt          DateTime  @default(now())
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  revokedReason       String?
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  purpose     String    @default("RESET")
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@map("password_reset_tokens")
+}
+
+model EmailChangeToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail  String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("email_change_tokens")
+}
+
+model LoginEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  success   Boolean
+  reason    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("login_events")
+}
+
+// ─────────────────────────── Notifications ───────────────────────────
+
+model NotificationPreference {
+  id      String                  @id @default(uuid()) @db.Uuid
+  userId  String                  @db.Uuid
+  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    NotificationType
+  channel NotificationChannelPref
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}
+
+model TelegramConnection {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId    String
+  username  String?
+  firstName String?
+  isActive  Boolean   @default(true)
+  lastError String?
+  linkedAt  DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([chatId])
+  @@map("telegram_connections")
+}
+
+model TelegramLinkCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("telegram_link_codes")
+}
+
+model Notification {
+  id         String                 @id @default(uuid()) @db.Uuid
+  userId     String                 @db.Uuid
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  severity   NotificationSeverity   @default(INFO)
+  title      String
+  body       String
+  link       String?
+  data       Json?
+  dedupeKey  String?
+  /// false = delivered only by e-mail/Telegram (e.g. a broadcast without in-app delivery), hidden in the center.
+  showInApp  Boolean                @default(true)
+  readAt     DateTime?
+  createdAt  DateTime               @default(now())
+  deliveries NotificationDelivery[]
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String          @id @default(uuid()) @db.Uuid
+  notificationId String          @db.Uuid
+  notification   Notification    @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String          @db.Uuid
+  channel        DeliveryChannel
+  status         DeliveryStatus  @default(PENDING)
+  attempts       Int             @default(0)
+  lastError      String?
+  claimedAt      DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([notificationId, channel])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("notification_deliveries")
+}
+
+model Broadcast {
+  id             String            @id @default(uuid()) @db.Uuid
+  createdById    String            @db.Uuid
+  subject        String
+  body           String
+  channels       DeliveryChannel[]
+  inApp          Boolean           @default(true)
+  audience       BroadcastAudience
+  userIds        String[]          @default([])
+  recipientCount Int               @default(0)
+  status         JobRunStatus      @default(QUEUED)
+  error          String?
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  @@index([createdAt])
+  @@map("broadcasts")
+}
+
+// ─────────────────────────── Meta connections ───────────────────────────
+
+model Proxy {
+  id                String        @id @default(uuid()) @db.Uuid
+  userId            String        @db.Uuid
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              ProxyType
+  host              String
+  port              Int
+  username          String?
+  passwordEnc       String?
+  lastTestAt        DateTime?
+  lastTestOk        Boolean?
+  lastTestError     String?
+  lastTestIp        String?
+  lastTestLatencyMs Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  profiles          MetaProfile[]
+
+  @@index([userId])
+  @@map("proxies")
+}
+
+model MetaProfile {
+  id                  String            @id @default(uuid()) @db.Uuid
+  userId              String            @db.Uuid
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  notes               String?
+  status              MetaProfileStatus @default(UNCHECKED)
+  isEnabled           Boolean           @default(true)
+  tokenEnc            String?
+  tokenMask           String
+  tokenFingerprint    String
+  tokenType           TokenType         @default(UNKNOWN)
+  tokenExpiresAt      DateTime?
+  dataAccessExpiresAt DateTime?
+  tokenScopes         String[]          @default([])
+  tokenAppId          String?
+  metaUserId          String?
+  metaUserName        String?
+  appId               String?
+  appSecretEnc        String?
+  proxyId             String?           @db.Uuid
+  proxy               Proxy?            @relation(fields: [proxyId], references: [id], onDelete: SetNull)
+  lastValidatedAt     DateTime?
+  lastValidationError String?
+  lastErrorCode       Int?
+  expiryWarnedAt      DateTime?
+  nextTokenCheckAt    DateTime?
+  lastSyncAt          DateTime?
+  nextAssetSyncAt     DateTime?
+  syncStatus          SyncStatus        @default(IDLE)
+  syncError           String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
+
+  businessAccounts BusinessAccount[]
+  adAccounts       AdAccount[]
+  pages            Page[]
+  launchJobs       LaunchJob[]
+
+  @@index([userId, deletedAt])
+  @@index([userId, tokenFingerprint])
+  @@index([nextTokenCheckAt])
+  @@index([nextAssetSyncAt])
+  @@map("meta_profiles")
+}
+
+model BusinessAccount {
+  id                 String      @id @default(uuid()) @db.Uuid
+  userId             String      @db.Uuid
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId          String      @db.Uuid
+  profile            MetaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  metaBusinessId     String
+  name               String
+  verificationStatus String?
+  isSelected         Boolean     @default(true)
+  lastSyncedAt       DateTime    @default(now())
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  adAccounts         AdAccount[]
+
+  @@unique([profileId, metaBusinessId])
+  @@index([userId])
+  @@map("business_accounts")
+}
+
+model AdAccount {
+  id                         String             @id @default(uuid()) @db.Uuid
+  userId                     String             @db.Uuid
+  user                       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId                  String             @db.Uuid
+  profile                    MetaProfile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  businessId                 String?            @db.Uuid
+  business                   BusinessAccount?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  metaBusinessId             String?
+  metaBusinessName           String?
+  metaAccountId              String
+  name                       String
+  currency                   String
+  timezoneName               String
+  timezoneOffsetHours        Decimal?           @db.Decimal(5, 2)
+  accountStatus              Int?
+  statusKey                  AdAccountStatusKey @default(UNKNOWN)
+  disableReason              Int?
+  amountSpent                BigInt?
+  balance                    BigInt?
+  spendCap                   BigInt?
+  minDailyBudget             BigInt?
+  /// Meta `min_campaign_group_spend_cap` (minor units): the lowest campaign spend cap Meta accepts.
+  minCampaignGroupSpendCap   BigInt?
+  isPrepayAccount            Boolean?
+  fundingSourceDetails       Json?
+  defaultDsaPayor            String?
+  defaultDsaBeneficiary      String?
+  isConnected                Boolean            @default(false)
+  statusCheckIntervalMinutes Int                @default(180)
+  nextStatusCheckAt          DateTime?
+  lastStatusCheckAt          DateTime?
+  statusCheckError           String?
+  statsSyncEnabled           Boolean            @default(true)
+  statsSyncIntervalMinutes   Int                @default(60)
+  nextStatsSyncAt            DateTime?
+  lastStatsSyncAt            DateTime?
+  statsSyncStatus            SyncStatus         @default(IDLE)
+  statsSyncError             String?
+  statsBackfilledAt          DateTime?
+  /// Last sync that re-read the whole window in which Meta still revises Insights (28 days).
+  statsFullRefreshAt         DateTime?
+  lastManualRefreshAt        DateTime?
+  entitiesSyncedAt           DateTime?
+  lastSyncAt                 DateTime?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  statusHistory    AccountStatusHistory[]
+  pixels           Pixel[]
+  customAudiences  CustomAudience[]
+  creativeAssets   CreativeMetaAsset[]
+  launchJobs       LaunchJob[]
+  campaigns        Campaign[]
+  adSets           AdSet[]
+  ads              Ad[]
+  insights         InsightDaily[]
+
+  @@unique([profileId, metaAccountId])
+  @@index([userId, isConnected])
+  @@index([userId, metaAccountId])
+  @@index([isConnected, nextStatusCheckAt])
+  @@index([isConnected, nextStatsSyncAt])
+  @@map("ad_accounts")
+}
+
+model AccountStatusHistory {
+  id             String              @id @default(uuid()) @db.Uuid
+  userId         String              @db.Uuid
+  adAccountId    String              @db.Uuid
+  adAccount      AdAccount           @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  fromStatus     Int?
+  toStatus       Int?
+  fromKey        AdAccountStatusKey?
+  toKey          AdAccountStatusKey
+  disableReason  Int?
+  notificationId String?             @db.Uuid
+  detectedAt     DateTime            @default(now())
+
+  @@index([adAccountId, detectedAt])
+  @@index([userId, detectedAt])
+  @@map("account_status_history")
+}
+
+model Page {
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @db.Uuid
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId         String      @db.Uuid
+  profile           MetaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  metaPageId        String
+  name              String
+  category          String?
+  pictureUrl        String?
+  instagramUserId   String?
+  instagramUsername String?
+  source            String
+  isSelected        Boolean     @default(true)
+  lastSyncedAt      DateTime    @default(now())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([profileId, metaPageId])
+  @@index([userId])
+  @@map("pages")
+}
+
+model Pixel {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId   String    @db.Uuid
+  adAccount     AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  metaPixelId   String
+  name          String
+  lastFiredTime DateTime?
+  isUnavailable Boolean   @default(false)
+  lastSyncedAt  DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([adAccountId, metaPixelId])
+  @@index([userId])
+  @@map("pixels")
+}
+
+model CustomAudience {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @db.Uuid
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId         String    @db.Uuid
+  adAccount           AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  metaAudienceId      String
+  name                String
+  subtype             String?
+  approximateCountMin BigInt?
+  approximateCountMax BigInt?
+  lastSyncedAt        DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([adAccountId, metaAudienceId])
+  @@index([userId])
+  @@map("custom_audiences")
+}
+
+// ─────────────────────────── Creative library ───────────────────────────
+
+model CreativeFile {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @db.Uuid
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         CreativeType
+  status       CreativeFileStatus  @default(PROCESSING)
+  originalName String
+  storageKey   String              @unique
+  thumbnailKey String?
+  mimeType     String
+  extension    String
+  sizeBytes    BigInt
+  sha256       String
+  width        Int?
+  height       Int?
+  durationMs   Int?
+  aspectRatio  String?
+  videoCodec   String?
+  audioCodec   String?
+  frameRate    Decimal?            @db.Decimal(8, 3)
+  bitrate      Int?
+  error        String?
+  tags         String[]            @default([])
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  deletedAt    DateTime?
+  metaAssets   CreativeMetaAsset[]
+
+  @@index([userId, deletedAt, createdAt])
+  @@index([userId, sha256])
+  @@map("creative_files")
+}
+
+model CreativeMetaAsset {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @db.Uuid
+  creativeFileId  String          @db.Uuid
+  creativeFile    CreativeFile    @relation(fields: [creativeFileId], references: [id], onDelete: Cascade)
+  adAccountId     String          @db.Uuid
+  adAccount       AdAccount       @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  status          MetaAssetStatus @default(PENDING)
+  metaImageHash   String?
+  metaImageUrl    String?
+  metaVideoId     String?
+  uploadSessionId String?
+  thumbnailUrl    String?
+  error           String?
+  errorCode       Int?
+  attempts        Int             @default(0)
+  lastCheckedAt   DateTime?
+  readyAt         DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([creativeFileId, adAccountId])
+  @@index([userId])
+  @@index([status, lastCheckedAt])
+  @@map("creative_meta_assets")
+}
+
+// ─────────────────────────── Templates, drafts, launches ───────────────────────────
+
+model CampaignTemplate {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @db.Uuid
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  objective     String
+  schemaVersion Int           @default(1)
+  config        Json
+  isArchived    Boolean       @default(false)
+  clonedFromId  String?       @db.Uuid
+  lastUsedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  drafts        LaunchDraft[]
+  launchJobs    LaunchJob[]
+
+  @@index([userId, isArchived, updatedAt])
+  @@map("campaign_templates")
+}
+
+model LaunchDraft {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  templateId       String?           @db.Uuid
+  template         CampaignTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  profileId        String?           @db.Uuid
+  adAccountId      String?           @db.Uuid
+  schemaVersion    Int               @default(1)
+  config           Json
+  status           DraftStatus       @default(DRAFT)
+  clonedFromId     String?           @db.Uuid
+  lastValidatedAt  DateTime?
+  validationResult Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  launchJobs       LaunchJob[]
+
+  @@index([userId, status, updatedAt])
+  @@map("launch_drafts")
+}
+
+model LaunchJob {
+  id                String            @id @default(uuid()) @db.Uuid
+  userId            String            @db.Uuid
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draftId           String?           @db.Uuid
+  draft             LaunchDraft?      @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  templateId        String?           @db.Uuid
+  template          CampaignTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  profileId         String            @db.Uuid
+  profile           MetaProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  adAccountId       String            @db.Uuid
+  adAccount         AdAccount         @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  idempotencyKey    String
+  code              String
+  name              String
+  status            LaunchJobStatus   @default(QUEUED)
+  progress          Int               @default(0)
+  currentStep       String?
+  plan              Json
+  summary           Json?
+  error             Json?
+  warnings          Json?
+  activateOnSuccess Boolean           @default(false)
+  totalItems        Int               @default(0)
+  createdItems      Int               @default(0)
+  failedItems       Int               @default(0)
+  attempt           Int               @default(0)
+  leaseOwner        String?
+  leaseExpiresAt    DateTime?
+  metaCampaignId    String?
+  queuedAt          DateTime          @default(now())
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  cancelRequestedAt DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  items             LaunchJobItem[]
+
+  @@unique([userId, idempotencyKey])
+  @@unique([code])
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
+  @@map("launch_jobs")
+}
+
+model LaunchJobItem {
+  id            String           @id @default(uuid()) @db.Uuid
+  launchJobId   String           @db.Uuid
+  launchJob     LaunchJob        @relation(fields: [launchJobId], references: [id], onDelete: Cascade)
+  kind          LaunchItemKind
+  key           String
+  parentKey     String?
+  position      Int              @default(0)
+  name          String
+  status        LaunchItemStatus @default(PENDING)
+  metaId        String?
+  request       Json?
+  response      Json?
+  attemptCount  Int              @default(0)
+  inFlightSince DateTime?
+  /// Start of the current wait for Meta (video processing, thumbnail, verifying an interrupted request); bounds it.
+  deferredSince DateTime?
+  lastError     Json?
+  errorCategory String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([launchJobId, key])
+  @@index([launchJobId, kind, status])
+  @@map("launch_job_items")
+}
+
+// ─────────────────────────── Synced Meta objects ───────────────────────────
+
+model Campaign {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @db.Uuid
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId         String    @db.Uuid
+  adAccount           AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  metaCampaignId      String
+  name                String
+  objective           String?
+  status              String?
+  effectiveStatus     String?
+  dailyBudget         BigInt?
+  lifetimeBudget      BigInt?
+  budgetRemaining     BigInt?
+  spendCap            BigInt?
+  bidStrategy         String?
+  buyingType          String?
+  specialAdCategories String[]  @default([])
+  budgetSharing       Boolean?
+  startTime           DateTime?
+  stopTime            DateTime?
+  countries           String[]  @default([])
+  issuesInfo          Json?
+  metaCreatedTime     DateTime?
+  metaUpdatedTime     DateTime?
+  launchJobId         String?   @db.Uuid
+  templateId          String?   @db.Uuid
+  isDeleted           Boolean   @default(false)
+  lastSyncedAt        DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  adSets              AdSet[]
+  ads                 Ad[]
+
+  @@unique([adAccountId, metaCampaignId])
+  @@index([userId, isDeleted, effectiveStatus])
+  @@index([userId, templateId])
+  @@index([metaCampaignId])
+  @@map("campaigns")
+}
+
+model AdSet {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId      String    @db.Uuid
+  adAccount        AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId       String    @db.Uuid
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  metaAdSetId      String
+  metaCampaignId   String
+  name             String
+  status           String?
+  effectiveStatus  String?
+  dailyBudget      BigInt?
+  lifetimeBudget   BigInt?
+  budgetRemaining  BigInt?
+  optimizationGoal String?
+  billingEvent     String?
+  bidStrategy      String?
+  bidAmount        BigInt?
+  destinationType  String?
+  countries        String[]  @default([])
+  targeting        Json?
+  startTime        DateTime?
+  endTime          DateTime?
+  issuesInfo       Json?
+  metaCreatedTime  DateTime?
+  metaUpdatedTime  DateTime?
+  isDeleted        Boolean   @default(false)
+  lastSyncedAt     DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  ads              Ad[]
+
+  @@unique([adAccountId, metaAdSetId])
+  @@index([userId, isDeleted, effectiveStatus])
+  @@index([campaignId])
+  @@index([metaAdSetId])
+  @@map("ad_sets")
+}
+
+model Ad {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId      String    @db.Uuid
+  adAccount        AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId       String    @db.Uuid
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSetId          String    @db.Uuid
+  adSet            AdSet     @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  metaAdId         String
+  metaAdSetId      String
+  metaCampaignId   String
+  name             String
+  status           String?
+  effectiveStatus  String?
+  metaCreativeId   String?
+  reviewFeedback   Json?
+  issuesInfo       Json?
+  metaCreatedTime  DateTime?
+  metaUpdatedTime  DateTime?
+  isDeleted        Boolean   @default(false)
+  lastSyncedAt     DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([adAccountId, metaAdId])
+  @@index([userId, isDeleted, effectiveStatus])
+  @@index([adSetId])
+  @@index([metaAdId])
+  @@map("ads")
+}
+
+// ─────────────────────────── Statistics ───────────────────────────
+
+model InsightDaily {
+  id             String      @id @default(uuid()) @db.Uuid
+  userId         String      @db.Uuid
+  adAccountId    String      @db.Uuid
+  adAccount      AdAccount   @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  level          EntityLevel
+  metaObjectId   String
+  metaCampaignId String?
+  metaAdSetId    String?
+  objectName     String?
+  date           DateTime    @db.Date
+  currency       String
+  spend          Decimal     @default(0) @db.Decimal(18, 4)
+  impressions    BigInt      @default(0)
+  reach          BigInt      @default(0)
+  clicks         BigInt      @default(0)
+  linkClicks     BigInt      @default(0)
+  leads          Decimal     @default(0) @db.Decimal(18, 2)
+  purchases      Decimal     @default(0) @db.Decimal(18, 2)
+  purchaseValue  Decimal     @default(0) @db.Decimal(18, 4)
+  results        Decimal?    @db.Decimal(18, 2)
+  resultType     String?
+  actions        Json?
+  actionValues   Json?
+  syncedAt       DateTime    @default(now())
+
+  @@unique([adAccountId, level, metaObjectId, date])
+  @@index([userId, level, date])
+  @@index([adAccountId, level, date])
+  @@index([metaCampaignId, date])
+  @@map("insights_daily")
+}
+
+// ─────────────────────────── Automation ───────────────────────────
+
+model AutoRule {
+  id                     String              @id @default(uuid()) @db.Uuid
+  userId                 String              @db.Uuid
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                   String
+  description            String?
+  isActive               Boolean             @default(true)
+  isDryRun               Boolean             @default(false)
+  targetLevel            EntityLevel
+  scope                  Json
+  conditions             Json
+  timeRange              RuleTimeRange
+  timeRangeValue         Int?
+  action                 RuleAction
+  actionValue            Decimal?            @db.Decimal(18, 4)
+  actionValueType        String?
+  currency               String?
+  maxBudgetChangePercent Decimal?            @db.Decimal(7, 2)
+  minBudget              Decimal?            @db.Decimal(18, 2)
+  maxBudget              Decimal?            @db.Decimal(18, 2)
+  cooldownMinutes        Int                 @default(360)
+  maxActionsPerDay       Int                 @default(3)
+  checkIntervalMinutes   Int                 @default(60)
+  notify                 Boolean             @default(true)
+  nextRunAt              DateTime?
+  lastRunAt              DateTime?
+  lastRunStatus          String?
+  lastRunError           String?
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  deletedAt              DateTime?
+  executions             AutoRuleExecution[]
+
+  @@index([isActive, nextRunAt])
+  @@index([userId, deletedAt])
+  @@map("auto_rules")
+}
+
+model AutoRuleExecution {
+  id            String              @id @default(uuid()) @db.Uuid
+  ruleId        String              @db.Uuid
+  rule          AutoRule            @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  userId        String              @db.Uuid
+  runId         String
+  adAccountId   String?             @db.Uuid
+  entityLevel   EntityLevel
+  entityMetaId  String
+  entityName    String?
+  action        RuleAction
+  result        RuleExecutionResult
+  oldValue      String?
+  newValue      String?
+  conditionData Json
+  reason        String?
+  metaResponse  Json?
+  errorMessage  String?
+  errorCode     Int?
+  isDryRun      Boolean             @default(false)
+  executedAt    DateTime            @default(now())
+
+  @@index([ruleId, executedAt])
+  @@index([ruleId, entityMetaId, executedAt])
+  @@index([userId, executedAt])
+  @@map("auto_rule_executions")
+}
+
+model BulkOperation {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idempotencyKey String
+  level          EntityLevel
+  action         String
+  params         Json?
+  targetIds      String[]
+  status         JobRunStatus @default(QUEUED)
+  total          Int          @default(0)
+  succeeded      Int          @default(0)
+  failed         Int          @default(0)
+  results        Json?
+  createdAt      DateTime     @default(now())
+  finishedAt     DateTime?
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@map("bulk_operations")
+}
+
+model ActivityEvent {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @db.Uuid
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adAccountId  String?      @db.Uuid
+  entityLevel  EntityLevel?
+  entityMetaId String?
+  entityName   String?
+  type         String
+  title        String
+  details      Json?
+  source       String
+  actorUserId  String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([adAccountId, createdAt])
+  @@index([entityMetaId, createdAt])
+  @@map("activity_events")
+}
+
+// ─────────────────────────── Platform ───────────────────────────
+
+model AuditLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  actorType     ActorType @default(USER)
+  actorUserId   String?   @db.Uuid
+  actorEmail    String?
+  action        String
+  targetType    String?
+  targetId      String?
+  subjectUserId String?   @db.Uuid
+  ip            String?
+  userAgent     String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([subjectUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model MetaApiLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  profileId     String?  @db.Uuid
+  metaAccountId String?
+  method        String
+  category      String
+  path          String
+  httpStatus    Int?
+  errorCode     Int?
+  errorSubcode  Int?
+  errorType     String?
+  errorMessage  String?
+  fbtraceId     String?
+  durationMs    Int
+  retryCount    Int      @default(0)
+  rateLimited   Boolean  @default(false)
+  usage         Json?
+  jobId         String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([errorCode, createdAt])
+  @@map("meta_api_logs")
+}
+
+model SystemLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  level     LogLevel
+  source    String
+  message   String
+  context   Json?
+  userId    String?  @db.Uuid
+  jobId     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([level, createdAt])
+  @@index([source, createdAt])
+  @@map("system_logs")
+}
+
+model SystemSetting {
+  key         String   @id
+  value       Json
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model Backup {
+  id            String       @id @default(uuid()) @db.Uuid
+  kind          String
+  status        JobRunStatus @default(QUEUED)
+  storageKey    String?
+  sizeBytes     BigInt?
+  error         String?
+  triggeredById String?      @db.Uuid
+  startedAt     DateTime     @default(now())
+  /// Renewed by the worker while the backup runs; a RUNNING row without a recent heartbeat is abandoned.
+  heartbeatAt   DateTime?
+  finishedAt    DateTime?
+
+  @@index([startedAt])
+  @@map("backups")
+}

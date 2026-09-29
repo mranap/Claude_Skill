@@ -1,0 +1,14 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10 does not run dependency lifecycle scripts unless explicitly allowed.
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
+  - argon2
+  - sharp
+  - esbuild
+  - '@swc/core'
+  - msgpackr-extract
+  - unrs-resolver
